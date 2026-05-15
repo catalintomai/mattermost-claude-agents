@@ -528,8 +528,8 @@ if round > 0:
         f"{WORKDIR}/round-{r}/synthesis.md" for r in range(round)
     )
     Task(
-        subagent_type="convergence-auditor",
-        name="convergence-auditor",
+        subagent_type="convergence-reviewer",
+        name="convergence-reviewer",
         prompt=f"""Audit convergence across {round+1} rounds.
         Prior round synthesis files: {prior_paths}
         Current synthesis: {WORKDIR}/synthesis.md
@@ -542,7 +542,7 @@ if round > 0:
     verdict = Read(f"{WORKDIR}/convergence-audit.md")  # parse ## Verdict section
 
 # Archival: archive current round findings before next iteration.
-# Preserves synthesis.md per round (needed by convergence-auditor in future rounds).
+# Preserves synthesis.md per round (needed by convergence-reviewer in future rounds).
 Bash(f"mkdir -p {WORKDIR}/round-{round}")
 Bash(f"mv {WORKDIR}/synthesis-summary.md {WORKDIR}/round-{round}/")
 Bash(f"mv {WORKDIR}/synthesis.md {WORKDIR}/round-{round}/")
@@ -605,7 +605,7 @@ git stash pop
 | **Oscillation** | Same issues as 2 rounds ago | Escalate to user |
 | **No progress** | Issue count not decreasing for 2 consecutive rounds | Escalate to user |
 | **Regression** | Issue count > previous round | `git stash pop`, escalate to user |
-| **Thrashing** | convergence-auditor returns THRASHING (2+ unjustified reversals) | Escalate to user (archival runs first) |
+| **Thrashing** | convergence-reviewer returns THRASHING (2+ unjustified reversals) | Escalate to user (archival runs first) |
 | **Safety cap** | MAX_ROUNDS reached | Escalate to user |
 
 All exits except success → escalate to user with round history.
@@ -712,7 +712,7 @@ Swarm mode is expensive. Rough multipliers:
 - Synthesis: +1 synthesis agent
 - Convergence: multiply above by rounds
 
-**Full path total: ~(2N+2) × rounds + 1 convergence-auditor per round > 0 (haiku).** For review-code with 11 agents and 2 rounds = ~47 agent invocations.
+**Full path total: ~(2N+2) × rounds + 1 convergence-reviewer per round > 0 (haiku).** For review-code with 11 agents and 2 rounds = ~47 agent invocations.
 
 **Fast path total: ~(N+2) × rounds.** When Phase 1 finds no MUST_FIX and ≤2 SHOULD_FIX, Cross-Validation is skipped and synthesis uses haiku. For clean code with 11 agents = ~13 invocations (saves ~70% vs full path).
 

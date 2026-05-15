@@ -1,5 +1,5 @@
 ---
-name: behavioral-change-detector
+name: behavioral-change-reviewer
 description: Detects semantic behavior changes disguised as refactoring, test cleanup, or infrastructure updates. Catches renamed tests with different assertions, changed error codes, altered control flow, and silent contract modifications. Use when reviewing PRs labeled as refactoring, cleanup, or infrastructure that touch test assertions or production control flow.
 model: sonnet
 tools: Read, Write, Grep, Glob

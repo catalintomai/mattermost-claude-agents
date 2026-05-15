@@ -1,7 +1,7 @@
 ---
-name: ts-silent-failure-hunter
-description: Detects silent failure patterns in TypeScript/JavaScript code — empty catch blocks, swallowed promises, unchecked error callbacks, and suppressed rejections. Use when reviewing .ts or .tsx files in a PR or before a release scan. For Go code, use silent-failure-hunter instead.
-model: sonnet
+name: ts-silent-failure-reviewer
+description: Detects silent failure patterns in TypeScript/JavaScript code — empty catch blocks, swallowed promises, unchecked error callbacks, and suppressed rejections. Use when reviewing .ts or .tsx files in a PR or before a release scan. For Go code, use go-silent-failure-reviewer instead.
+model: haiku
 tools: Read, Grep, Glob
 ---
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
@@ -132,7 +132,7 @@ For each callback-style function:
 
 **Domain tags**: `tssfh:EMPTY_CATCH`, `tssfh:UNHANDLED_PROMISE`, `tssfh:SWALLOWED_REJECTION`, `tssfh:FIRE_AND_FORGET`, `tssfh:SILENT_VOID`
 
-Use the canonical format from `~/.claude/agents/_shared/finding-format.md`. Prefix every finding with `[agent:ts-silent-failure-hunter]`.
+Use the canonical format from `~/.claude/agents/_shared/finding-format.md`. Prefix every finding with `[agent:ts-silent-failure-reviewer]`.
 
 Severity mapping for this domain:
 - Critical (→ MUST_FIX): Data loss, security bypass, or unhandled rejection in production

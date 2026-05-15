@@ -1,5 +1,5 @@
 ---
-name: migration-code-reviewer
+name: migration-code-orchestrator
 description: Orchestrates review of mmetl/import*.go for idempotency, integrity, and error handling. Use when reviewing migration or bulk import changes (Slack, Confluence). Must be top-level — not a subagent.
 model: sonnet
 # Tools note: Bash is justified — this agent runs data flow tracing commands (grep pipelines, find patterns)
@@ -44,9 +44,9 @@ tools: Read, Write, Edit, Bash, Grep, Glob, Task
 
 
 
-# migration-code-reviewer
+# migration-code-orchestrator
 
-**NOTE: This agent must be invoked as a top-level agent (`claude --agent migration-code-reviewer`), not as a subagent, because it delegates work to specialist agents via Task().**
+**NOTE: This agent must be invoked as a top-level agent (`claude --agent migration-code-orchestrator`), not as a subagent, because it delegates work to specialist agents via Task().**
 
 Reviews migration code across all sources (Slack, Confluence, etc.) for common pitfalls, data integrity issues, and best practices.
 

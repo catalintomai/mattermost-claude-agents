@@ -56,8 +56,8 @@ Available in **any project**.
 | `naming-consistency-reviewer` | Detects naming drift across files, config keys, CLI flags, API fields |
 | `structural-health-reviewer` | Finds shotgun surgery, god types, tangled dependencies, orphaned indirection |
 | `separation-of-concerns-reviewer` | Catches backend/frontend conflation and false "X requires Y" couplings |
-| `drive-by-detector` | Finds unrelated changes that slipped into a branch |
-| `behavioral-change-detector` | Catches semantic changes disguised as refactoring or cleanup |
+| `drive-by-reviewer` | Finds unrelated changes that slipped into a branch |
+| `behavioral-change-reviewer` | Catches semantic changes disguised as refactoring or cleanup |
 | `scope-drift-reviewer` | Validates every changed file traces to a requirement in the plan |
 | `deprecation-reviewer` | Catches missing migration guides and active consumers of removed code |
 | `duplication-reviewer` | Finds copy-paste and missed reuse opportunities |
@@ -65,8 +65,8 @@ Available in **any project**.
 | `hardcoded-values-reviewer` | Catches magic numbers, repeated strings, config values that should be constants |
 | `production-reviewer` | Scans for mock/stub/placeholder code in production paths |
 | `type-duplication-reviewer` | Audits TS/Go type definitions for duplicate consolidation opportunities |
-| `silent-failure-hunter` | Detects ignored errors, blank-identifier suppression, empty handlers (Go) |
-| `ts-silent-failure-hunter` | Same as above for TypeScript/JavaScript |
+| `go-silent-failure-reviewer` | Detects ignored errors, blank-identifier suppression, empty handlers (Go) |
+| `ts-silent-failure-reviewer` | Same as above for TypeScript/JavaScript |
 | `null-safety-reviewer` | Nil pointer dereferences and missing null checks (Go + TS) |
 | `error-handling-reviewer` | Missing wrapping, wrong propagation, incorrect error types by layer |
 
@@ -85,7 +85,7 @@ Available in **any project**.
 | `multi-agent-architecture-reviewer` | Reviews multi-agent system designs for coordination anti-patterns |
 | `agent-reviewer` | Validates Claude Code agent `.md` files for frontmatter and design quality |
 | `agent-collection-validator` | Audits the full `~/.claude/agents/` collection for registry accuracy |
-| `convergence-auditor` | Detects semantic thrashing across multi-round swarm review cycles |
+| `convergence-reviewer` | Detects semantic thrashing across multi-round swarm review cycles |
 
 ### Backend
 
@@ -119,7 +119,7 @@ Available in **any project**.
 | `react-frontend-expert` | React/TypeScript specialist for Mattermost webapp |
 | `react-expert` | React expert for non-Mattermost projects |
 | `redux-expert` | Redux actions, reducers, selectors, thunks, RTK |
-| `typescript-expert` | Advanced TypeScript: conditional types, mapped types, discriminated unions |
+| `ts-expert` | Advanced TypeScript: conditional types, mapped types, discriminated unions |
 | `component-reviewer` | React component patterns, hooks, compound components |
 | `race-condition-reviewer` | Async race conditions, stale closures, event handler races (TS/React) |
 | `ts-test-writer` | TypeScript/Jest unit tests for components, Redux, hooks |
@@ -153,7 +153,7 @@ Available in **any project**.
 | `e2e-test-writer` | Writes and fixes Playwright E2E tests |
 | `e2e-coordinator` | Orchestrates multi-layer E2E failure diagnosis |
 | `e2e-debugger` | E2E debugger with database access |
-| `test-parallelization-auditor` | Test parallel-safety: shared state, fixture isolation, race conditions |
+| `test-parallelization-reviewer` | Test parallel-safety: shared state, fixture isolation, race conditions |
 
 ### Domain Experts
 
@@ -178,7 +178,7 @@ Available in **any project**.
 | `ci-expert` | CI/CD pipelines, GitHub Actions, merge gates, branch protection |
 | `ci-failure-reviewer` | Diagnoses CI failures: flaky vs real |
 | `ci-design-reviewer` | Reviews CI/CD design proposals and workflow changes |
-| `ci-gate-auditor` | Verifies CI merge-gate enforcement when `continue-on-error` or `fail-fast` is touched |
+| `ci-gate-reviewer` | Verifies CI merge-gate enforcement when `continue-on-error` or `fail-fast` is touched |
 | `launch-readiness-reviewer` | Production readiness: rollback, monitoring, feature flags, staged rollout |
 
 ### Python
@@ -295,7 +295,7 @@ These are MM-specific versions of reviewers that understand Mattermost's layer a
 | `e2e-debugger` | E2E debugger with database access |
 | `ci-expert` | CI/CD pipelines and GitHub Actions for MM repos |
 | `ci-design-reviewer` | Reviews CI/CD design proposals |
-| `ci-gate-auditor` | CI merge-gate enforcement |
+| `ci-gate-reviewer` | CI merge-gate enforcement |
 
 ### Design & Architecture
 

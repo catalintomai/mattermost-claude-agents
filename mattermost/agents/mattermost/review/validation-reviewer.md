@@ -1,7 +1,7 @@
 ---
 name: validation-reviewer
 description: Reviews code for missing input validations. Catches empty strings, whitespace-only inputs, cross-reference mismatches, missing required fields, and boundary violations. Use when reviewing functions that accept user input, IDs, or struct parameters at API or app layer entry points.
-model: sonnet
+model: haiku
 tools: Read, Write, Grep, Glob
 ---
 

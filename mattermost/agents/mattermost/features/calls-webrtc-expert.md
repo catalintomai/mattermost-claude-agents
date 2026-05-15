@@ -1,6 +1,6 @@
 ---
 name: calls-webrtc-expert
-description: Advisory expert on WebRTC lifecycle, screen sharing, SFU architecture, and SRTP/DTLS security. Use when designing real-time audio/video features or reviewing call recording pipelines.
+description: Advisory expert on WebRTC lifecycle, screen sharing, SFU architecture, and SRTP/DTLS security. Use when designing real-time audio/video features or reviewing call recording pipelines. Not for general WebSocket events — use websocket-expert instead.
 model: sonnet
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---

@@ -1,7 +1,7 @@
 ---
 name: py-async-reviewer
 description: Python-only. Reviews asyncio code for proper patterns, resource cleanup, and common Python async pitfalls including blocking calls, fire-and-forget tasks, and missing cleanup. Use when a diff touches .py files that import asyncio. Do not invoke on Go or TypeScript diffs — for TS async/race issues use race-condition-reviewer.
-model: sonnet
+model: haiku
 tools: Read, Write, Grep, Glob
 ---
 
@@ -259,4 +259,4 @@ Read the project's async entry point to understand whether operations run concur
 
 - `py-sqlite-reviewer` - SQLite-specific blocking I/O patterns
 - `race-condition-reviewer` - TypeScript/React async race conditions
-- `silent-failure-hunter` - Ignored errors in async exception handlers
+- `go-silent-failure-reviewer` - Ignored errors in async exception handlers

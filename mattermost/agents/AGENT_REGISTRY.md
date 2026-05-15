@@ -90,7 +90,7 @@ The Parallel Groups routing table for `/review-code` lives in the **global** reg
 
 | Agent | Phase | Purpose | File |
 |-------|-------|---------|------|
-| `migration-code-reviewer` | [CODE] | Bulk import / mmetl correctness orchestrator (delegates to source experts) | `mattermost/migration/migration-code-reviewer.md` |
+| `migration-code-orchestrator` | [CODE] | Bulk import / mmetl correctness orchestrator (delegates to source experts) | `mattermost/migration/migration-code-orchestrator.md` |
 | `slack-migration-expert` | [CODE] | Slack workspace migration pipeline | `mattermost/migration/slack-migration-expert.md` |
 | `confluence-migration-expert` | [CODE] | Confluence XML → mmetl → MM import pipeline | `mattermost/migration/confluence-migration-expert.md` |
 | `playbooks-migration-reviewer` | [CODE] | Playbooks plugin migrations.go pattern compliance | `mattermost/migration/playbooks-migration-reviewer.md` |

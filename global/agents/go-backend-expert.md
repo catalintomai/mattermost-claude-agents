@@ -1,6 +1,6 @@
 ---
 name: go-backend-expert
-description: Go backend specialist for Mattermost server code. Use when writing or reviewing Go code in API endpoints (api4/), app layer logic (app/), store layer queries (store/), and model definitions (model/).
+description: Go backend specialist for Mattermost server code. Use when writing or reviewing Go code in API endpoints (api4/), app layer logic (app/), store layer queries (store/), and model definitions (model/). For non-MM Go code, use go-expert instead.
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
 ---

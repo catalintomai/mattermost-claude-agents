@@ -1,7 +1,7 @@
 ---
 name: xss-reviewer
 description: XSS prevention reviewer for Mattermost. Ensures user input is properly sanitized before rendering in both Go and React. Use when reviewing code that renders user-provided content in HTML templates, React components, or API responses.
-model: sonnet
+model: haiku
 tools: Read, Write, Grep, Glob
 ---
 

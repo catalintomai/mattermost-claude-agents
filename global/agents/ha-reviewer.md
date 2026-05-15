@@ -1,7 +1,7 @@
 ---
 name: ha-reviewer
 description: "Reviews code for HA correctness in Mattermost multi-node deployments — replica lag, cache invalidation, and WebSocket broadcasts. Use when reviewing store code that writes then reads."
-model: sonnet
+model: haiku
 tools: Read, Write, Grep, Glob
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: typescript-expert
+name: ts-expert
 description: Implements TypeScript solutions using advanced type system features — conditional types, mapped types, discriminated unions, branded types, exhaustive checking, and module augmentation. Use when writing or debugging TypeScript code that requires precise type modeling. For Mattermost webapp types in webapp/channels/src/types/, search existing definitions first — MM patterns take precedence.
 model: sonnet
 tools: Write, Read, Edit, Bash, Grep, Glob

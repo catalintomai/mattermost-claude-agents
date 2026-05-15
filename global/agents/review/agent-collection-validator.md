@@ -100,7 +100,7 @@ Every review/audit agent (agents whose name contains `-reviewer`, `-auditor`, or
 - `-expert` agents that primarily write code (not review) don't need finding-format.md
 - `_shared/` files are reference docs, not agents
 - `AGENT_REGISTRY.md` is a registry, not an agent
-- `convergence-auditor` has a valid reason for custom format (it tracks rounds, not code findings)
+- `convergence-reviewer` has a valid reason for custom format (it tracks rounds, not code findings)
 
 ### 7. Naming Convention Adherence (SHOULD_FIX)
 
@@ -168,7 +168,7 @@ Every `[CODE]` or `[BOTH]` agent that is a **reviewer/auditor** (not an implemen
 
 **Exemption categories** (do NOT flag these):
 - Agents listed under **"IMPLEMENTATION Agents"** (section 3 of the registry) — these write/fix code, they don't review
-- Agents listed under **"SWARM PATTERNS"** section (convergence-auditor, scope-drift-reviewer, agent-collection-validator, etc.) — infrastructure, not domain reviewers
+- Agents listed under **"SWARM PATTERNS"** section (convergence-reviewer, scope-drift-reviewer, agent-collection-validator, etc.) — infrastructure, not domain reviewers
 - Agents whose registry entry says **"Must run as top-level agent"** — orchestrators that cannot be subagents
 - Agents that only apply to narrow deployment contexts (e.g., `aws-ec2-hardening-auditor`, `deployment-hardening-auditor`) — mark as INFO, not MUST_FIX
 

@@ -297,4 +297,4 @@ When removing:
 
 - `backwards-compatibility-reviewer` - Breaking changes
 - `api-reviewer` - API patterns
-- `migration-code-reviewer` - Migration patterns
+- `migration-code-orchestrator` - Migration patterns

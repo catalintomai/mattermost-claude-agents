@@ -1,7 +1,7 @@
 ---
 name: websocket-event-reviewer
 description: Reviews WebSocket event definitions, broadcasting, and handling for correctness and consistency. Use when reviewing new WebSocket events, event broadcasting code, frontend WS handlers, or clustered (HA) deployment changes.
-model: sonnet
+model: haiku
 tools: Read, Write, Grep, Glob
 ---
 

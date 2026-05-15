@@ -1,7 +1,7 @@
 ---
-name: silent-failure-hunter
-description: Detects silent failure patterns in Go code — ignored errors, blank-identifier error suppression, empty error handlers, and unchecked deferred closes. Use when reviewing Go files (.go) in a PR or before a release scan. For TypeScript/JavaScript, use ts-silent-failure-hunter instead. For MM-specific error wrapping/AppError propagation patterns, also consult error-handling-reviewer (Level 2).
-model: sonnet
+name: go-silent-failure-reviewer
+description: Detects silent failure patterns in Go code — ignored errors, blank-identifier error suppression, empty error handlers, and unchecked deferred closes. Use when reviewing Go files (.go) in a PR or before a release scan. For TypeScript/JavaScript, use ts-silent-failure-reviewer instead. For MM-specific error wrapping/AppError propagation patterns, also consult error-handling-reviewer (Level 2).
+model: haiku
 tools: Read, Grep, Glob
 ---
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
@@ -115,7 +115,7 @@ For each `defer` statement:
 
 **Domain tags**: `sfh:IGNORED_ERROR`, `sfh:EMPTY_CATCH`, `sfh:DEFERRED_CLOSE`, `sfh:SILENT_RETURN`, `sfh:SWALLOWED_PANIC`
 
-Use the canonical format from `~/.claude/agents/_shared/finding-format.md`. Prefix every finding with `[agent:silent-failure-hunter]`.
+Use the canonical format from `~/.claude/agents/_shared/finding-format.md`. Prefix every finding with `[agent:go-silent-failure-reviewer]`.
 
 Severity mapping for this domain:
 - Critical (→ MUST_FIX): Data loss, security bypass, or corruption possible

@@ -1,5 +1,5 @@
 ---
-name: test-parallelization-auditor
+name: test-parallelization-reviewer
 description: Reviews test code for parallel-safety issues — shared mutable state, environment variable leaks, fixture isolation, and race conditions under concurrent test execution. Use when reviewing PRs that enable parallel test execution, refactor test setup/teardown, or touch shared test infrastructure.
 model: sonnet
 tools: Read, Write, Grep, Glob

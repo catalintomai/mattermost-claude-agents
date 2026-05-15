@@ -1,6 +1,6 @@
 ---
 name: coder
-description: Generalist implementation agent. Use only when the task is cross-language or does not map to a more specific specialist. Prefer go-expert, react-expert, typescript-expert, postgres-expert, websocket-expert, rest-api-expert, or ci-expert for tech-specific work. For Mattermost codebases, prefer go-backend-expert or react-frontend-expert.
+description: Generalist implementation agent. Use only when the task is cross-language or does not map to a more specific specialist. Prefer go-expert, react-expert, ts-expert, postgres-expert, websocket-expert, rest-api-expert, or ci-expert for tech-specific work. For Mattermost codebases, prefer go-backend-expert or react-frontend-expert.
 model: sonnet
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---

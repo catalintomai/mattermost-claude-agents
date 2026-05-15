@@ -2,6 +2,7 @@
 name: architecture-assertion-auditor
 description: Audits architecture documents and ADRs for wrong facts AND invalid reasoning chains — catching cases where individual facts are correct but the conclusion is wrong (reversed logic, cost shifts, straw-man rejections). Use when reviewing a design doc or ADR before it is approved. For implementation plans that only need codebase fact-checking, use plan-assertion-reviewer instead.
 model: opus
+# Tools note: Bash is justified — runs grep pipelines and git log commands to verify factual claims against the codebase.
 tools: Read, Write, Grep, Glob, WebSearch, WebFetch, Bash
 ---
 

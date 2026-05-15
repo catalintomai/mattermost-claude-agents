@@ -1,7 +1,8 @@
 ---
-name: drive-by-detector
+name: drive-by-reviewer
 description: Detects drive-by changes in a branch — code unrelated to the stated feature that slipped in as dead code removal, bug fixes, or unasked-for refactoring. Use before PR review.
-model: sonnet
+model: haiku
+# Tools note: Bash is justified — runs git diff/log/show commands to inspect branch diff and detect unrelated changes.
 tools: Read, Bash, Grep, Glob
 ---
 
@@ -107,7 +108,7 @@ Use the canonical finding format from `~/.claude/agents/_shared/finding-format.m
 ### MUST_FIX
 (Drive-bys that are clearly unrelated and should be extracted to a separate PR or reverted)
 
-1. **[drive-by-detector:DEAD_CODE]** [VERIFIED] `file.go:42` — Removes pre-existing `funcName` that is unused but predates this branch
+1. **[drive-by-reviewer:DEAD_CODE]** [VERIFIED] `file.go:42` — Removes pre-existing `funcName` that is unused but predates this branch
    **Diff evidence**: `- func funcName() { ... }`
    **Why it's a drive-by**: `git show master:file.go` confirms the function existed on master; no anchor symbol references it
    **Fix**: Revert this removal or move to a separate cleanup PR
@@ -115,7 +116,7 @@ Use the canonical finding format from `~/.claude/agents/_shared/finding-format.m
 ### SHOULD_FIX
 (Borderline drive-bys — may be justified but should be called out explicitly in the PR description)
 
-1. **[drive-by-detector:OPPORTUNISTIC_REFACTOR]** [VERIFIED] `component.tsx:120` — Extracts pre-existing inline logic into a helper
+1. **[drive-by-reviewer:OPPORTUNISTIC_REFACTOR]** [VERIFIED] `component.tsx:120` — Extracts pre-existing inline logic into a helper
    **Diff evidence**: `+ const helper = ...`
    **Why it's borderline**: The extracted code predates this branch; the refactor is valid but not required for the feature
    **Fix**: Move to a separate PR or add a note in the PR description explaining the scope expansion

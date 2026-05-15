@@ -2,7 +2,7 @@
 name: security-auditor
 description: Reviews code for practical, exploitable security vulnerabilities across input handling, authentication/authorization, data protection, infrastructure, and third-party integrations (OWASP Top 10 baseline). Use when reviewing a PR or performing a pre-release security audit on any backend or frontend code. For architectural threat modeling, use threat-modeler instead.
 model: opus
-tools: Read, Write, Grep, Glob
+tools: Read, Write, Grep, Glob, WebSearch
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.

@@ -1,7 +1,7 @@
 ---
 name: py-datetime-reviewer
 description: Python-only. Reviews Python datetime handling for timezone consistency, catching naive datetimes and deprecated APIs that cause silent data corruption. Use when a diff touches .py files that import datetime or use date/time strings. Do not invoke on Go or TypeScript diffs.
-model: sonnet
+model: haiku
 tools: Read, Write, Grep, Glob
 ---
 

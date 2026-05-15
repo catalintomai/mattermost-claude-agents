@@ -1,5 +1,5 @@
 ---
-name: convergence-auditor
+name: convergence-reviewer
 description: Detects semantic thrashing across multi-round swarm review convergence by tracking finding state (OPEN/FIXED/DISMISSED/RE-RAISED) and classifying reversals as justified, unjustified, or indeterminate. Use after each review round in a multi-round swarm to determine whether to continue iterating or halt (THRASHING verdict). Not for single-round reviews.
 model: sonnet
 tools: Read, Write, Grep, Glob

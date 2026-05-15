@@ -1,5 +1,5 @@
 ---
-name: ci-gate-auditor
+name: ci-gate-reviewer
 description: Verifies CI merge-gate enforcement specifically when a PR touches continue-on-error, allow-failure, required status checks, or fail-fast settings — i.e., when there is a risk of silently weakening a merge gate. For broader CI workflow design review (job ordering, secret scoping, trigger maps), use ci-design-reviewer instead.
 model: sonnet
 tools: Read, Write, Grep, Glob

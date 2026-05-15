@@ -2,7 +2,7 @@
 name: pattern-reviewer
 description: Reviews feature code against UPSTREAM Mattermost patterns. Catches deviations from established conventions in each layer (API, App, Store, Model, Frontend). Use when reviewing feature code for deviations from upstream Mattermost conventions in any layer.
 model: sonnet
-tools: Read, Grep, Glob
+tools: Read, Write, Grep, Glob
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.

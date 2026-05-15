@@ -92,7 +92,7 @@ case UserTypes.LOGOUT_SUCCESS:
 | `component_accessibility` | Interactive elements need ARIA attributes |
 | `error_boundary_usage` | Error-prone components wrapped in error boundaries |
 
-> For detailed checks per pattern, see: `component-reviewer`, `race-condition-reviewer`, `redux-expert`, `accessibility-reviewer`, `i18n-expert`.
+> For detailed checks per pattern, see: `component-reviewer`, `race-condition-reviewer`, `redux-expert`, `accessibility-reviewer`, `i18n-reviewer`.
 
 ## Before Making ANY Change
 

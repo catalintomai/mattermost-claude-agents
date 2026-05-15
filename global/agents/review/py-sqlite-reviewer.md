@@ -1,7 +1,7 @@
 ---
 name: py-sqlite-reviewer
 description: Python-only. Reviews Python sqlite3 code for connection management, WAL mode, parameterized queries, and Python-specific sqlite3 patterns. Use when a diff touches .py files that import sqlite3. Do not invoke on Go or TypeScript diffs — for PostgreSQL/general SQL, use postgres-expert.
-model: sonnet
+model: haiku
 tools: Read, Write, Grep, Glob
 ---
 
@@ -256,4 +256,4 @@ Read the project's database layer to understand what connection factory or helpe
 ## See Also
 
 - `py-datetime-reviewer` - Timestamp handling in SQL
-- `silent-failure-hunter` - Ignored errors in database operations
+- `go-silent-failure-reviewer` - Ignored errors in database operations

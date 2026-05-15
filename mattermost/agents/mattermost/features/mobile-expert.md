@@ -1,6 +1,6 @@
 ---
 name: mobile-expert
-description: Advisory expert on React Native mobile patterns for the Mattermost mobile app. Use when designing or reviewing features targeting mattermost-mobile.
+description: Advisory expert on React Native mobile patterns for the Mattermost mobile app. Use when designing or reviewing features targeting mattermost-mobile. Not for webapp React components — use react-frontend-expert instead.
 model: sonnet
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---

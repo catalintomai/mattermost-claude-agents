@@ -1,7 +1,7 @@
 ---
 name: duplication-reviewer
 description: Reviews code for duplication and reusability opportunities. Checks if new code duplicates existing utilities and suggests refactoring. Use when reviewing new code that may duplicate existing utilities or contains repeated patterns.
-model: sonnet
+model: haiku
 tools: Read, Write, Grep, Glob
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: transaction-reviewer
 description: Transaction handling code reviewer for Mattermost store layer. Ensures multi-table operations use proper transaction patterns. Use when reviewing store layer code that inserts, updates, or deletes across multiple tables.
-model: sonnet
+model: haiku
 tools: Read, Write, Grep, Glob
 ---
 

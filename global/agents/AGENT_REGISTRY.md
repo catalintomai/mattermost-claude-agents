@@ -23,17 +23,17 @@ Agents within each group are independent and can run simultaneously. **Project r
 
 | Group | Agents | When |
 |-------|--------|------|
-| Cross-cutting | `simplicity-reviewer`, `naming-consistency-reviewer`, `db-call-reviewer`, `type-duplication-reviewer`, `structural-health-reviewer`, `separation-of-concerns-reviewer`, `code-reviewer` | Always (all projects) |
-| Backend | `api-reviewer`, `app-reviewer`, `store-reviewer`, `pattern-reviewer`, `concurrent-go-reviewer`, `silent-failure-hunter`, `error-handling-reviewer`, `hardcoded-values-reviewer`, `production-reviewer`, `duplication-reviewer`, `logging-reviewer`, `websocket-event-reviewer`, `comment-reviewer`, `transaction-reviewer`, `ha-reviewer`, `api-design-reviewer` | Go changes, api4/ route changes |
-| Frontend | `react-frontend-expert`, `redux-expert`, `component-reviewer`, `race-condition-reviewer`, `ux-edge-case-reviewer`, `ts-silent-failure-hunter`, `ts-test-writer`, `responsive-reviewer`, `i18n-reviewer`, `ui-pattern-reviewer` | TS/React changes |
+| Cross-cutting | `simplicity-reviewer`, `naming-consistency-reviewer`, `db-call-reviewer`, `type-duplication-reviewer`, `structural-health-reviewer`, `separation-of-concerns-reviewer`, `code-reviewer`, `architecture-tradeoff-reviewer` | Always (all projects) |
+| Backend | `api-reviewer`, `app-reviewer`, `store-reviewer`, `pattern-reviewer`, `concurrent-go-reviewer`, `go-silent-failure-reviewer`, `error-handling-reviewer`, `hardcoded-values-reviewer`, `production-reviewer`, `duplication-reviewer`, `logging-reviewer`, `websocket-event-reviewer`, `comment-reviewer`, `transaction-reviewer`, `ha-reviewer`, `api-design-reviewer` | Go changes, api4/ route changes |
+| Frontend | `react-frontend-expert`, `redux-expert`, `component-reviewer`, `race-condition-reviewer`, `ux-edge-case-reviewer`, `ts-silent-failure-reviewer`, `ts-test-writer`, `responsive-reviewer`, `i18n-reviewer`, `ui-pattern-reviewer` | TS/React changes |
 | Compatibility | `backwards-compatibility-reviewer`, `batch-operations-reviewer`, `null-safety-reviewer`, `deprecation-reviewer`, `license-reviewer`, `file-structure-reviewer`, `config-migration-reviewer`, `type-design-reviewer`, `client-server-alignment-reviewer`, `schema-necessity-reviewer`, `launch-readiness-reviewer` | `model/` changes, API surface changes, new files/dirs, config changes |
-| Infrastructure | `ci-failure-reviewer`, `ci-gate-auditor`, `ci-design-reviewer` | CI/CD file changes or `--ci` flag |
+| Infrastructure | `ci-failure-reviewer`, `ci-gate-reviewer`, `ci-design-reviewer` | CI/CD file changes or `--ci` flag |
 | Security | `xss-reviewer`, `validation-reviewer`, `permission-reviewer`, `owasp-agentic-auditor`, `accessibility-reviewer`, `security-auditor` | `--thorough` |
-| Testing | `e2e-test-reviewer`, `test-parallelization-auditor`, `behavioral-change-detector`, `test-coverage-reviewer`, `test-engineer` | Test file changes, test setup refactoring, parallel mode changes |
+| Testing | `e2e-test-reviewer`, `test-parallelization-reviewer`, `behavioral-change-reviewer`, `test-coverage-reviewer`, `test-engineer` | Test file changes, test setup refactoring, parallel mode changes |
 | Python | `py-async-reviewer`, `py-datetime-reviewer`, `py-sqlite-reviewer` | Python (`.py`) changes |
 | Playbooks domain | `run-lifecycle-reviewer`, `attribute-template-reviewer`, `playbooks-api-parity-reviewer`, `playbooks-expert` | Any PR in a Playbooks plugin repo (`server/app/`, `server/api/`, `server/sqlstore/`, `client/`) |
 | Playbooks migrations | `playbooks-migration-reviewer` | `server/sqlstore/migrations.go` or `server/plugin.go` changes in playbooks plugin |
-| Deep experts | `go-expert`, `typescript-expert`, `react-expert`, `websocket-expert`, `postgres-expert`, `jira-alignment-reviewer` | `--full` or `--thorough` only |
+| Deep experts | `go-expert`, `ts-expert`, `react-expert`, `websocket-expert`, `postgres-expert`, `jira-alignment-reviewer` | `--full` or `--thorough` only |
 | Project | *(see project `.claude/agents/AGENT_REGISTRY.md`)* | Project-specific changes |
 
 ---
@@ -165,7 +165,7 @@ Catalogued in the Level 2 registry: `pattern-reviewer`, `comment-reviewer`, `err
 
 | Agent | Phase | Purpose | Location |
 |-------|-------|---------|----------|
-| `silent-failure-hunter` | [CODE] | Silent error patterns in Go — ignored returns, empty catch blocks, swallowed errors in deferred functions | `review/` |
+| `go-silent-failure-reviewer` | [CODE] | Silent error patterns in Go — ignored returns, empty catch blocks, swallowed errors in deferred functions | `review/` |
 
 > MM-specific Go backend agents (`go-backend-expert`, `api-reviewer`, `app-reviewer`, `store-reviewer`, `transaction-reviewer`, `concurrent-go-reviewer`, `logging-reviewer`, `websocket-event-reviewer`) are catalogued in the Level 2 registry.
 
@@ -183,7 +183,7 @@ Catalogued in the Level 2 registry: `pattern-reviewer`, `comment-reviewer`, `err
 |-------|-------|---------|----------|
 | `race-condition-reviewer` | [CODE] | TS/React async races, stale closures | `review/` |
 | `ux-edge-case-reviewer` | [BOTH] | User-facing edge case quality: empty states, error messages, loading UX, degraded experiences — reviews plans when UI states/behaviors are described in enough detail; reviews code for implementation quality | `review/` |
-| `ts-silent-failure-hunter` | [CODE] | Silent error patterns in TypeScript/JS — empty catch blocks, unhandled promises, swallowed rejections, fire-and-forget async | `review/` |
+| `ts-silent-failure-reviewer` | [CODE] | Silent error patterns in TypeScript/JS — empty catch blocks, unhandled promises, swallowed rejections, fire-and-forget async | `review/` |
 | `ui-pattern-reviewer` | [CODE] | UI design system compliance, accessibility (WCAG 2.1 AA), component architecture, AI aesthetic anti-patterns, spacing/color tokens | `review/` |
 
 > MM-specific frontend agents (`react-frontend-expert`, `redux-expert`, `component-reviewer`, `responsive-reviewer`, `ts-test-writer`) are catalogued in the Level 2 registry.
@@ -192,8 +192,8 @@ Catalogued in the Level 2 registry: `pattern-reviewer`, `comment-reviewer`, `err
 
 | Agent | Phase | Purpose | Location |
 |-------|-------|---------|----------|
-| `test-parallelization-auditor` | [CODE] | Test parallel-safety: shared state, env leaks, fixture isolation, race conditions under concurrent execution | `review/` |
-| `behavioral-change-detector` | [CODE] | Semantic behavior changes disguised as refactoring — changed assertions, status codes, control flow in "cleanup" PRs | `review/` |
+| `test-parallelization-reviewer` | [CODE] | Test parallel-safety: shared state, env leaks, fixture isolation, race conditions under concurrent execution | `review/` |
+| `behavioral-change-reviewer` | [CODE] | Semantic behavior changes disguised as refactoring — changed assertions, status codes, control flow in "cleanup" PRs | `review/` |
 | `e2e-test-reviewer` | [CODE] | **Review** E2E tests (read-only: conventions, anti-patterns) | `testing/` |
 | `test-engineer` | [CODE] | Test strategy, unit/integration test writing, coverage analysis, mock quality analysis — language-agnostic | `testing/` |
 
@@ -215,7 +215,7 @@ Catalogued in the Level 2 registry: `pattern-reviewer`, `comment-reviewer`, `err
 | Agent | Phase | Purpose | Location |
 |-------|-------|---------|----------|
 | `ci-design-reviewer` | [BOTH] | CI/CD design: workflow triggers, secret scoping, cross-repo coordination, merge gates, rollout safety | `review/` |
-| `ci-gate-auditor` | [CODE] | CI merge gate enforcement: continue-on-error semantics, allow-failure settings, required status check alignment | `review/` |
+| `ci-gate-reviewer` | [CODE] | CI merge gate enforcement: continue-on-error semantics, allow-failure settings, required status check alignment | `review/` |
 | `ci-expert` | [CODE] | CI/CD implementation: GitHub Actions workflows, merge gates, branch protection, cross-repo coordination, automation bots | `tech/` |
 
 > MM-specific CI agent (`ci-failure-reviewer`) is catalogued in the Level 2 registry.
@@ -226,7 +226,7 @@ Catalogued in the Level 2 registry: `pattern-reviewer`, `comment-reviewer`, `err
 |-------|-------|---------|----------|
 | `go-expert` | [CODE] | Go concurrency, microservices, cloud-native | `tech/` |
 | `react-expert` | [CODE] | React hooks, performance, modern patterns | `tech/` |
-| `typescript-expert` | [CODE] | Advanced TypeScript, type systems | `tech/` |
+| `ts-expert` | [CODE] | Advanced TypeScript, type systems | `tech/` |
 | `websocket-expert` | [CODE] | WebSocket, real-time communication | `tech/` |
 | `postgres-expert` | [CODE] | PostgreSQL | `tech/` |
 
@@ -258,9 +258,9 @@ Use directly for doing work (not reviewing).
 
 | Agent | Purpose | Location |
 |-------|---------|----------|
-| `convergence-auditor` | Detects semantic thrashing across rounds — classifies reversals as justified/unjustified/indeterminate | `review/` |
+| `convergence-reviewer` | Detects semantic thrashing across rounds — classifies reversals as justified/unjustified/indeterminate | `review/` |
 | `scope-drift-reviewer` | Validates code changes implement plan requirements — catches unrelated fixes, refactorings, and opportunistic cleanup | `review/` |
-| `drive-by-detector` | Detects drive-by changes unrelated to the feature: dead code removal, pre-existing bug fixes, opportunistic refactoring, unasked-for additions. Works without a plans/ file — infers scope from branch name and diff anchors. | `~/.claude/agents/` |
+| `drive-by-reviewer` | Detects drive-by changes unrelated to the feature: dead code removal, pre-existing bug fixes, opportunistic refactoring, unasked-for additions. Works without a plans/ file — infers scope from branch name and diff anchors. | `~/.claude/agents/` |
 
 ### Collection Validation
 
@@ -301,7 +301,7 @@ Leader deduplicates by file+line+tag, keeps highest severity when overlapping.
 
 ## 5. DOMAIN EXPERTS
 
-Mattermost feature/core/infra/migration domain experts (`plugin-expert`, `copilot-ai-expert`, `mobile-expert`, `shared-channels-expert`, `calls-webrtc-expert`, `property-system-expert`, `config-expert`, `db-migration-expert`, `tech-debt-refactorer`, `performance-optimizer`, `caching-expert`, `migration-code-reviewer`, `slack-migration-expert`, `confluence-migration-expert`, `playbooks-migration-reviewer`) are catalogued in the **Level 2** registry at `~/mattermost/.claude/agents/AGENT_REGISTRY.md` § "Mattermost Features", "Mattermost Migration", and "Mattermost Infrastructure".
+Mattermost feature/core/infra/migration domain experts (`plugin-expert`, `copilot-ai-expert`, `mobile-expert`, `shared-channels-expert`, `calls-webrtc-expert`, `property-system-expert`, `config-expert`, `db-migration-expert`, `tech-debt-refactorer`, `performance-optimizer`, `caching-expert`, `migration-code-orchestrator`, `slack-migration-expert`, `confluence-migration-expert`, `playbooks-migration-reviewer`) are catalogued in the **Level 2** registry at `~/mattermost/.claude/agents/AGENT_REGISTRY.md` § "Mattermost Features", "Mattermost Migration", and "Mattermost Infrastructure".
 
 For project-specific domain experts, see the project's own `.claude/agents/AGENT_REGISTRY.md` (Level 3).
 

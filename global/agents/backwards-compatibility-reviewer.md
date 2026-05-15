@@ -383,4 +383,4 @@ type WebSocketEvent struct {
 - `api-reviewer` - API layer patterns
 - `deprecation-reviewer` - Proper deprecation workflow
 - `client-server-alignment-reviewer` - Client SDK compatibility
-- `migration-code-reviewer` - Data migration patterns
+- `migration-code-orchestrator` - Data migration patterns
