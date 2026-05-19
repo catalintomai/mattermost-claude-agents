@@ -39,6 +39,16 @@ SKIPPED (M agents):
 
 2. **SKIPPED reasons MUST be specific.** Cite the missing pattern, missing flag, or wrong phase tag. Never write "not needed", "not relevant", "not applicable", or "out of scope."
 
+2b. **SELECTED reasons MUST be diff-anchored for within-group selection.** A file-type match (`match: *.go in diff`) is sufficient to trigger a group, but NOT sufficient to select an individual agent within that group. For each agent within a triggered group, cite a specific construct from the diff — a function name, import, pattern, or line — that matches what the agent's description says it catches. If you cannot cite a specific construct, the agent is SKIPPED.
+
+   Bad (file-type only): `race-condition-reviewer — match: *.tsx in diff`
+   Good (diff-anchored): `race-condition-reviewer — fetchingPagesRef + isMounted + async dispatch chain in all_wiki_threads.tsx`
+
+   Bad (agent name assumed): `tiptap-reviewer — TipTap files changed`
+   Good (diff-anchored): `tiptap-reviewer — Extension.create + addKeyboardShortcuts in tiptap_editor.tsx:1197`
+
+   This rule exists because group-level triggers fire many agents at once. Without per-agent diff evidence, selection defaults to "all agents in the group ran" regardless of whether the diff actually matches their scope.
+
 3. **Distinguish flag-unlocked from match-based selections.** When the user invokes a broadening flag (`--full`, `--thorough`, `--depth=deep`), agents pulled in by the flag should say so (`"--full unlocks Security tier"`), not borrow a content-match reason they don't actually have.
 
 4. **The block is part of the user-visible output**, not internal thinking. It comes immediately after the scope line and before any agent output.
@@ -52,16 +62,18 @@ SKIPPED (M agents):
 ## Trigger phrasing examples
 
 **SELECTED reasons** (be concrete, cite the trigger):
-- `Cross-cutting (always)`
-- `match: *.go in diff`
-- `match: server/sqlstore/migrations.go`
-- `match: webapp/**/*.tsx in diff`
-- `[PLAN]-tagged, plan-review skill`
-- `--full unlocks Security tier`
-- `--full unlocks Deep Experts`
-- `--plan provided — load plan-context`
-- `--ci flag active`
-- `Project group: Playbooks files in diff`
+- `Cross-cutting (always)` — group-level always-run, no diff anchor needed
+- `match: server/sqlstore/migrations.go` — file-path match sufficient (single-file trigger)
+- `[PLAN]-tagged, plan-review skill` — phase-tag match, no diff anchor needed
+- `--full unlocks Security tier` — flag-unlocked, no diff anchor needed
+- `--plan provided — load plan-context` — flag-unlocked
+
+For within-group individual agents, MUST include a diff anchor:
+- `race-condition-reviewer — fetchingPagesRef + isMounted + async dispatch chain in all_wiki_threads.tsx`
+- `tiptap-reviewer — Extension.create + addKeyboardShortcuts in tiptap_editor.tsx:1197`
+- `ts-silent-failure-hunter — .catch() without re-throw at all_wiki_threads.tsx:89`
+- `app-reviewer — App layer method changed: GetPageStatus in page_properties.go`
+- `behavioral-change-reviewer — status default "In progress" → "" (semantic change disguised as cleanup)`
 
 **SKIPPED reasons** (be specific, cite what's missing):
 - `no *.go in diff`
@@ -82,6 +94,8 @@ SKIPPED (M agents):
 - **Listing only SELECTED without SKIPPED** — the SKIPPED list is the audit trail. The asymmetry is precisely what tightens selection over time.
 - **Burying the block inside agent output** — it must print before agents spawn, not after they finish.
 - **Reusing a content-match reason for a flag-unlocked agent** — if `xss-reviewer` runs because `--full` unlocked it (not because the diff has template rendering), say so. Otherwise you're lying about why it fired.
+- **Selecting within a group by reading agent names instead of descriptions** — agent names are suggestive but not definitive. Read the description, find the construct in the diff, then decide. Reasoning from the name alone produces confident-sounding but wrong rationale.
+- **Using group membership as a proxy for individual selection** — "Backend group triggered, therefore all Backend agents run" is wrong. The group fires; each agent within it still needs a diff-anchored reason to be SELECTED.
 - **Emitting the block at the end of the run as a summary** — by then it's too late to course-correct, and it merges visually with findings.
 
 ## How skills reference this doc
