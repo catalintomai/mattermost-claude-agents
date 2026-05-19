@@ -205,6 +205,7 @@ These files are loaded by agents at runtime — not invoked directly.
 | `reasoning-techniques.md` | Shared verification techniques for assertion auditing |
 | `storage-decision-tree.md` | Decision tree for storage placement |
 | `test-alignment-rules.md` | Mock-implementation alignment rules |
+| `elevated-identity-escalation-pattern.md` | Two privilege-escalation patterns: elevated-identity execution and ownership-flag/mutable-ID decoupling |
 | `security-pr-policy.md` | No exploit details in public PR descriptions |
 
 ---
