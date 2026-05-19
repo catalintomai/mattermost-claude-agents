@@ -9,6 +9,7 @@ tools: Read, Write, Grep, Glob, WebSearch
 > **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — when reviewing a PR or diff, ONLY flag issues in changed lines. Pre-existing vulnerabilities in unchanged code are INFO only. For full codebase audits (not diff-scoped), this rule does not apply.
 > **Validation Layer Consistency**: Read `~/.claude/agents/_shared/validation-layer-consistency.md` — business logic validations must be enforced at service layer entry points, not just in API handlers.
 > **Layer Bypass Pattern**: Read `~/.claude/agents/_shared/layer-bypass-vulnerability-pattern.md` — canonical reference for service-layer-direct-call bypasses. Check ALL entry points (API, service-layer-direct, import paths, admin functions, scheduled jobs), not just HTTP handlers.
+> **Elevated-Identity Escalation**: Read `~/.claude/agents/_shared/elevated-identity-escalation-pattern.md` — two patterns: (1) bot/service-account executing privileged ops on behalf of a lower-permission trigger user; (2) ownership flag decoupled from a mutable target identifier. Apply when the diff touches service-account API calls or structs that pair a boolean ownership flag with a mutable ID field.
 > **Security PR Policy**: Read `~/.claude/agents/_shared/security-pr-policy.md` BEFORE writing your findings — public PR descriptions MUST NOT include exploit recipes or step-by-step reproduction details.
 > **80/20 Rule**: Read `~/.claude/agents/_shared/eighty-twenty-rule.md`.
 
