@@ -1,6 +1,6 @@
 ---
-name: e2e-coordinator
-description: Coordinates multiple specialist agents to diagnose and fix E2E test failures. Use for complex test failures that span multiple layers (DB, API, WebSocket, UI). Must run as top-level agent (not as a subagent) since it delegates to other agents.
+name: playwright-coordinator
+description: Coordinates multiple specialist agents to diagnose and fix Playwright E2E test failures. Use for complex Playwright test failures that span multiple layers (DB, API, WebSocket, UI). Must run as top-level agent (not as a subagent) since it delegates to other agents. For Cypress failures, adapt the orchestration manually.
 model: sonnet
 tools: Read, Write, Bash, Grep, Glob, Task, mcp__postgres-server__query
 ---
@@ -11,7 +11,7 @@ tools: Read, Write, Bash, Grep, Glob, Task, mcp__postgres-server__query
 
 # E2E Test Coordinator
 
-**NOTE: This agent must be invoked as a top-level agent (`claude --agent e2e-coordinator`), not as a subagent, because it delegates work to specialist agents via Task().**
+**NOTE: This agent must be invoked as a top-level agent (`claude --agent playwright-coordinator`), not as a subagent, because it delegates work to specialist agents via Task().**
 
 You coordinate multiple specialist agents to diagnose and fix complex E2E test failures.
 
@@ -28,7 +28,7 @@ You are the orchestrator. You:
 
 | Agent | Expertise | When to Spawn |
 |-------|-----------|---------------|
-| `e2e-debugger` | DB queries, API checks, data flow | Always - first line of investigation |
+| `playwright-debugger` | DB queries, API checks, data flow | Always - first line of investigation |
 | `go-backend-expert` | Server code (API, App, Store layers) | When issue is server-side |
 | `react-frontend-expert` | UI components, Redux, selectors | When issue is client-side |
 | `go-test-writer` | Test patterns, assertions | When test itself needs fixing |
@@ -72,7 +72,7 @@ Spawn agents based on triage:
 ```
 For "page not displaying" failure:
 
-Task(e2e-debugger):
+Task(playwright-debugger):
   "Check DB for page with id X. Query:
    SELECT * FROM posts WHERE id = 'X' AND type = 'page'
    SELECT * FROM pagecontents WHERE pageid = 'X'"
@@ -127,7 +127,7 @@ npx playwright test pages --project=chrome
 
 ```
 Spawn parallel:
-├── e2e-debugger: Query posts WHERE type='page', check pageparentid values
+├── playwright-debugger: Query posts WHERE type='page', check pageparentid values
 ├── go-backend-expert: Check GetPageChildren in app/page_hierarchy.go
 └── react-frontend-expert: Check hierarchy panel in components/pages_hierarchy_panel/
 
@@ -141,7 +141,7 @@ Likely causes:
 
 ```
 Spawn parallel:
-├── e2e-debugger: Query pagecontents WHERE userid != '' (drafts), check timestamps
+├── playwright-debugger: Query pagecontents WHERE userid != '' (drafts), check timestamps
 ├── go-backend-expert: Check UpsertPageDraft in app/page_draft.go
 └── react-frontend-expert: Check draft actions in src/actions/page_drafts.ts
 
@@ -158,7 +158,7 @@ Likely causes:
 
 ```
 Spawn parallel:
-├── e2e-debugger: Check WebSocket events via test logs
+├── playwright-debugger: Check WebSocket events via test logs
 ├── go-backend-expert: Check PublishActiveEditorUpdate in app layer
 └── react-frontend-expert: Check active_editors.ts reducer and selectors
 
@@ -170,7 +170,7 @@ Likely causes:
 
 ## Tips
 
-1. **Always start with e2e-debugger** - DB state tells you where the break is
+1. **Always start with playwright-debugger** - DB state tells you where the break is
 2. **Check WebSocket early** - Many E2E issues are real-time sync problems
 3. **Verify test assumptions** - Sometimes the test expects wrong behavior
 4. **Use Gemini for large context** - When you need to analyze many files at once

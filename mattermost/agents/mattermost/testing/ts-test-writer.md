@@ -1,6 +1,6 @@
 ---
 name: ts-test-writer
-description: Writes and reviews TypeScript/Jest unit tests — React components, Redux state, hooks, selectors, actions, mocking. NOT for Go tests (use go-test-writer). NOT for E2E/browser tests (use e2e-test-writer).
+description: Writes and reviews TypeScript/Jest unit tests — React components, Redux state, hooks, selectors, actions, mocking. NOT for Go tests (use go-test-writer). NOT for E2E/browser tests (use playwright-test-writer).
 model: sonnet
 tools: Write, Read, Edit, Bash, Grep, Glob
 ---
@@ -23,9 +23,9 @@ tools: Write, Read, Edit, Bash, Grep, Glob
 - Reviewing quality of existing Jest tests
 
 **DO NOT USE FOR:**
-- E2E/browser tests → use `e2e-test-writer`
-- Playwright tests → use `e2e-test-writer`
-- Cross-browser testing → use `e2e-test-writer`
+- E2E/browser tests → use `playwright-test-writer`
+- Playwright tests → use `playwright-test-writer`
+- Cross-browser testing → use `playwright-test-writer`
 - Go tests (*_test.go) → use `go-test-writer`
 
 ---
