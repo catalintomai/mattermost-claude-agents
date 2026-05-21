@@ -25,7 +25,7 @@ Phase tags (`[PLAN]`, `[CODE]`, `[BOTH]`) defined in `~/.claude/agents/AGENT_REG
 | `boards-alignment-reviewer` | [BOTH] | Validate alignment with Integrated Boards architecture | sonnet | slow | none | yes |
 | `confluence-alignment-reviewer` | [BOTH] | Compare wiki features against Confluence patterns | sonnet | slow | none | yes |
 | `pages-isolation-reviewer` | [CODE] | Ensure pages don't affect posts and vice versa | sonnet | medium | none | yes |
-| `pages-e2e-test-reviewer` | [CODE] | Enforce test_helpers.ts usage | haiku | fast | `e2e-test-reviewer` | yes |
+| `pages-e2e-test-reviewer` | [CODE] | Enforce test_helpers.ts usage | haiku | fast | `playwright-test-reviewer` | yes |
 | `tiptap-reviewer` | [CODE] | TipTap extensions, Suggestion plugin patterns | sonnet | medium | none | yes |
 
 ## General Agents
@@ -63,7 +63,7 @@ Base groups defined in `~/.claude/agents/AGENT_REGISTRY.md` § "Parallel Groups 
 | Global Group | Additional Agents |
 |---|---|
 | Frontend | `tiptap-reviewer`, `boards-alignment-reviewer` (when boards-related code changed) |
-| Testing | `pages-e2e-test-reviewer` (runs after `e2e-test-reviewer`) |
+| Testing | `pages-e2e-test-reviewer` (runs after `playwright-test-reviewer`) |
 
 **Project routing groups** (may reference global agents for routing):
 

@@ -1,4 +1,4 @@
-# Agent Registry — mattermost-plugin-agents-pages-mcp
+# Agent Registry — mattermost-plugin-agents
 
 Project-specific agents for Playwright E2E test generation for the Mattermost plugin.
 
@@ -44,4 +44,4 @@ playwright-test-healer     (independent — can run in parallel with other agent
 
 ## Note on Duplication
 
-These agents also exist in `mattermost-plugin-agents/.claude/agents/` with identical definitions. Both projects use Playwright for E2E testing and maintain their own copy. Consider symlinking if they diverge.
+These agents also exist in `mattermost-plugin-agents-pages-mcp/.claude/agents/` with identical definitions. Both projects use Playwright for E2E testing and maintain their own copy. Consider symlinking if they diverge.

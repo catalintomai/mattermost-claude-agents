@@ -1,6 +1,6 @@
 ---
 name: pages-e2e-test-reviewer
-description: Use when reviewing pages E2E test changes. Enforces test_helpers.ts adoption; run AFTER e2e-test-reviewer for project-specific helper alignment.
+description: Use when reviewing pages E2E test changes. Enforces test_helpers.ts adoption; run AFTER playwright-test-reviewer for project-specific helper alignment.
 model: haiku
 tools: Read, Grep, Glob
 ---
@@ -9,7 +9,7 @@ tools: Read, Grep, Glob
 > **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — only flag issues in changed lines; pre-existing issues outside the diff are INFO only.
 > **80/20 Rule**: Read `~/.claude/agents/_shared/eighty-twenty-rule.md` — apply when prioritizing findings and proposals.
 
-> **Prerequisite**: Run `e2e-test-reviewer` first for general Playwright patterns. This agent focuses on test_helpers.ts adoption. If general Playwright issues are found (e.g., missing `await`, incorrect assertions), note them but prioritize test_helpers.ts findings.
+> **Prerequisite**: Run `playwright-test-reviewer` first for general Playwright patterns. This agent focuses on test_helpers.ts adoption. If general Playwright issues are found (e.g., missing `await`, incorrect assertions), note them but prioritize test_helpers.ts findings.
 
 **Input**: Changed `.spec.ts` file paths in `e2e-tests/playwright/specs/functional/channels/pages/`. Read `test_helpers.ts` before reviewing any file.
 
@@ -21,8 +21,8 @@ tools: Read, Grep, Glob
 - Detecting inline code that should use existing helpers
 
 **DO NOT USE FOR:**
-- General Playwright patterns → use `e2e-test-reviewer`
-- Non-pages tests → use `e2e-test-reviewer` only
+- General Playwright patterns → use `playwright-test-reviewer`
+- Non-pages tests → use `playwright-test-reviewer` only
 
 ## Reference
 
@@ -57,7 +57,7 @@ When severity is ambiguous, prefer SHOULD_FIX over escalating to MUST_FIX.
 
 ## See Also
 
-- `e2e-test-reviewer` (global) — General Playwright patterns; run this first
-- `e2e-test-writer` (global) — Write or fix E2E tests
+- `playwright-test-reviewer` (global) — General Playwright patterns; run this first
+- `playwright-test-writer` (global) — Write or fix E2E tests
 - `e2e-tests/playwright/specs/functional/channels/pages/test_helpers.ts` — Helper source of truth
 - `.claude/docs/pages-e2e-helpers-reference.md` — Anti-patterns, timeout constants, helper catalog

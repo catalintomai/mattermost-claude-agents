@@ -46,6 +46,8 @@ Available in **any project**.
 | `coder` | Generalist implementation agent for cross-language work |
 | `ideation-partner` | Structured ideation: HMW problem → variations → convergence → one-pager |
 | `pr-decomposition-sequencer` | Splits a large branch into ordered, independently-mergeable PRs |
+| `refactorer` | Atomic refactor: rename everywhere, extract function, move between layers — one commit |
+| `tech-debt-refactorer` | Incremental legacy-code rehabilitation planned as a sequence of independently-mergeable PRs |
 
 ### Code Review
 
@@ -69,6 +71,7 @@ Available in **any project**.
 | `ts-silent-failure-reviewer` | Same as above for TypeScript/JavaScript |
 | `null-safety-reviewer` | Nil pointer dereferences and missing null checks (Go + TS) |
 | `error-handling-reviewer` | Missing wrapping, wrong propagation, incorrect error types by layer |
+| `skill-reviewer` | Validates Claude Code skill files for frontmatter, description quality, and anti-patterns |
 
 ### Architecture & Design Review
 
@@ -86,6 +89,8 @@ Available in **any project**.
 | `agent-reviewer` | Validates Claude Code agent `.md` files for frontmatter and design quality |
 | `agent-collection-validator` | Audits the full `~/.claude/agents/` collection for registry accuracy |
 | `convergence-reviewer` | Detects semantic thrashing across multi-round swarm review cycles |
+| `ux-design-auditor` | Reviews UX designs against Nielsen's heuristics, six persona profiles, and HEART metrics |
+| `ux-edge-case-reviewer` | Reviews plans and code for user-facing edge cases: empty states, errors, loading UX |
 
 ### Backend
 
@@ -127,6 +132,7 @@ Available in **any project**.
 | `i18n-reviewer` | Translation keys, plural forms, RTL support, locale formatting |
 | `ui-pattern-reviewer` | AI aesthetic anti-patterns, WCAG violations, hardcoded colors |
 | `accessibility-reviewer` | WCAG 2.1 AA compliance, screen reader support, keyboard navigation |
+| `browser-testing-expert` | Uses Chrome DevTools MCP to verify live browser state: screenshots, DOM, console errors, network, performance |
 
 ### Security
 
@@ -149,10 +155,11 @@ Available in **any project**.
 |-------|-------------|
 | `test-engineer` | Unit and integration test suites, coverage gaps, mock abuse detection |
 | `test-coverage-reviewer` | Ensures new functionality has corresponding tests |
-| `e2e-test-reviewer` | Playwright E2E tests: selector stability, wait patterns, anti-patterns |
-| `e2e-test-writer` | Writes and fixes Playwright E2E tests |
-| `e2e-coordinator` | Orchestrates multi-layer E2E failure diagnosis |
-| `e2e-debugger` | E2E debugger with database access |
+| `playwright-test-reviewer` | Playwright E2E tests (`*.spec.ts`): selector stability, wait patterns, anti-patterns |
+| `cypress-test-reviewer` | Cypress E2E tests (`*_spec.js`, `*.cy.ts`): DOM detachment, wait patterns, selector stability |
+| `playwright-test-writer` | Writes and fixes Playwright E2E tests |
+| `playwright-coordinator` | Orchestrates multi-layer Playwright failure diagnosis across DB, API, WebSocket, and UI |
+| `playwright-debugger` | Playwright/E2E debugger with database access for inspecting DB state, API responses, and WebSocket events |
 | `test-parallelization-reviewer` | Test parallel-safety: shared state, fixture isolation, race conditions |
 
 ### Domain Experts
@@ -170,6 +177,7 @@ Available in **any project**.
 | `caching-expert` | Mattermost three-tier caching system |
 | `slack-migration-expert` | Slack-to-Mattermost migration pipeline |
 | `confluence-migration-expert` | Confluence-to-Mattermost wiki migration pipeline |
+| `migration-code-orchestrator` | Orchestrates review of mmetl/import*.go for idempotency, integrity, and error handling. Must be top-level — not a subagent |
 
 ### Infrastructure & CI
 
@@ -206,6 +214,10 @@ These files are loaded by agents at runtime — not invoked directly.
 | `storage-decision-tree.md` | Decision tree for storage placement |
 | `test-alignment-rules.md` | Mock-implementation alignment rules |
 | `elevated-identity-escalation-pattern.md` | Two privilege-escalation patterns: elevated-identity execution and ownership-flag/mutable-ID decoupling |
+| `layer-bypass-vulnerability-pattern.md` | Business logic bypass via parallel entry points that skip layer-level validation |
+| `validation-layer-consistency.md` | Business rule enforcement must live at service layer entry points, not just API handlers |
+| `error-handling-patterns.md` | Universal Go, TypeScript, and React error handling patterns |
+| `db-reference.md` | Relational database reference material for database review agents |
 | `security-pr-policy.md` | No exploit details in public PR descriptions |
 
 ---
@@ -292,8 +304,8 @@ These are MM-specific versions of reviewers that understand Mattermost's layer a
 |-------|---------|
 | `debugger` | Root cause analysis with MM layer awareness |
 | `performance-optimizer` | DB query optimization, frontend performance, bundle size |
-| `e2e-coordinator` | Multi-layer E2E failure diagnosis |
-| `e2e-debugger` | E2E debugger with database access |
+| `playwright-coordinator` | Multi-layer Playwright failure diagnosis |
+| `playwright-debugger` | Playwright/E2E debugger with database access |
 | `ci-expert` | CI/CD pipelines and GitHub Actions for MM repos |
 | `ci-design-reviewer` | Reviews CI/CD design proposals |
 | `ci-gate-reviewer` | CI merge-gate enforcement |

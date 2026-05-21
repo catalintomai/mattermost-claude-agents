@@ -172,11 +172,11 @@ run_test "E2E: New Feature" "npm run test -- new_feature_spec --project=chrome"
 | T3: App tests | test-writer | `test-app` | Independent Work | -- |
 | T4: API tests | test-writer | `test-api` | Independent Work | -- |
 | T5: Jest tests | test-writer | `test-frontend` | Independent Work | -- |
-| T6: E2E tests | e2e-test-writer | `test-e2e` | Independent Work | -- |
+| T6: E2E tests | playwright-test-writer | `test-e2e` | Independent Work | -- |
 | T7: Multi-LLM coverage | general-purpose | `multi-llm-coverage` | Independent Work | -- |
 | T8: Cross-pollination | (same as T1-T6, Variant A) | Dedup + fill gaps | Cross-Validation | T1-T7 |
 | T9: Register all | coder | `test-register` | -- | T8 |
-| T10: Quality gate | test-coverage-reviewer + e2e-test-reviewer | Validate coverage matrix | -- | T9 |
+| T10: Quality gate | test-coverage-reviewer + playwright-test-reviewer | Validate coverage matrix | -- | T9 |
 
 T9 collects all new test names from T1-T6 and registers in `run_pages_tests.sh`.
 T10 compares written tests against the coverage matrix from Step 1.5.

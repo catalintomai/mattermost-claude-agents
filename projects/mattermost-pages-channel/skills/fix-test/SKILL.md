@@ -134,7 +134,7 @@ Files modified: {list}
 | T4: Diagnose app failures | debugger | `diag-app` | Independent Work | T1 |
 | T5: Diagnose API failures | debugger | `diag-api` | Independent Work | T1 |
 | T6: Diagnose frontend failures | debugger | `diag-frontend` | Independent Work | T1 |
-| T7: Diagnose E2E failures | e2e-debugger | `diag-e2e` | Independent Work | T1 |
+| T7: Diagnose E2E failures | playwright-debugger | `diag-e2e` | Independent Work | T1 |
 | T8: Multi-LLM patterns | general-purpose | `multi-llm-diag` | Independent Work | T1 |
 | T9: Cross-pollination | (same as T2-T7, Variant A) | Share root causes | Cross-Validation | T2-T8 |
 | T10: Apply fixes | coder | `fixer` | -- | T9 |
