@@ -1,6 +1,6 @@
 ---
-name: e2e-debugger
-description: E2E test debugger with database access. Use when E2E/Playwright tests fail and you need to inspect DB state, check API responses, trace data flow, or debug WebSocket events.
+name: playwright-debugger
+description: Playwright E2E test debugger with database access. Use when Playwright tests fail and you need to inspect DB state, check API responses, trace data flow, or debug WebSocket events. For Cypress, adapt the diagnostic flow manually.
 model: sonnet
 tools: Read, Write, Edit, Bash, Grep, Glob, mcp__postgres-server__query, mcp__fetch-server__fetch
 ---

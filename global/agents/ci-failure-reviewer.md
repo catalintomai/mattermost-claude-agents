@@ -385,7 +385,7 @@ uses: actions/checkout@abc123      # SHA with no version comment (hard to audit)
 
 ## See Also
 
-- `e2e-test-writer` - E2E test issues
+- `playwright-test-writer` - E2E test issues
 - `ts-test-writer` - Unit test patterns
 - `race-condition-reviewer` - Race condition detection
 - `ci-expert` - CI pipeline creation and GitHub Actions workflow design

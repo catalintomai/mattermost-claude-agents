@@ -298,6 +298,62 @@ query := s.getQueryBuilder().Select("*").From("Posts").
 query := "SELECT * FROM Posts WHERE ChannelId = ?"  // Missing page filter!
 ```
 
+### 13. Pagination at the SQL Level (NOT the App Layer)
+
+Store list methods that return collections must accept `page, perPage int` (or `offset, limit int`) and apply them via squirrel `.Limit().Offset()` before executing the query. The app layer must **never** paginate by slicing a store result.
+
+**Why**: Loading all rows into Go memory and slicing is O(N) in memory even when the caller only needs 20 rows. At scale (thousands of pages, large channels) this silently becomes an OOM risk. MM core consistently pushes pagination into SQL — `GetPosts`, `GetAllChannels`, `GetFlaggedPosts`, `GetMembersForUserWithPagination` all follow this pattern.
+
+```go
+// CORRECT: pagination in SQL
+func (s *SqlPageStore) GetChannelPages(channelID string, page, perPage int) ([]*model.Post, error) {
+    query := s.getQueryBuilder().
+        Select(postSliceColumnsWithName("p")...).
+        From("Posts p").
+        Where(sq.Eq{"p.ChannelId": channelID, "p.DeleteAt": 0}).
+        OrderBy("p.CreateAt DESC").
+        Limit(uint64(perPage)).
+        Offset(uint64(page * perPage))
+    // ...
+}
+
+// WRONG: full load returned to app layer for slicing
+func (s *SqlPageStore) GetChannelPages(channelID string) ([]*model.Post, error) {
+    query := s.getQueryBuilder().
+        Select(postSliceColumnsWithName("p")...).
+        From("Posts p").
+        Where(sq.Eq{"p.ChannelId": channelID}).
+        Limit(10000) // hard cap is NOT pagination
+    // ...
+}
+
+// WRONG: app layer slices a full store result
+postList, _ := a.Srv().Store().Page().GetChannelPages(channelID)
+page := postList.Order[offset : offset+limit] // slicing in app layer — NO
+```
+
+**Exception — "load all" methods for tree/graph rendering**: Methods explicitly named `Get*Meta`, `Get*ForTree`, or documented as "loads all nodes for in-memory tree construction" may omit `page/perPage`. They must:
+- Select only the columns needed (exclude large content fields such as `Message`)
+- Document the bound (e.g., "wikis are bounded to N pages by the hard limit in CreatePage")
+- Use a name that signals they are not general-purpose list methods
+
+```go
+// CORRECT exception: metadata-only, no Message, for tree rendering
+func (s *SqlPageStore) GetChannelPagesMeta(channelID string) ([]*model.Post, error) {
+    query := s.getQueryBuilder().
+        Select("p.Id", "p.PageParentId", "p.Props", "p.UserId", "p.CreateAt", "p.DeleteAt").
+        From("Posts p").
+        Where(sq.Eq{"p.ChannelId": channelID, "p.Type": model.PostTypePage, "p.DeleteAt": 0})
+    // ...
+}
+```
+
+**Red flags to catch:**
+- Store method returns `[]*model.Post` or `*model.PostList` with no `page`/`perPage`/`limit` parameter
+- Store method has a hardcoded safety cap (e.g., `Limit(10000)`) that is described as a "limit to prevent memory issues" — this is pagination done wrong
+- App layer code slices a store result: `order[offset:end]`, `posts[:limit]`, `results[page*perPage:]`
+- App layer calls a store method in a goroutine fan-out and merges results before slicing — each fan-out branch must paginate independently at the SQL level
+
 ## Removing Store Methods
 
 When store methods are deleted or renamed, verify cleanup across layers:
@@ -334,6 +390,7 @@ grep -r "MethodName" server/
 11. **Missing post type filter** - Channel feed queries must use `regularPostsFilter` to exclude pages
 12. **Explicit `db:` tags on model structs** - Mattermost models must NOT use `db:"ColName"` tags (see rule below)
 13. **UNION via sq.Expr with builder args** - `sq.Expr("(?) UNION (?)", builder1, builder2)` produces independent `$1,$2...` sequences per builder; PostgreSQL rejects the combined query with a parameter count mismatch. Use EXISTS subqueries in a single builder, or write raw SQL with a flat params slice. See `db-reference.md` § "UNION Queries".
+14. **App-layer pagination (slicing a store result)** - Store list methods must accept `page/perPage` and apply `.Limit().Offset()` in SQL. A store method with no limit parameter and a hardcoded safety cap is not paginated. App layer slicing (`order[offset:end]`) is always wrong.
 
 ### 12. No Explicit `db:` Tags on Model Structs (CRITICAL)
 
@@ -372,10 +429,10 @@ type MyModel struct {
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `store:RAW_SQL`, `store:HA_STALE_READ`, `store:MISSING_ERR_WRAP`, `store:MISSING_INPUT_VAL`
+**Domain tags**: `store:RAW_SQL`, `store:HA_STALE_READ`, `store:MISSING_ERR_WRAP`, `store:MISSING_INPUT_VAL`, `store:APP_LAYER_PAGINATION`
 
 **Domain-specific sections** (after canonical sections):
-- Pattern Checklist: 13 items (error types, squirrel, error wrapping, input validation, replica/master, transactions, typed errors, no business logic, soft deletes, HA read-after-write, post type filter, db tags, model structs)
+- Pattern Checklist: 14 items (error types, squirrel, error wrapping, input validation, replica/master, transactions, typed errors, no business logic, soft deletes, HA read-after-write, post type filter, db tags, model structs, SQL-level pagination)
 
 ## PR Review Patterns
 

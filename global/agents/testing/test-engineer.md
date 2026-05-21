@@ -1,6 +1,6 @@
 ---
 name: test-engineer
-description: Designs unit and integration test suites, analyzes coverage gaps, and detects mock abuse (everything mocked, internal functions mocked, tests that still pass with all mocks removed). Use when adding tests for new code, analyzing coverage gaps in existing code, or writing a regression test that reproduces a specific bug. For Playwright E2E test writing or review (*.spec.ts), use e2e-test-writer or e2e-test-reviewer instead.
+description: Designs unit and integration test suites, analyzes coverage gaps, and detects mock abuse (everything mocked, internal functions mocked, tests that still pass with all mocks removed). Use when adding tests for new code, analyzing coverage gaps in existing code, or writing a regression test that reproduces a specific bug. For Playwright E2E test writing or review (*.spec.ts), use playwright-test-writer or playwright-test-reviewer instead.
 model: sonnet
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
@@ -215,8 +215,8 @@ If a behavior cannot be tested without running the full stack (e.g., requires a 
 ## Relationship to Other Testing Agents
 
 - **test-engineer** (this agent): Strategy, unit tests, integration tests, coverage analysis
-- **e2e-test-writer**: Playwright E2E tests, browser automation
-- **e2e-test-reviewer**: Reviewing Playwright tests for MM conventions
+- **playwright-test-writer**: Playwright E2E tests, browser automation
+- **playwright-test-reviewer**: Reviewing Playwright tests for MM conventions
 - **go-test-writer**: Go-specific test writing for Mattermost server
 - **ts-test-writer**: TypeScript/Jest unit tests for Mattermost webapp
 

@@ -16,7 +16,7 @@ user_invocable: true
 > Use BEFORE `/fix-test` when the root cause is not obvious.
 > `/triage-issue` → `/create-plan --minimal` → `/create-code` → `/fix-test`
 
-**Related**: `/fix-test` (fix once cause is known), `debugger` agent (root cause), `e2e-debugger` agent (E2E with DB state)
+**Related**: `/fix-test` (fix once cause is known), `debugger` agent (root cause), `playwright-debugger` agent (E2E with DB state)
 
 ## Usage
 
@@ -51,7 +51,7 @@ Spawn diagnostic agents in parallel based on the symptom. Give each agent the ev
 | Symptom | Agent | Context to provide |
 |---------|-------|--------------------|
 | Go test / server error | `debugger` | Error + stack trace + affected files + hypotheses |
-| E2E / Playwright failure | `e2e-debugger` | Test output + DB query to verify state + hypotheses |
+| E2E / Playwright failure | `playwright-debugger` | Test output + DB query to verify state + hypotheses |
 | CI-only failure | `ci-failure-reviewer` | CI log + local vs CI diff + hypotheses |
 | React/TS component bug | `debugger` | Component + props + error output + hypotheses |
 | Intermittent / flaky | `ci-failure-reviewer` | Pattern across runs + timing context |

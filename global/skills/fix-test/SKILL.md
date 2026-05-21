@@ -75,8 +75,8 @@ Use three-level agent discovery. Spawn diagnostic agents:
 | `debugger` | Root cause analysis, trace execution | Always (default) |
 | `ci-failure-reviewer` | CI-specific failures, flaky patterns | `--ci` or `--flaky` |
 | `ts-test-writer` | Unit test patterns, mocking issues | Unit test failures |
-| `e2e-test-writer` | E2E test patterns, selector issues | E2E test failures |
-| `e2e-debugger` | DB state, API traces for E2E | E2E with data issues |
+| `playwright-test-writer` | E2E test patterns, selector issues | E2E test failures |
+| `playwright-debugger` | DB state, API traces for E2E | E2E with data issues |
 
 **Before spawning: read `~/.claude/agents/AGENT_REGISTRY.md`. The table above lists defaults; the registry may have project-specific additions. Never select from memory.**
 
@@ -187,7 +187,7 @@ When `--flaky` is used or a test is classified as flaky:
 |------|-----------|------|-------|------------|
 | T1: Backend diagnosis | debugger | Diagnose Go test failures | Independent Work | -- |
 | T2: Frontend diagnosis | debugger | Diagnose TS/React test failures | Independent Work | -- |
-| T3: E2E diagnosis | e2e-debugger | Diagnose E2E failures | Independent Work | -- |
+| T3: E2E diagnosis | playwright-debugger | Diagnose E2E failures | Independent Work | -- |
 | T4: Multi-LLM patterns | general-purpose | Analyze failure patterns | Independent Work | -- |
 | T5: Cross-validation | 3-5 Phase 1 types covering major domains (see swarm-harness.md) | Share root causes + contradiction check | Cross-Validation | T1-T4 |
 | T6: Apply fixes | coder | Fix code/tests | -- | T5 |

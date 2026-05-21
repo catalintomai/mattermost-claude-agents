@@ -470,6 +470,14 @@ APP_DIR=$(find . -maxdepth 6 -type d -name "app" -not -path "*/vendor/*" -not -p
 grep -r "HasPermissionTo\|SessionHasPermission" "$APP_DIR" | grep -v "_test.go"
 ```
 
+### 7–8. Elevated-Identity Escalation Patterns
+
+> Read `~/.claude/agents/_shared/elevated-identity-escalation-pattern.md` — covers two patterns:
+> - **Pattern 1**: A service/bot executes a privileged operation under elevated identity; a lower-permission user can trigger it (indirect privilege escalation).
+> - **Pattern 2**: An ownership flag (`XCreatedByRun`) is set at creation time but the target identifier is mutable; swapping the ID redirects the privileged operation to a victim resource.
+>
+> For every elevated-identity call (`pluginAPI.Channel.Delete`, `adminClient.*`, bot API calls) in the diff: read that file and apply both patterns.
+
 ## Permission Audit Checklist
 
 ### For Each API Endpoint:
