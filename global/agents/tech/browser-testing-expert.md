@@ -14,13 +14,21 @@ Uses Chrome DevTools MCP to give the agent eyes into live browser state. Instead
 
 ## Chrome DevTools MCP Setup
 
+Official package: `chrome-devtools-mcp` (maintained by the Chrome DevTools team — https://github.com/ChromeDevTools/chrome-devtools-mcp).
+
+```bash
+# Recommended CLI install
+claude mcp add chrome-devtools --scope user npx chrome-devtools-mcp@latest
+```
+
+Equivalent JSON config (`.mcp.json` or Claude Code settings):
+
 ```json
-// Add to .mcp.json or Claude Code settings:
 {
   "mcpServers": {
     "chrome-devtools": {
       "command": "npx",
-      "args": ["@anthropic/chrome-devtools-mcp@latest"]
+      "args": ["-y", "chrome-devtools-mcp@latest"]
     }
   }
 }
@@ -115,14 +123,16 @@ JavaScript execution runs in the page context. Use it only for:
 
 ### Performance Workflow
 
+Thresholds below are the official Core Web Vitals "good" targets, measured at the 75th percentile of page loads (web.dev/articles/vitals).
+
 ```
 1. BASELINE → Record performance trace
 
 2. IDENTIFY
-   → LCP (Largest Contentful Paint) — target < 2.5s
-   → CLS (Cumulative Layout Shift) — target < 0.1
-   → INP (Interaction to Next Paint) — target < 200ms
-   → Long tasks > 50ms
+   → LCP (Largest Contentful Paint) — good < 2.5s (web.dev/articles/lcp)
+   → CLS (Cumulative Layout Shift) — good < 0.1 (web.dev/articles/cls)
+   → INP (Interaction to Next Paint) — good < 200ms (web.dev/articles/inp)
+   → Long tasks > 50ms (W3C Long Tasks API)
    → Unnecessary re-renders
 
 3. FIX specific bottleneck
@@ -160,11 +170,13 @@ Console levels:
 ## Accessibility Verification via DevTools
 
 ```
-1. Read accessibility tree → All interactive elements have accessible names
-2. Check heading hierarchy → h1 → h2 → h3 (no skipped levels)
-3. Tab through page → Verify logical focus order
-4. Check color contrast → Minimum 4.5:1 ratio for text
-5. Check ARIA live regions → Dynamic content changes announced
+1. Read accessibility tree → All interactive elements have accessible names (WCAG 2.1 SC 4.1.2)
+2. Check heading hierarchy → h1 → h2 → h3 (skipping levels is a common a11y heuristic,
+   not strictly required by WCAG 2.4.6 — flag only if surrounding context implies misuse)
+3. Tab through page → Verify logical focus order (WCAG 2.1 SC 2.4.3)
+4. Check color contrast → Minimum 4.5:1 for normal text, 3:1 for large text
+   (WCAG 2.1 SC 1.4.3 Level AA — large text = 18pt / 14pt bold or larger)
+5. Check ARIA live regions → Dynamic content changes announced (WAI-ARIA 1.2 §5.3)
 ```
 
 ## Writing Test Plans for Complex Bugs
@@ -229,7 +241,7 @@ If a browser finding cannot be reproduced from static analysis alone, mark `[UNV
 
 ## See Also
 
-- `e2e-test-writer` — Write automated Playwright tests for flows verified here
+- `playwright-test-writer` — Write automated Playwright tests for flows verified here
 - `ui-pattern-reviewer` — Static review of component architecture and a11y patterns
 - `ux-edge-case-reviewer` — Review of empty/error/loading state quality
 

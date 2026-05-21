@@ -171,7 +171,7 @@ Fix: Check action creator, reducer case, selector
 
 ## See Also
 
-- `e2e-debugger` - For E2E/Playwright test failures with DB access
+- `playwright-debugger` - For E2E/Playwright test failures with DB access
 - `error-handling-reviewer` - For error handling pattern issues
 - `app-reviewer` - For app layer pattern violations
 - `store-reviewer` - For store layer pattern violations

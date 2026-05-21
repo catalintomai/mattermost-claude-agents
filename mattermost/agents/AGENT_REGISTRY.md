@@ -108,8 +108,8 @@ The Parallel Groups routing table for `/review-code` lives in the **global** reg
 | Agent | Phase | Purpose | File |
 |-------|-------|---------|------|
 | `debugger` | [CODE] | Investigate failures with MM layer awareness | `mattermost/debug/debugger.md` |
-| `e2e-debugger` | [CODE] | E2E test debugging with DB / API / WebSocket inspection | `mattermost/debug/e2e-debugger.md` |
-| `e2e-coordinator` | [CODE] | Coordinate multi-layer E2E test diagnosis | `mattermost/debug/e2e-coordinator.md` |
+| `playwright-debugger` | [CODE] | E2E test debugging with DB / API / WebSocket inspection | `mattermost/debug/playwright-debugger.md` |
+| `playwright-coordinator` | [CODE] | Coordinate multi-layer E2E test diagnosis | `mattermost/debug/playwright-coordinator.md` |
 | `refactorer` | [CODE] | Atomic refactor: rename + all call sites in one commit, layer moves, interface changes | `mattermost/infra/refactorer.md` |
 
 ### Mattermost Design & System Architecture

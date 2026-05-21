@@ -29,7 +29,7 @@ Agents within each group are independent and can run simultaneously. **Project r
 | Compatibility | `backwards-compatibility-reviewer`, `batch-operations-reviewer`, `null-safety-reviewer`, `deprecation-reviewer`, `license-reviewer`, `file-structure-reviewer`, `config-migration-reviewer`, `type-design-reviewer`, `client-server-alignment-reviewer`, `schema-necessity-reviewer`, `launch-readiness-reviewer` | `model/` changes, API surface changes, new files/dirs, config changes |
 | Infrastructure | `ci-failure-reviewer`, `ci-gate-reviewer`, `ci-design-reviewer` | CI/CD file changes or `--ci` flag |
 | Security | `xss-reviewer`, `validation-reviewer`, `permission-reviewer`, `owasp-agentic-auditor`, `accessibility-reviewer`, `security-auditor` | `--thorough` |
-| Testing | `e2e-test-reviewer`, `test-parallelization-reviewer`, `behavioral-change-reviewer`, `test-coverage-reviewer`, `test-engineer` | Test file changes, test setup refactoring, parallel mode changes |
+| Testing | `playwright-test-reviewer`, `cypress-test-reviewer`, `test-parallelization-reviewer`, `behavioral-change-reviewer`, `test-coverage-reviewer`, `test-engineer` | Test file changes, test setup refactoring, parallel mode changes |
 | Python | `py-async-reviewer`, `py-datetime-reviewer`, `py-sqlite-reviewer` | Python (`.py`) changes |
 | Playbooks domain | `run-lifecycle-reviewer`, `attribute-template-reviewer`, `playbooks-api-parity-reviewer`, `playbooks-expert` | Any PR in a Playbooks plugin repo (`server/app/`, `server/api/`, `server/sqlstore/`, `client/`) |
 | Playbooks migrations | `playbooks-migration-reviewer` | `server/sqlstore/migrations.go` or `server/plugin.go` changes in playbooks plugin |
@@ -60,7 +60,7 @@ Every agent is tagged for swarm routing:
 | Create a plan | [PLAN] | `/create-plan` | Same as above (built into workflow) |
 | Review architecture docs | [PLAN] | Direct use | `doc-consistency-reviewer` + `design-flaw-reviewer` |
 | Review code | [CODE] | `/review-code` | `pattern-reviewer`, `error-handling-reviewer`, `simplicity-reviewer`, + tier agents |
-| Debug failures | [CODE] | Direct use | `debugger`, `e2e-debugger` |
+| Debug failures | [CODE] | Direct use | `debugger`, `playwright-debugger` |
 | Refactor code | [CODE] | Direct use | `refactorer` |
 
 ---
@@ -194,13 +194,14 @@ Catalogued in the Level 2 registry: `pattern-reviewer`, `comment-reviewer`, `err
 |-------|-------|---------|----------|
 | `test-parallelization-reviewer` | [CODE] | Test parallel-safety: shared state, env leaks, fixture isolation, race conditions under concurrent execution | `review/` |
 | `behavioral-change-reviewer` | [CODE] | Semantic behavior changes disguised as refactoring — changed assertions, status codes, control flow in "cleanup" PRs | `review/` |
-| `e2e-test-reviewer` | [CODE] | **Review** E2E tests (read-only: conventions, anti-patterns) | `testing/` |
+| `playwright-test-reviewer` | [CODE] | **Review** Playwright E2E tests (read-only: conventions, anti-patterns) — `*.spec.ts` only | `testing/` |
+| `cypress-test-reviewer` | [CODE] | **Review** Cypress E2E tests (read-only: DOM detachment, wait patterns, selector stability) — `*_spec.js`, `*.cy.ts` | `testing/` |
 | `test-engineer` | [CODE] | Test strategy, unit/integration test writing, coverage analysis, mock quality analysis — language-agnostic | `testing/` |
 
 > MM-specific test reviewer (`test-coverage-reviewer`) is catalogued in the Level 2 registry.
 
-> **`e2e-test-writer`** is an **implementation** agent (Write/Edit/Bash), not a reviewer.
-> Use it to **write or fix** E2E tests. Use `e2e-test-reviewer` to **review** them.
+> **`playwright-test-writer`** is an **implementation** agent (Write/Edit/Bash), not a reviewer.
+> Use it to **write or fix** E2E tests. Use `playwright-test-reviewer` (Playwright) or `cypress-test-reviewer` (Cypress) to **review** them.
 
 ### Tier 6: Compatibility & Safety
 
@@ -245,10 +246,10 @@ Use directly for doing work (not reviewing).
 | `coder` | [CODE] | Write code | `core/` |
 | `ideation-partner` | [BOTH] | Structured ideation — refine vague ideas into actionable MVP concepts through divergent/convergent thinking phases | `core/` |
 | `pr-decomposition-sequencer` | [BOTH] | Analyzes a large feature branch and produces an ordered, independently-mergeable PR sequence — clusters files by feature, builds a cross-layer dependency graph, outputs a merge-ordered plan | `core/` |
-| `e2e-test-writer` | [CODE] | Write/fix Playwright E2E tests | `testing/` |
+| `playwright-test-writer` | [CODE] | Write/fix Playwright E2E tests | `testing/` |
 | `browser-testing-expert` | [CODE] | Browser testing and debugging with Chrome DevTools MCP — visual verification, network analysis, accessibility tree, performance profiling | `tech/` |
 
-> MM-specific implementation/debug agents (`debugger`, `refactorer`, `go-test-writer`, `e2e-debugger`, `e2e-coordinator`) are catalogued in the Level 2 registry.
+> MM-specific implementation/debug agents (`debugger`, `refactorer`, `go-test-writer`, `playwright-debugger`, `playwright-coordinator`) are catalogued in the Level 2 registry.
 
 ---
 

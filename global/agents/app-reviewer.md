@@ -122,7 +122,48 @@ defer func() {
 }()
 ```
 
-### 7. Validation Pattern
+### 7. Multi-Step Destructive Operations
+
+When a delete (or any irreversible operation) requires multiple sequential store calls, **mark the entity first** before cascading into children. This mirrors `PermanentDeleteTeam` (`team.go`) and `PermanentDeleteChannel` (`channel.go`).
+
+```go
+// CORRECT: Soft-delete (mark DeleteAt) before cascading
+func (a *App) PermanentDeleteThing(rctx request.CTX, thing *model.Thing) *model.AppError {
+    // 1. Mark as deleted first — entity becomes invisible even if later steps fail
+    thing.DeleteAt = model.GetMillis()
+    if _, err := a.Srv().Store().Thing().Update(thing); err != nil {
+        return model.NewAppError("PermanentDeleteThing", "app.thing.delete.mark_error", nil, "", http.StatusInternalServerError).Wrap(err)
+    }
+
+    // 2. Cascade-delete children — log warnings on failure, do NOT abort
+    if err := a.Srv().Store().Thing().DeleteAllChildren(thing.Id); err != nil {
+        rctx.Logger().Warn("Failed to delete thing children", mlog.String("thing_id", thing.Id), mlog.Err(err))
+    }
+
+    // 3. Hard-delete the entity row last
+    if err := a.Srv().Store().Thing().PermanentDelete(thing.Id); err != nil {
+        return model.NewAppError("PermanentDeleteThing", "app.thing.delete.error", nil, "", http.StatusInternalServerError).Wrap(err)
+    }
+    return nil
+}
+
+// WRONG: Hard-delete children first with no prior marker — crash leaves zombie state
+func (a *App) DeleteThing(rctx request.CTX, thingId string) *model.AppError {
+    a.Srv().Store().Thing().DeleteAllChildren(thingId) // children gone
+    a.Srv().Store().Thing().PermanentDelete(thingId)   // entity gone
+    a.PermanentDeleteRelatedResource(rctx, ...)        // crash → zombie resource
+}
+```
+
+**Rules**:
+- Set `entity.DeleteAt = model.GetMillis()` and persist it **before** any cascade step
+- Cascade failures on child cleanup are **warn-and-continue**, not hard errors (matching `PermanentDeleteTeam`)
+- The hard-delete of the entity row itself is the only step that may return an error
+- This ensures the entity is invisible to users even if a later step fails
+
+**Flag** any multi-step delete that starts by deleting children before marking the parent with `DeleteAt`. **Do not flag** single-table deletes or deletes already wrapped in a DB transaction.
+
+### 8. Validation Pattern
 
 See `validation-reviewer` for comprehensive input validation patterns. App layer validation rules:
 
@@ -132,7 +173,7 @@ See `validation-reviewer` for comprehensive input validation patterns. App layer
 - Return `http.StatusBadRequest` for validation failures
 - **No cross-layer duplication**: when a service method is called exclusively from a single REST handler that already validates the same fields, the service must NOT repeat those checks. Grep for all callers of the service method; if every caller is a REST handler, check those handlers — duplicate `Validate*`/`Normalize*` calls in the service layer are redundant and create maintenance debt. Exception: validation in a service method is justified when the method is called from multiple entry points (REST handler + slash command + background job + import path).
 
-### 8. Permission Checks - NEVER in App Layer
+### 9. Permission Checks - NEVER in App Layer
 
 **CRITICAL**: Permission checks belong ONLY in the API layer, NEVER in App layer.
 
@@ -232,7 +273,7 @@ See `validation-reviewer` for full validation patterns and detection commands. K
 **Domain tags**: `app:LAYER_BYPASS`, `app:WRONG_ERR_TYPE`, `app:MISSING_VALIDATION`, `app:PERM_IN_APP`
 
 **Domain-specific sections** (after canonical sections):
-- Pattern Checklist: 9 items (no sqlstore imports, no raw SQL, request.CTX, AppError return, error wrapping, structured logging, metrics, validation, no permission checks)
+- Pattern Checklist: 10 items (no sqlstore imports, no raw SQL, request.CTX, AppError return, error wrapping, structured logging, metrics, multi-step delete ordering, validation, no permission checks)
 
 ## Anti-Slop Guidance (Do NOT Flag)
 

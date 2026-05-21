@@ -183,7 +183,7 @@ Then extract per layer:
 
 Write tests that call the planned functions/render the planned components directly, as if they exist. They won't compile — that's the expected "red" state.
 
-**CRITICAL**: Do NOT stop after writing tests for one layer. Every layer in the inventory gets its own test files. Launch parallel agents (go-test-writer, ts-test-writer, e2e-test-writer) for each layer.
+**CRITICAL**: Do NOT stop after writing tests for one layer. Every layer in the inventory gets its own test files. Launch parallel agents (go-test-writer, ts-test-writer, playwright-test-writer) for each layer.
 
 **E2E tests require a plan file.** E2E tests map to *behaviors* described in a plan/spec, not to individual files. If `--e2e` is requested and no plan file was provided:
 1. Search for the most recent plan referencing the changed files — check `plans/` first, then `plans/`, then check CLAUDE.md for a documented plans location
@@ -235,8 +235,8 @@ Use three-level agent discovery. Spawn domain agents for test quality:
 |-------|------|------|
 | `test-coverage-reviewer` | Validates coverage plan, identifies gaps | Always |
 | `ts-test-writer` | Advises on unit test patterns, mocking | Unit tests |
-| `e2e-test-writer` | Advises on E2E patterns, selectors | E2E tests |
-| `e2e-test-reviewer` | Reviews E2E test conventions | E2E tests |
+| `playwright-test-writer` | Advises on E2E patterns, selectors | E2E tests |
+| `playwright-test-reviewer` | Reviews E2E test conventions | E2E tests |
 
 **Before spawning: read `~/.claude/agents/AGENT_REGISTRY.md` SS "Parallel Groups for Code Review". The table above lists defaults; the registry may have project-specific additions. Never select from memory.**
 
@@ -262,7 +262,7 @@ Do NOT create stubs, placeholder files, or zero-value implementations. The test 
 
 **Store test mandate**: If the plan adds N new public store methods, there must be N new test functions (each with subtests for happy path, error cases, and edge cases). Store tests are the ONLY layer that validates SQL correctness — skipping them means SQL bugs (wrong placeholders, missing JOINs, incorrect WHERE clauses) go undetected until production.
 
-Launch **parallel agents** for each layer (go-test-writer, ts-test-writer, e2e-test-writer). Do NOT write all tests yourself sequentially — delegate to specialists.
+Launch **parallel agents** for each layer (go-test-writer, ts-test-writer, playwright-test-writer). Do NOT write all tests yourself sequentially — delegate to specialists.
 
 **Off-happy-path emphasis:**
 - For every happy-path test, write 2-3 corresponding error/edge tests
@@ -305,7 +305,7 @@ Execute using the detected test runner.
 After tests pass, spawn review agents to validate quality:
 
 1. **`test-coverage-reviewer`**: Compare actual tests written against the coverage matrix from Step 1.5. Identify gaps.
-2. **`e2e-test-reviewer`** (if E2E): Check for flakiness patterns, proper waits, data isolation.
+2. **`playwright-test-reviewer`** (if E2E): Check for flakiness patterns, proper waits, data isolation.
 
 **MAX_REVIEW_ITERATIONS = 2**
 
@@ -409,7 +409,7 @@ Gaps: 2 methods documented with justification
 
 ### Quality Gate
 - **test-coverage-reviewer**: [findings]
-- **e2e-test-reviewer**: [findings, if applicable]
+- **playwright-test-reviewer**: [findings, if applicable]
 - **Rounds**: N/2
 ```
 
@@ -469,11 +469,11 @@ When fixing a security ticket, tests must encode **secure behavior contracts** �
 |------|-----------|------|-------|------------|
 | T1: Backend tests | go-test-writer | Write Go tests | Independent Work | -- |
 | T2: Frontend tests | ts-test-writer | Write TS/React tests | Independent Work | -- |
-| T3: E2E tests | e2e-test-writer | Write Playwright tests | Independent Work | -- |
+| T3: E2E tests | playwright-test-writer | Write Playwright tests | Independent Work | -- |
 | T4: Multi-LLM coverage | general-purpose | Identify coverage gaps | Independent Work | -- |
 | T5: Cross-validation | 3-5 Phase 1 types covering major domains (see swarm-harness.md) | Dedup + fill gaps + contradiction check | Cross-Validation | T1-T4 |
 | T6: Run all tests | coder | Execute test suite | -- | T5 |
-| T7: Quality gate | test-coverage-reviewer + e2e-test-reviewer | Validate against coverage matrix | -- | T6 |
+| T7: Quality gate | test-coverage-reviewer + playwright-test-reviewer | Validate against coverage matrix | -- | T6 |
 
 ## Fix Prompts — Pattern Completeness Rule
 

@@ -15,12 +15,23 @@ tools: Read, Grep, Glob
 You validate Claude Code custom agent (subagent) files against the official documentation.
 Source: https://code.claude.com/docs/en/sub-agents
 
+## Pre-Audit: Discover Local Conventions First
+
+**Before raising any finding about naming, tagging, or structural patterns**, check for project-specific convention documents in the target directory:
+
+1. Look for `AGENT_REGISTRY.md` in the same `.claude/agents/` directory being audited — read it in full
+2. Look for any other convention/registry docs (e.g., `DATA_SOURCES.md`, `CONVENTIONS.md`)
+3. Any pattern explicitly documented in those files is **intentional** — do not flag it as a violation
+
+This step exists because project collections may define their own valid conventions (e.g., `[CODE]`/`[PLAN]`/`[RUNTIME]` routing tags in description fields, custom `color:` fields, subdirectory structures) that differ from global defaults. Flagging documented conventions as violations is a false positive.
+
 ## How to Run
 
 1. Accept an agent path as input, OR scan all agents in `.claude/agents/` and `~/.claude/agents/`
-2. Read each .md agent file
-3. Run every check below
-4. Output a structured report per agent
+2. **Run the Pre-Audit step above first**
+3. Read each .md agent file
+4. Run every check below
+5. Output a structured report per agent
 
 ## Checks
 
