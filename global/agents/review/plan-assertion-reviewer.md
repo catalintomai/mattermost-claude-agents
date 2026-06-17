@@ -93,6 +93,29 @@ For each factual claim:
 1. Grep to find relevant code
 2. Read to examine it
 3. Classify: CORRECT / WRONG / INACCURATE
+4. **For WRONG claims**: before reporting, run a closest-match search (see Phase 2b). Single-step author fix beats two-step diagnose-then-search.
+
+### Phase 2b: Closest-Match Search for WRONG Facts
+
+When a factual claim resolves to "this symbol does not exist", do NOT stop at non-existence. The author almost always meant a real symbol nearby; report the closest match so the fix is a single edit.
+
+**Run three complementary searches before finalizing a WRONG finding:**
+
+| Search | Command | What it catches |
+|---|---|---|
+| **Exact name, any scope** | `grep -rn "<symbol>" server/ webapp/` | The symbol exists elsewhere (wrong layer, wrong package, wrong receiver). Example: `App.ExecuteInTransaction` does not exist but `SqlStore.ExecuteInTransaction` does (`server/channels/store/sqlstore/store_helpers.go:52`) — attribution to wrong receiver. |
+| **Fuzzy name** | `grep -rn "<root-of-symbol>" server/ webapp/` after stripping common prefixes (`App.`, `Sql`, `Permission`, `Channel`, `Enable`) and suffixes (`Settings`, `Manager`, `Helper`) | Catches close misspellings or renames. Example: `EnableWikis` does not exist but `EnableLinkPreviews` does — same naming family, different feature. |
+| **Same-role search** | Apply regex by symbol class. For methods: `grep -rEn "func.*<verb><Noun>" server/` (e.g. `ExecuteIn` for transaction wrappers). For constants: `grep -rEn "(Permission\|ChannelType\|PostType)<Suffix>" server/public/model/`. For config flags: `grep -rEn "Enable\w+" server/public/model/config.go` | The author proposed a name that does not exist but the *role* it describes does, under a different name. Example: a plan citing `App.WrapInTransaction()` — same-role search for transaction wrappers surfaces `SqlStore.ExecuteInTransaction()`. |
+
+**Reporting.** A WRONG finding becomes one of three subclasses:
+
+| Subclass | When |
+|---|---|
+| `WRONG — wrong attribution` | Symbol exists but at a different receiver / layer / file than the plan claims. Report both (claimed location, actual location). |
+| `WRONG — close match` | A similarly-named symbol exists; likely a typo/rename. Report the candidate. |
+| `WRONG — no equivalent` | Exact, fuzzy, and same-role searches all return empty. The symbol truly does not exist. Report all three negative searches as evidence.
+
+**Budget.** ≤ 6 greps per WRONG claim. If the closest-match search is inconclusive after that, fall back to `WRONG — no equivalent` and report what was tried.
 
 ### Phase 3: Verify Reasoning (Part B)
 
@@ -129,9 +152,12 @@ Classify: VALID / INVALID / PARTIALLY VALID
 
 #### "[exact quote from plan]"
 **Claim**: [what the plan says]
+**Subclass**: `WRONG — wrong attribution` | `WRONG — close match` | `WRONG — no equivalent`
 **Reality**: [what the code actually shows]
-**Evidence**: `path/to/file.go:NN`
+**Closest existing match**: [if any] `<symbol>` at `path/to/file.go:NN` — [why this is likely what the author meant]
+**Evidence**: `path/to/file.go:NN` (for the actual match) OR the negative greps run (for "no equivalent")
 **Impact**: [how this false premise affects the plan]
+**Suggested fix**: [single-edit fix using the closest match, or "rename to a real symbol / mark [proposed] / drop the reference" if no equivalent]
 
 ### INVALID Reasoning (Must Fix)
 

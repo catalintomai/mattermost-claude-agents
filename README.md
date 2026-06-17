@@ -39,22 +39,29 @@ Restart Claude Code after installing.
 Install location: `~/.claude/agents/`  
 Available in **any project**.
 
-### Core
+> **Note on layout**: the global tree holds language-agnostic agents only. Mattermost-specific reviewers (api/app/store, MM React/Redux, MM migrations, etc.) live in the **Mattermost-Suite** section below and are symlinked into `~/.claude/agents/` so they remain invokable everywhere.
+
+### Core (`core/`)
 
 | Agent | Description |
 |-------|-------------|
 | `coder` | Generalist implementation agent for cross-language work |
 | `ideation-partner` | Structured ideation: HMW problem → variations → convergence → one-pager |
 | `pr-decomposition-sequencer` | Splits a large branch into ordered, independently-mergeable PRs |
-| `refactorer` | Atomic refactor: rename everywhere, extract function, move between layers — one commit |
-| `tech-debt-refactorer` | Incremental legacy-code rehabilitation planned as a sequence of independently-mergeable PRs |
+| `competitive-product-analyst` | Builds feature-comparison matrices across competing products from primary sources |
+| `feature-prioritization-expert` | Applies RICE/MoSCoW/Kano/JTBD frameworks to a candidate feature list |
+| `feature-usage-researcher` | Estimates real-world usage frequency of a single product's features from proxy signals |
+| `product-trend-researcher` | Researches emerging product-category trends, classified by maturity with dated evidence |
+| `voice-of-customer-researcher` | Mines review sites/forums for product pain themes and per-feature satisfaction |
+| `feature-schedule-builder` | Builds an AI-dev delivery schedule paced by human review bandwidth, in review cycles |
 
-### Code Review
+### Code Review (`review/`)
 
 | Agent | Description |
 |-------|-------------|
 | `code-reviewer` | General-purpose reviewer: correctness, readability, architecture, security, performance |
 | `simplicity-reviewer` | Catches over-engineering, YAGNI violations, speculative abstractions |
+| `code-slop-reviewer` | Catches AI-generation slop: dead code, god functions, cargo-cult patterns, idiom drift |
 | `naming-consistency-reviewer` | Detects naming drift across files, config keys, CLI flags, API fields |
 | `structural-health-reviewer` | Finds shotgun surgery, god types, tangled dependencies, orphaned indirection |
 | `separation-of-concerns-reviewer` | Catches backend/frontend conflation and false "X requires Y" couplings |
@@ -62,134 +69,100 @@ Available in **any project**.
 | `behavioral-change-reviewer` | Catches semantic changes disguised as refactoring or cleanup |
 | `scope-drift-reviewer` | Validates every changed file traces to a requirement in the plan |
 | `deprecation-reviewer` | Catches missing migration guides and active consumers of removed code |
-| `duplication-reviewer` | Finds copy-paste and missed reuse opportunities |
-| `comment-reviewer` | Reviews comment accuracy, godoc completeness, comment rot |
-| `hardcoded-values-reviewer` | Catches magic numbers, repeated strings, config values that should be constants |
-| `production-reviewer` | Scans for mock/stub/placeholder code in production paths |
 | `type-duplication-reviewer` | Audits TS/Go type definitions for duplicate consolidation opportunities |
 | `go-silent-failure-reviewer` | Detects ignored errors, blank-identifier suppression, empty handlers (Go) |
 | `ts-silent-failure-reviewer` | Same as above for TypeScript/JavaScript |
-| `null-safety-reviewer` | Nil pointer dereferences and missing null checks (Go + TS) |
-| `error-handling-reviewer` | Missing wrapping, wrong propagation, incorrect error types by layer |
-| `skill-reviewer` | Validates Claude Code skill files for frontmatter, description quality, and anti-patterns |
+| `race-condition-reviewer` | Async race conditions, stale closures, event handler races (TS/React) |
+| `ui-pattern-reviewer` | AI aesthetic anti-patterns, WCAG violations, off-scale spacing, hardcoded colors |
+| `api-design-reviewer` | Reviews REST API implementations (code-level) for contract correctness |
+| `database-architecture-auditor` | Schema reviews: missing indexes, normalization, N+1 risks, JSON column misuse |
 
-### Architecture & Design Review
+### Architecture, Design & Doc Review (`review/`)
 
 | Agent | Description |
 |-------|-------------|
 | `architecture-assertion-auditor` | Audits ADRs for wrong facts AND invalid reasoning chains |
 | `architecture-tradeoff-reviewer` | Compares architectural options across migration cost, complexity, reversibility |
 | `design-flaw-reviewer` | Finds logical contradictions, impossible states, mechanism-guarantee mismatches |
-| `doc-consistency-reviewer` | Detects internal contradictions, schema-text mismatches, stale cross-references |
-| `external-claims-auditor` | Verifies claims about external products against official vendor docs |
 | `plan-assertion-reviewer` | Verifies codebase facts named in plans (schemas, signatures, constants) |
 | `plan-completeness-checker` | Checks plans for missing/empty sections against template checklists |
-| `system-design-reviewer` | Reviews feature designs for semantic mismatches and missing state transitions |
-| `multi-agent-architecture-reviewer` | Reviews multi-agent system designs for coordination anti-patterns |
-| `agent-reviewer` | Validates Claude Code agent `.md` files for frontmatter and design quality |
-| `agent-collection-validator` | Audits the full `~/.claude/agents/` collection for registry accuracy |
-| `convergence-reviewer` | Detects semantic thrashing across multi-round swarm review cycles |
+| `schema-necessity-reviewer` | Challenges every proposed migration — can existing storage handle it? |
+| `separation-of-concerns-reviewer` | Catches conflated concerns and false couplings in designs |
+| `doc-consistency-reviewer` | Detects internal contradictions, schema-text mismatches, stale cross-references |
+| `doc-opacity-reviewer` | Fresh-reader comprehension pass: flags sentences a first-time reader cannot parse |
+| `external-claims-auditor` | Verifies claims about external products against official vendor docs |
+| `reuse-detector` | Flags unverified novelty claims in docs/plans (new mechanism for a concern master already solves) |
+| `slop-detector` | Audits docs/ADRs for floating assertions, weasel tokens, empty tradeoffs, over-claims |
+| `symbol-sweep-reviewer` | Mechanical Stage-0: greps every named symbol in a plan/ADR against the codebase |
 | `ux-design-auditor` | Reviews UX designs against Nielsen's heuristics, six persona profiles, and HEART metrics |
 | `ux-edge-case-reviewer` | Reviews plans and code for user-facing edge cases: empty states, errors, loading UX |
+| `launch-readiness-reviewer` | Production readiness: rollback, monitoring, feature flags, staged rollout |
 
-### Backend
-
-| Agent | Description |
-|-------|-------------|
-| `go-backend-expert` | Go backend specialist: api4/, app/, store/, model/ |
-| `go-expert` | Go expert for non-Mattermost codebases |
-| `go-test-writer` | Go test specialist (`*_test.go`) |
-| `concurrent-go-reviewer` | Go concurrency: races, deadlocks, goroutine leaks |
-| `db-call-reviewer` | N+1 queries, unnecessary DB calls, missing batching |
-| `db-migration-expert` | Schema migrations, morph patterns, rollback planning |
-| `transaction-reviewer` | Multi-table transaction scope and patterns |
-| `batch-operations-reviewer` | Unbounded batches, missing pagination, goroutine spawning in loops |
-| `caching-expert` | Three-tier caching (LRU→Redis→PostgreSQL), invalidation order, stampede prevention |
-| `postgres-expert` | Complex SQL, indexing, EXPLAIN plans, transaction isolation |
-| `database-architecture-auditor` | Schema reviews: missing indexes, normalization, N+1 risks |
-| `schema-necessity-reviewer` | Challenges every proposed migration — can existing storage handle it? |
-| `ha-reviewer` | HA correctness in multi-node deployments |
-| `websocket-expert` | WebSocket lifecycle, reconnection, presence tracking, event design |
-| `websocket-event-reviewer` | WS event naming, payload, broadcast scope, handler registration |
-| `rest-api-expert` | REST API design: resources, HTTP methods, status codes, pagination |
-| `api-design-reviewer` | Reviews REST API implementations (code-level) for contract correctness |
-| `api-contract-reviewer` | Reviews API designs and schema proposals (pre-implementation) |
-| `backwards-compatibility-reviewer` | Breaking changes in APIs, removed fields, permission tightening |
-| `logging-reviewer` | Log levels, structured logging, PII prevention, duplicate logs |
-
-### Frontend
+### Access-Control Design Review
 
 | Agent | Description |
 |-------|-------------|
-| `react-frontend-expert` | React/TypeScript specialist for Mattermost webapp |
-| `react-expert` | React expert for non-Mattermost projects |
-| `redux-expert` | Redux actions, reducers, selectors, thunks, RTK |
+| `abac-design-reviewer` | Reviews ABAC designs (policy engines, attribute pipelines, PDP/PEP) against anti-patterns |
+| `rbac-design-reviewer` | Reviews RBAC designs (role catalogs, hierarchies, SoD, scheme roles) against anti-patterns |
+
+### Agents, Skills & Multi-Agent Systems
+
+| Agent | Description |
+|-------|-------------|
+| `agent-reviewer` | Validates Claude Code agent `.md` files for frontmatter and design quality |
+| `agent-collection-validator` | Audits the full `~/.claude/agents/` collection for registry accuracy |
+| `skill-reviewer` | Validates Claude Code skill files for frontmatter, description quality, and anti-patterns |
+| `multi-agent-architecture-reviewer` | Reviews multi-agent system designs for coordination anti-patterns |
+| `convergence-reviewer` | Detects semantic thrashing across multi-round swarm review cycles |
+
+### MM Documentation Review
+
+| Agent | Description |
+|-------|-------------|
+| `mm-doc-clarity-reviewer` | Comprehension pass for MM docs, calibrated to a senior MM engineer new to the feature domain |
+
+### Language & Tech Experts (`tech/`)
+
+| Agent | Description |
+|-------|-------------|
+| `go-expert` | Go expert for non-Mattermost codebases: concurrency, channels, gRPC |
 | `ts-expert` | Advanced TypeScript: conditional types, mapped types, discriminated unions |
-| `component-reviewer` | React component patterns, hooks, compound components |
-| `race-condition-reviewer` | Async race conditions, stale closures, event handler races (TS/React) |
-| `ts-test-writer` | TypeScript/Jest unit tests for components, Redux, hooks |
-| `responsive-reviewer` | Breakpoints, touch targets, narrow-width layout |
-| `i18n-reviewer` | Translation keys, plural forms, RTL support, locale formatting |
-| `ui-pattern-reviewer` | AI aesthetic anti-patterns, WCAG violations, hardcoded colors |
-| `accessibility-reviewer` | WCAG 2.1 AA compliance, screen reader support, keyboard navigation |
-| `browser-testing-expert` | Uses Chrome DevTools MCP to verify live browser state: screenshots, DOM, console errors, network, performance |
+| `react-expert` | React expert for non-Mattermost projects: hooks, suspense, performance |
+| `postgres-expert` | Complex SQL, indexing, EXPLAIN plans, transaction isolation |
+| `rest-api-expert` | REST API design: resources, HTTP methods, status codes, pagination |
+| `websocket-expert` | WebSocket lifecycle, reconnection, presence tracking, event design |
+| `ci-expert` | CI/CD pipelines, GitHub Actions, merge gates, branch protection |
+| `browser-testing-expert` | Uses Chrome DevTools MCP to verify live browser state: screenshots, DOM, console, network |
 
-### Security
+### Security (`security/`)
 
 | Agent | Description |
 |-------|-------------|
 | `security-auditor` | OWASP Top 10 audit across input handling, auth, data protection |
-| `security-orchestrator` | Orchestrates parallel specialist security agents into one report |
 | `threat-modeler` | Security architect for threat modeling and security design reviews |
-| `permission-reviewer` | Authorization across layers, permission bypasses |
-| `permission-design-auditor` | Permission model design — semantic correctness, completeness |
-| `xss-reviewer` | XSS prevention in Go templates and React renders |
-| `validation-reviewer` | Input validation at API/App entry points |
 | `owasp-agentic-auditor` | OWASP Top 10 for Agentic Applications 2026 |
 | `aws-ec2-hardening-auditor` | EC2 deployment plans for Security Group misconfigs, IMDSv1, IAM over-permissions |
 | `deployment-hardening-auditor` | AI agent deployment plans for process isolation, credential management |
+| `accessibility-reviewer` | WCAG 2.1 AA compliance, screen reader support, keyboard navigation |
 
-### Testing
+### Testing (`testing/`)
 
 | Agent | Description |
 |-------|-------------|
 | `test-engineer` | Unit and integration test suites, coverage gaps, mock abuse detection |
-| `test-coverage-reviewer` | Ensures new functionality has corresponding tests |
 | `playwright-test-reviewer` | Playwright E2E tests (`*.spec.ts`): selector stability, wait patterns, anti-patterns |
 | `cypress-test-reviewer` | Cypress E2E tests (`*_spec.js`, `*.cy.ts`): DOM detachment, wait patterns, selector stability |
 | `playwright-test-writer` | Writes and fixes Playwright E2E tests |
-| `playwright-coordinator` | Orchestrates multi-layer Playwright failure diagnosis across DB, API, WebSocket, and UI |
-| `playwright-debugger` | Playwright/E2E debugger with database access for inspecting DB state, API responses, and WebSocket events |
 | `test-parallelization-reviewer` | Test parallel-safety: shared state, fixture isolation, race conditions |
 
-### Domain Experts
+### CI Review (`review/`)
 
 | Agent | Description |
 |-------|-------------|
-| `plugin-expert` | MM plugin architecture: manifests, hooks, KV store, webapp registry |
-| `playbooks-expert` | Mattermost Playbooks: API/App/Store layers, checklist lifecycle, React webapp |
-| `playbooks-migration-reviewer` | Playbooks migration additions in `server/sqlstore/migrations.go` |
-| `mobile-expert` | React Native mobile patterns for Mattermost mobile app |
-| `calls-webrtc-expert` | WebRTC lifecycle, screen sharing, SFU architecture, SRTP/DTLS |
-| `copilot-ai-expert` | LLM integration: streaming, context management, rate limiting, RAG |
-| `shared-channels-expert` | Shared Channels and remote cluster federation |
-| `property-system-expert` | PropertyGroupStore/PropertyFieldStore/PropertyValueStore interfaces |
-| `caching-expert` | Mattermost three-tier caching system |
-| `slack-migration-expert` | Slack-to-Mattermost migration pipeline |
-| `confluence-migration-expert` | Confluence-to-Mattermost wiki migration pipeline |
-| `migration-code-orchestrator` | Orchestrates review of mmetl/import*.go for idempotency, integrity, and error handling. Must be top-level — not a subagent |
-
-### Infrastructure & CI
-
-| Agent | Description |
-|-------|-------------|
-| `ci-expert` | CI/CD pipelines, GitHub Actions, merge gates, branch protection |
-| `ci-failure-reviewer` | Diagnoses CI failures: flaky vs real |
 | `ci-design-reviewer` | Reviews CI/CD design proposals and workflow changes |
 | `ci-gate-reviewer` | Verifies CI merge-gate enforcement when `continue-on-error` or `fail-fast` is touched |
-| `launch-readiness-reviewer` | Production readiness: rollback, monitoring, feature flags, staged rollout |
 
-### Python
+### Python (`review/`)
 
 | Agent | Description |
 |-------|-------------|
@@ -211,6 +184,7 @@ These files are loaded by agents at runtime — not invoked directly.
 | `false-positive-prevention.md` | Universal false positive prevention principles |
 | `review-modes.md` | Default vs thorough review mode convention |
 | `reasoning-techniques.md` | Shared verification techniques for assertion auditing |
+| `web-research-sourcing.md` | Sourcing discipline for agents that cite external/web research |
 | `storage-decision-tree.md` | Decision tree for storage placement |
 | `test-alignment-rules.md` | Mock-implementation alignment rules |
 | `elevated-identity-escalation-pattern.md` | Two privilege-escalation patterns: elevated-identity execution and ownership-flag/mutable-ID decoupling |
@@ -229,7 +203,9 @@ Available in **all Mattermost project clones** under `~/mattermost/`.
 
 These are MM-specific versions of reviewers that understand Mattermost's layer architecture, patterns, and conventions. They override or extend the global agents of the same name.
 
-### Core Layer Experts
+The tree mirrors `mattermost/agents/mattermost/<group>/`. `security-orchestrator` lives at the suite root.
+
+### Core Layer Experts (`core/`)
 
 | Agent | Purpose |
 |-------|---------|
@@ -242,7 +218,7 @@ These are MM-specific versions of reviewers that understand Mattermost's layer a
 | `config-expert` | Server settings, feature flags, env vars, plugin settings |
 | `db-migration-expert` | Schema migrations with morph, rollback planning |
 
-### Pattern & Compatibility Reviewers
+### Pattern & Compatibility Reviewers (`review/`)
 
 | Agent | Purpose |
 |-------|---------|
@@ -279,7 +255,7 @@ These are MM-specific versions of reviewers that understand Mattermost's layer a
 | `ci-failure-reviewer` | CI failure diagnosis |
 | `jira-alignment-reviewer` | Codebase alignment with Jira-described architecture |
 
-### Feature Domain Experts
+### Feature Domain Experts (`features/`)
 
 | Agent | Purpose |
 |-------|---------|
@@ -287,40 +263,57 @@ These are MM-specific versions of reviewers that understand Mattermost's layer a
 | `copilot-ai-expert` | LLM integration: SSE streaming, context window, PII redaction, RAG |
 | `mobile-expert` | React Native MM mobile: offline sync, push, touch targets |
 | `calls-webrtc-expert` | WebRTC lifecycle, screen sharing, SFU architecture |
-| `caching-expert` | Three-tier caching (LRU→Redis→PostgreSQL) |
 | `shared-channels-expert` | Shared Channels and remote cluster federation |
 | `property-system-expert` | PropertyGroupStore/PropertyValueStore interfaces |
-| `slack-migration-expert` | Slack-to-Mattermost migration pipeline |
-| `confluence-migration-expert` | Confluence-to-Mattermost wiki migration |
 | `playbooks-expert` | Mattermost Playbooks: full stack |
-| `playbooks-migration-reviewer` | Playbooks migrations in sqlstore |
 | `playbooks-api-parity-reviewer` | Playbooks REST/GraphQL/slash-command API parity |
 | `run-lifecycle-reviewer` | Playbooks run state-machine transitions |
 | `attribute-template-reviewer` | Playbooks template variable substitution |
 
-### Infrastructure & Debug
+### Infrastructure (`infra/`)
+
+| Agent | Purpose |
+|-------|---------|
+| `caching-expert` | Three-tier caching (LRU→Redis→PostgreSQL) |
+| `performance-optimizer` | DB query optimization, frontend performance, bundle size |
+| `refactorer` | Atomic refactor: rename everywhere, extract, move between MM layers — one commit |
+| `tech-debt-refactorer` | Incremental legacy-code rehabilitation as a sequence of mergeable PRs |
+
+### Migration (`migration/`)
+
+| Agent | Purpose |
+|-------|---------|
+| `slack-migration-expert` | Slack-to-Mattermost migration pipeline |
+| `confluence-migration-expert` | Confluence-to-Mattermost wiki migration |
+| `playbooks-migration-reviewer` | Playbooks migrations in sqlstore |
+| `migration-code-orchestrator` | Orchestrates review of mmetl/import*.go for idempotency, integrity, error handling |
+
+### Debug (`debug/`)
 
 | Agent | Purpose |
 |-------|---------|
 | `debugger` | Root cause analysis with MM layer awareness |
-| `performance-optimizer` | DB query optimization, frontend performance, bundle size |
 | `playwright-coordinator` | Multi-layer Playwright failure diagnosis |
 | `playwright-debugger` | Playwright/E2E debugger with database access |
-| `ci-expert` | CI/CD pipelines and GitHub Actions for MM repos |
-| `ci-design-reviewer` | Reviews CI/CD design proposals |
-| `ci-gate-reviewer` | CI merge-gate enforcement |
 
-### Design & Architecture
+### Design (`design/`)
 
 | Agent | Purpose |
 |-------|---------|
-| `system-design-reviewer` | Feature designs for semantic mismatches |
-| `architecture-assertion-auditor` | Audits ADRs for wrong facts and invalid reasoning |
-| `architecture-tradeoff-reviewer` | Compares architectural options |
-| `database-architecture-auditor` | Schema reviews: indexes, normalization, N+1 risks |
-| `schema-necessity-reviewer` | Challenges proposed migrations |
-| `plan-assertion-reviewer` | Verifies codebase facts in plans |
-| `scope-drift-reviewer` | Validates changes trace to requirements |
+| `system-design-reviewer` | Feature designs for semantic mismatches and missing state transitions |
+
+### Testing (`testing/`)
+
+| Agent | Purpose |
+|-------|---------|
+| `go-test-writer` | Go test specialist (`*_test.go`) for MM server code |
+| `ts-test-writer` | TypeScript/Jest unit tests for MM webapp |
+
+### Security (suite root)
+
+| Agent | Purpose |
+|-------|---------|
+| `security-orchestrator` | Orchestrates parallel specialist security agents into one report |
 
 ---
 
@@ -356,6 +349,8 @@ Referenced from `CLAUDE.md` and agents via `@docs/...`.
 | `git-safety.md` | Absolute git prohibitions and safe alternatives |
 | `file-safety.md` | Pre-operation checks before any destructive file operation |
 | `search-first-workflow.md` | Mandatory pre-implementation search workflow |
+| `source-reading-discipline.md` | Primary-source reading rules for architecture docs, ADRs, and plans |
+| `arch-doc-writing.md` | Conventions for writing architecture/design documents |
 | `skill-writing.md` | Principles for writing skills that compound rather than rot |
 | `multi-llm-review.md` | How to run multi-LLM reviews (GPT + Gemini + Claude) |
 | `session-management.md` | Context hygiene, session naming, checkpoints |
@@ -414,9 +409,21 @@ Available **only inside that project directory**.
 |-------|-------------|
 | `boards-alignment-reviewer` | Verifies Pages implementation aligns with Boards data model and patterns |
 | `confluence-alignment-reviewer` | Checks Pages migration/rendering against Confluence behavior reference |
+| `confluence-parity-doc-validator` | Validates Confluence-parity claims in docs against the canonical feature inventory |
+| `deferred-parity-auditor` | Audits docs for under-claimed parity — gaps a master mechanism could already cover |
 | `pages-e2e-test-reviewer` | Reviews Playwright E2E tests for Pages: page-specific helpers, editor state, fixtures |
 | `pages-isolation-reviewer` | Ensures Pages code is isolated from other plugin boundaries |
 | `tiptap-reviewer` | Reviews Tiptap editor integration: extensions, commands, schema, serialization |
+| `poc-status-verifier` | Verifies implementation-status claims in arch docs against the codebase, both directions |
+| `scenario-validator` | Validates worked end-to-end scenarios in arch docs, classifying each step's build state |
+| `summary-sync-reviewer` | Checks per-area summary pages still reflect their detail pages (contradiction + omission) |
+| `doc-concision-reviewer` | Flags prose bloat in a single passage — claims stated in more words than they carry |
+| `doc-duplication-reviewer` | Flags prose redundancy across a multi-page doc run (same content in 2+ places) |
+| `voice-reviewer` | Reviews drafted markdown against a style fingerprint for AI-slop tells |
+| `mm-doc-voice-reviewer` | MM-specific terminology drift, canonical-term aliasing, and prose anti-patterns |
+| `presentation-slide-builder` | Generates slide-style Confluence presentation pages from the arch docs |
+| `presentation-slide-reviewer` | Flags sentence-level terseness opportunities in presentation slides |
+| `presentation-speaker-notes` | Generates/refreshes laconic speaker-note cue bullets for the presentation deck |
 
 **Skills** (project overrides of global skills)
 

@@ -70,4 +70,6 @@ Items where mitigation exists but is incomplete or relies on unverified assumpti
 
 Do NOT flag theoretical risks that don't apply to the specific architecture. Be precise about WHICH agents, tools, or data flows create the risk.
 
+Prefix every finding with `[agent:owasp-agentic-auditor]`.
+
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`

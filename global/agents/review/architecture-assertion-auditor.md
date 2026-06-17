@@ -74,6 +74,22 @@ Claims about what the codebase already supports or how existing features work.
 - "Consistent with how X handles Y" — check if X actually handles Y the same way
 - "The existing table handles this" — check what the table actually stores and its schema
 
+### 3.5 Absence-of-Evidence Discipline (CRITICAL)
+
+Before claiming "X does not exist in the codebase" as a finding, you MUST verify with **multiple grep scopes**. A single negative grep in the wrong directory is the most common source of false-positive auditor findings.
+
+**Required scopes for any "X does not exist" claim about a code symbol**:
+1. Model layer — `server/public/model/`, `model/`, `types/` (constants, type definitions live here)
+2. App/business layer — `server/channels/app/`, `app/`, `internal/`
+3. Store/persistence — `server/channels/store/`, `db/`, migrations
+4. Feature-flag gates — grep for the symbol alongside `FeatureFlags`, `Config()`, `Enable*` — symbols can be present-but-gated and that still counts as "existing prior art"
+
+**Failure mode to avoid**: Searching for a *post-shaped* mechanism (`PostType*`, `Posts.Type` discriminator) by grepping a *channel-shaped* file (`channel_store.go`). The discriminator lives where the constant is declared, not where the container schema lives. Match grep target to symbol shape.
+
+**Rule**: If your finding rests on "no such symbol exists", the report MUST list the exact grep commands run and the directories searched. If you only ran one grep, the finding is unanchored — downgrade to `[UNVERIFIED: needs broader search]` rather than asserting absence.
+
+**Real example of the failure** (2026-05-25): Auditor claimed Boards has no `Posts.Type` discriminator after grepping only `channel_store.go`. Actual prior art: `PostTypeCard = "card"` at `server/public/model/post.go:71`, gated by `FeatureFlags.IntegratedBoards` at `server/channels/app/post_permission_utils.go:121`. A grep in `model/` would have caught it.
+
 ### 4. Comparative Claims
 Claims that compare the chosen approach to alternatives or to how other systems work.
 
@@ -83,6 +99,16 @@ Claims that compare the chosen approach to alternatives or to how other systems 
 - "Product X does it this way too" — the product might do it differently or for different reasons
 - "This is simpler than alternative X" — the alternative might actually be simpler
 - "Unlike X, our approach..." — X might actually have the same characteristic
+
+### 5. Provenance & Sunk-Premise Claims
+Claims that justify a *design choice* by where code currently lives, or by a cost that does not exist on this branch.
+
+**Verification method**: Strip the provenance/cost clause and re-check whether the choice still stands on intrinsic merit (mechanism fit, platform-uniformity, parity, operational cost). If the justification *was* the provenance or the avoided cost, the reasoning is invalid regardless of whether the underlying fact is true.
+
+**Common lies**:
+- "We choose X because the POC / branch already has it" — prototype existence is not a design argument; a clean-slate proposal must be argued from the target state. The "POC state" / `[existing in the POC]` tags report build status, not merit.
+- "X avoids a migration / needs no schema change" cited as an advantage — on a no-backwards-compatibility branch with no existing production data, migration cost is moot and cannot favour one storage shape over another.
+- **"The POC's X migrates to Y" / "X is the stopgap until Y ships" / "X is unbuilt pending Y" / "Y is not yet in master" (as a blocker)** — the POC is a throwaway prototype, not a prior production state, so there is no migration *from* it, and the proposed design is not *blocked on* an external artifact landing. Flag any framing that (a) treats POC→proposed as a migration/transition, or (b) treats a proposed-but-unbuilt mechanism (often from another feature's design, e.g. Boards' `ChannelMemberLinks`) as an inevitable dependency the design waits on. The correct shape is "The POC has X; the [external] design proposes Y; this design aligns to Y", with Y's unbuilt status stated as a neutral fact ("proposed, not built, may not be") — and if the POC already built an equivalent of Y, the doc must say so, since that proves the choice of Y is a preference, not a prerequisite.
 
 # PART B: Reasoning Verification
 
@@ -148,6 +174,40 @@ After individual verification, check for document-level problems:
 - Missing alternatives that should have been considered
 - Asymmetric rigor (chosen approach described charitably, alternatives described harshly)
 
+### Phase 6: Novelty-vs-Anchor Ratio (Master-Search Discipline)
+
+This is a structural check on whether the author searched master before writing. It is a single ratio, computed mechanically, that catches documents written from design intent rather than from the codebase.
+
+**Count novelty markers** (each occurrence in the doc, case-insensitive):
+
+| Pattern | Description |
+|---|---|
+| `\[new\]`, `\[proposed\]`, `\[not yet implemented\]`, `\[new, not yet in codebase\]` | Explicit tags |
+| `we (propose\|introduce\|add)` | First-person novelty phrasing |
+| `(introduces\|adds\|creates\|establishes) a (new )?(subsystem\|table\|column\|mechanism\|pipeline\|framework\|service)` | Verb-phrase novelty (overlaps with reuse-detector Level 1; counted here regardless) |
+| `the (proposed\|new) (table\|column\|field\|key\|constant\|permission)` | Definite-article novelty |
+
+**Count master anchors** (each occurrence in the doc):
+
+| Pattern | Description |
+|---|---|
+| `Master today:` (line prefix or inline) | The recommended anchor form from Rule 9 |
+| `verified at \`?[\w/]+\.\w+:\d+\`?` | File-line anchors pointing into the repo |
+| `\([\w/]+\.\w+:\d+\)` | Inline file-line anchors |
+| `(server\|webapp)/[\w/]+\.\w+:\d+` | Bare file-line references |
+
+**Compute ratio = anchors / novelty_markers.**
+
+| Ratio | Verdict |
+|---|---|
+| ≥ 1.0 | PASS — anchors meet or exceed novelty count; structurally disciplined. |
+| 0.5–1.0 | SHOULD_FIX — partial discipline; some novelty markers lack a paired `Master today:` anchor. List unanchored novelty markers. |
+| < 0.5 | MUST_FIX — `arch-audit:NO_MASTER_SEARCH_DISCIPLINE`. Doc structurally biased toward design intent over codebase reality. Concretely: count(novelty) > 2× count(anchors). Recommend adding `Master today:` anchors per Rule 9 before any further review. |
+
+**Reporting.** Report the raw counts and ratio in the Summary. If the ratio is below 1.0, list the top 5 novelty markers that lack a nearby (within 5 lines) anchor — these are the highest-leverage additions.
+
+**Anti-pattern guard.** Do NOT compute this ratio for `--spec` mode (requirements docs intentionally have low anchor density — they're describing *what to build*, not *what exists*). Apply only to architecture / design / plan docs that mix description of existing code with proposals.
+
 ## Output Format
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
@@ -161,6 +221,7 @@ After individual verification, check for document-level problems:
 - Total assertions extracted: N
 - Factual: N checked, N wrong, N misleading
 - Reasoning: N checked, N invalid, N partially valid
+- **Novelty-vs-anchor ratio**: N anchors / M novelty markers = R.RR — [PASS | SHOULD_FIX | MUST_FIX]
 
 ### WRONG Facts (Must Fix)
 
@@ -226,6 +287,13 @@ After individual verification, check for document-level problems:
 **Stated rejection**: [quote]
 **Symmetry check**: [does the rejection apply to the chosen approach too?]
 **Fair assessment**: [what an honest rejection would say]
+
+#### Self-refuting rejection (the rejection premise is contradicted by the doc's own later text)
+A rejection that calls an option *impossible* ("X cannot do Y", "rejected structurally", "the record does not express Z") while a later passage of the SAME doc concedes the option is viable, or cites a shipped precedent that does exactly it, or declines it only on soft/preference grounds. The rejection's premise is false by the doc's own admission. This is both a straw-man rejection AND an internal contradiction (cross-check `doc-consistency-reviewer` §1 "Rejection strength").
+**Stated rejection**: [quote the "cannot / structural" claim]
+**Self-refutation**: [quote the later passage that concedes viability / cites a precedent / declines on preference]
+**Fix**: downgrade the rejection from "impossible" to "viable but declined on <named grounds>", or remove the false premise.
+Documented case (2026-06-02, `mattermost-pages-channel`): "`Channels` alone cannot be the container … the channel record does not express [wiki attributes]" — refuted by the same doc's "Boards keeps a board's identity and config on its channel row via `Channel.Props`" and "the design declines it on modeling grounds, not structural".
 
 ### Verified Correct Assertions
 [List assertions that checked out — both factually and logically — so the reader knows they were examined]

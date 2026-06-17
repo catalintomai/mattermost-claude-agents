@@ -1,12 +1,12 @@
 ---
 name: boards-alignment-reviewer
-description: Use when reviewing wiki/pages feature code for alignment with the shipping Integrated Boards architecture (PRs 35604, 35512, 35887). Validates post-type isolation, property system usage, Redux property store consumption, feature flag gating, and cross-channel patterns. Pages and boards diverged on channel model (pages are channel-subservient; boards use dedicated BO/BP channel types), so this agent focuses on the patterns that DO still need to align, not on the obsolete "shared channel-subservient" premise.
+description: Use when reviewing wiki/pages feature code for alignment with the shipping Integrated Boards architecture (PRs 35604, 35512, 35887). Validates post-type isolation, property system usage, Redux property store consumption, feature flag gating, and cross-channel patterns. Pages and boards differ on channel model (pages live in regular channels; boards use dedicated BO/BP channel types), so this agent focuses on the patterns that DO still need to align (post-type isolation, property system, feature flags, WS naming), not on a shared channel model.
 model: sonnet
 tools: Read, Grep, Glob
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
-> **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — only flag issues in changed lines; pre-existing issues outside the diff are INFO only.
+> **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — only flag issues in changed lines; pre-existing issues outside the diff are out of scope and not reported.
 > **80/20 Rule**: Read `~/.claude/agents/_shared/eighty-twenty-rule.md` — apply when prioritizing findings and proposals.
 
 # Boards Alignment Reviewer Agent
@@ -15,7 +15,7 @@ You validate that wiki/pages implementation stays compatible with the shipping I
 
 ## Reference Material
 
-Read `.claude/docs/boards-alignment-reference.md` FIRST — it has authority order, PR summaries, and full dimension descriptions. Upstream PRs 35604, 35512, 35887 are the source of truth; the original Tech Spec PDFs are partially superseded (pre-BO/BP pivot). When the reference doc disagrees with an older PDF, trust the reference doc.
+Read `.claude/docs/boards-alignment-reference.md` FIRST — it has authority order, PR summaries, and full dimension descriptions. Upstream PRs 35604, 35512, 35887 are the source of truth; where a Tech Spec PDF disagrees with the reference doc, trust the reference doc.
 
 ## Alignment Dimensions
 
@@ -23,7 +23,7 @@ Review code against the **12 alignment dimensions** defined in `.claude/docs/boa
 
 ## Severity Mapping
 
-Severity maps to canonical levels: CRITICAL/HIGH → MUST_FIX, MEDIUM → SHOULD_FIX, LOW → INFO.
+Severity maps to canonical levels: CRITICAL/HIGH → MUST_FIX, MEDIUM → SHOULD_FIX, LOW → SHOULD_FIX with a `[NOTE]` tag.
 
 | Severity | Meaning |
 |----------|---------|
@@ -49,7 +49,7 @@ Severity maps to canonical levels: CRITICAL/HIGH → MUST_FIX, MEDIUM → SHOULD
 
 Follow `~/.claude/agents/_shared/finding-format.md` — one finding per issue, all fields required (Tag/File/Evidence/Fix). Prefix every finding with `[agent:boards-alignment-reviewer]`.
 
-**Anti-slop**: Do not report LOW findings for stylistic differences unless they directly impede boards extensibility. If the boards spec in `.claude/docs/boards-alignment-reference.md` does not clearly mandate a specific pattern, classify the finding INFO rather than MUST_FIX and note the ambiguity explicitly. When uncertain, write "Spec is ambiguous on this point" and use LOW/INFO severity.
+**Anti-slop**: Do not report LOW findings for stylistic differences unless they directly impede boards extensibility. If the boards spec in `.claude/docs/boards-alignment-reference.md` does not clearly mandate a specific pattern, classify the finding as SHOULD_FIX with a `[NOTE]` tag rather than MUST_FIX and note the ambiguity explicitly. When uncertain, write "Spec is ambiguous on this point" and use SHOULD_FIX `[NOTE]` severity.
 
 After all findings, append:
 
@@ -58,7 +58,7 @@ After all findings, append:
 | Dimension | Status | Notes |
 |-----------|--------|-------|
 | Post Type Isolation (CARD + PAGE both excluded) | PASS/PARTIAL/FAIL | Details |
-| Channel Tabs (pages-only after BO/BP pivot) | PASS/PARTIAL/FAIL | Details |
+| Channel Tabs (pages-only) | PASS/PARTIAL/FAIL | Details |
 | API Patterns (WS naming, PATCH, ObjectType routes) | PASS/PARTIAL/FAIL | Details |
 | Channel Membership (ChannelMemberLinks if cross-channel) | PASS/PARTIAL/FAIL | Details |
 | Property System (consume entities.properties) | PASS/PARTIAL/FAIL | Details |

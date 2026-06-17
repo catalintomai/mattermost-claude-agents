@@ -159,6 +159,7 @@ Before submitting tests:
 - [ ] No mock data that hides real issues
 - [ ] Tests pass: `go test` / `npm run test`
 - [ ] Follows existing patterns in codebase
+- [ ] **Boolean-param × switch coverage**: if a function has a `bool` parameter that gates behavior inside a `switch`, write at least one test per option-bearing `case` for both `true` and `false`. A parameter wired in N-1 of N branches is a latent bug; only per-branch tests catch it reliably. Example: `sanitizeAndValidatePropertyValue(field, value, validateOptions bool)` — each type case must be tested with both `validateOptions=true` and `validateOptions=false`.
 
 ## Do NOT
 

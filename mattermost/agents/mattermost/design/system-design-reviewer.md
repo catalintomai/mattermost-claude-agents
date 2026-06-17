@@ -71,12 +71,35 @@ Reviews system design holistically for issues that code-level reviewers miss. Fo
 - Same concept named differently in different places
 - Example: "parent" vs "parentId" vs "rootId"
 
-### 5. Completeness Gaps
+### 5. Unjustified Performance Numbers
+
+A design doc states a latency figure, throughput number, row-count threshold, or time estimate without a stated source, derivation, or "engineering estimate" marker.
+
+Examples that must be flagged:
+- "Expected latency at 1,000 pages: 10–30 ms. At 10,000 pages: 100–500 ms." — no source
+- "The recursive CTE is practical up to ~5,000 pages." — threshold stated without basis
+- "Initial render expected <50 ms." — round number with no benchmark or derivation
+
+A number without a source is an assertion that readers cannot verify or challenge. When the number drives a design decision (e.g. the 5,000-page threshold drives the search-replaces-tree fallback), an unjustified number makes the decision unchallengeable.
+
+### 6. False Infrastructure Gaps
+
+A design doc claims an event, table, mechanism, or constant is "missing", "proposed", or "not yet defined" when it already exists in the codebase.
+
+The canonical failure pattern for WebSocket events:
+- Doc says `page_property_updated` is needed but not defined.
+- Exact-name search confirms `page_property_updated` does not exist.
+- Concern-level search finds `property_values_updated`, which fires on every property value create/update/delete — the same concern.
+- Result: the doc's "gap" is false; the concern is already covered.
+
+This is distinct from a genuine gap (neither search finds anything covering the concern).
+
+### 7. Completeness Gaps
 - Missing inverse operations (can create but not delete)
 - Missing edge case handling
 - Example: Can move page to wiki, but what if wiki is deleted mid-move?
 
-### 6. Boundary Condition Errors
+### 8. Boundary Condition Errors
 - What happens at limits?
 - What happens with empty/null/max values?
 - Example: What if page hierarchy depth exceeds limit?
@@ -232,6 +255,47 @@ Create a design document covering:
 - All operations with their permission requirements
 - State machines for any stateful entities
 
+### Step 1a: Performance number audit
+
+Scan the entire doc for any number that implies performance: latency (ms, s), throughput (req/s, rows/s), row-count thresholds (e.g. "5,000 pages"), memory figures (MB, GB), or time estimates.
+
+For each number found, check whether it is accompanied by one of:
+1. **A benchmark citation** — "measured on branch, p95 = X ms"
+2. **An inline derivation** — arithmetic or complexity reasoning that produces the number
+3. **A named external reference** — PostgreSQL docs, a published benchmark, a prior PR
+4. **An explicit estimate marker** — `[engineering estimate, not benchmarked]`
+
+If none of the four are present, flag as `design:UNJUSTIFIED_PERF_NUMBER`:
+
+```
+design:UNJUSTIFIED_PERF_NUMBER [MUST_FIX]
+"Expected latency at 1,000 pages: 10–30 ms. At 10,000 pages: 100–500 ms."
+No source, derivation, or estimate marker. These numbers drive the search-replaces-tree
+threshold decision. Replace with: a benchmark result, a derivation, or mark as
+[engineering estimate, not benchmarked] with an explicit pre-ship benchmark requirement.
+```
+
+Pay particular attention to numbers that drive design decisions — thresholds that determine which code path runs, limits that gate feature availability, or targets that acceptance criteria will be measured against. Unjustified numbers in those positions are the highest severity.
+
+### Step 1b: False-gap sweep for proposed infrastructure
+
+For every item the doc marks as "proposed", "not yet defined", "missing", or "needed" — run a two-step codebase check before accepting the gap as real.
+
+**WebSocket events** (most common false-gap location):
+```bash
+# Step A: exact-name search
+grep -n "<proposed_event_name>" server/public/model/websocket_message.go
+
+# Step B: concern-level search — replace keywords with the concern, not the proposed name
+grep -in "<concern_keyword1>.*<concern_keyword2>\|<concern_keyword2>.*<concern_keyword1>" server/public/model/websocket_message.go
+```
+
+If Step A finds nothing but Step B finds an existing event: flag `design:FALSE_GAP` — the concern is already covered. If both find nothing: the gap is genuine, no flag needed.
+
+Apply the same two-step pattern to proposed tables, constants, config fields, and permission checks: exact-name first, concern-level second.
+
+**Why two steps.** An exact-name search for `page_property_updated` returns nothing and looks like a real gap. A concern-level search for `property.*updat` finds `property_values_updated` (websocket_message.go:142). The names differ; the concern is identical. Single-step search misses it; two-step catches it.
+
 ### Step 2: Apply Framework
 Walk through each phase of the framework above.
 Document findings with:
@@ -257,7 +321,10 @@ For each issue:
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `design:INCOMPLETE_DESIGN`, `design:MISSING_HA`, `design:MISSING_MIGRATION`
+**Domain tags**: `design:INCOMPLETE_DESIGN`, `design:MISSING_HA`, `design:MISSING_MIGRATION`, `design:FALSE_GAP`, `design:UNJUSTIFIED_PERF_NUMBER`
+
+`design:FALSE_GAP` — doc claims an event/table/constant/mechanism is missing when a codebase search shows an existing mechanism covers the same concern. Severity: `MUST_FIX` (false gaps in a design doc lead to duplicate infrastructure being built).
+`design:UNJUSTIFIED_PERF_NUMBER` — a latency, throughput, row-count threshold, or time estimate has no source, derivation, or estimate marker. Severity: `MUST_FIX` when the number drives a design decision (threshold, limit, fallback trigger); `SHOULD_FIX` otherwise.
 
 **Domain-specific sections** (after canonical sections):
 - When No Design Doc Exists: fallback procedure for code-inferred design review

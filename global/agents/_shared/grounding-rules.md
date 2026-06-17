@@ -100,6 +100,19 @@ Before claiming "X requires Y" or "X is because of Y":
 **Conclusion**: [CONFIRMED causal / Actually endpoint-level, unrelated to ParameterY]
 ```
 
+### For Provenance/History Claims
+Before claiming "X was written because of Y", "X predates Y", or "this code/rule
+was derived from Z":
+- Run `git log --follow -p <file>` or `git log --grep="<keyword>"` to find the
+  commit that introduced the thing
+- If no git evidence supports the causal chain, **do not make the claim**
+- A pattern match (two things look similar) is NOT evidence of causation
+- Say "these share the same example — possibly related" rather than
+  "this PR is what that rule was written from"
+
+**Rule**: No provenance claim without a commit hash or explicit documentation
+to back it up. If you can't show the evidence, say "I don't know."
+
 ### For Flag/Permission Scope Claims
 Before claiming "operation X should be gated by flag/permission Y":
 - A flag's scope is defined by **where it's actually enforced in code**, not by what its name suggests it *could* cover

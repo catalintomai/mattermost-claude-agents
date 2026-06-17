@@ -92,6 +92,31 @@ Use a new table when ALL of the following apply:
 
 ---
 
+## Level 4.5: Reusing a Shared High-Write Table — the Write-Externality Check
+
+Levels 1–4 rank *reuse* of existing storage above a new table, because reuse has the lower migration cost. That ranking is about the **read/modeling** side. It does NOT account for the **write-side externality** a new row class can impose on an already-busy shared table. When the table being reused is one of the busiest in the product (in Mattermost: `Posts`; also `Audits`, `Sessions`, `Status`), run this check before defaulting to reuse — the cheaper migration can be the more expensive operational choice.
+
+A new row class on a high-write shared table imposes an externality when ANY of these hold:
+
+| Signal | Why it costs the shared table | Mattermost example |
+|--------|-------------------------------|--------------------|
+| The rows are **append-heavy or high-volume** relative to the entity | Inflates the shared table's row count and every full-table index | Page version snapshots: one insert per page edit |
+| The write path **inserts then deletes** (prune, rotation, TTL) | Hard-DELETE generates dead tuples in the *shared* heap, spent against the *shared* autovacuum budget; interleaves dead rows with the hot workload's live rows | Snapshot prune at `PostEditHistoryLimit` — synchronous DELETE per edit |
+| The rows carry **large values into a shared expensive index** | A GIN/GiST/full-text index built for the host workload must ingest the new rows' payloads even when they are never queried through it | Snapshots carry the full body into `Posts` GIN `message_txt`, though version content is never full-text-searched |
+| The rows **rewrite siblings in bulk** on a common operation | N UPDATEs → N dead MVCC rows per operation, all on the shared table | Sibling Props rewrite on page reorder |
+| Write volume **spikes at import / batch scale** | Index maintenance + autovacuum debt concentrate, carrying into post-import steady-state latency for the host workload | Bulk Confluence import: tens of thousands of pages + version chains |
+
+If one or more signals fire, a **dedicated side table is justified even though Level 1 ranks it last** — the operational cost (index maintenance, autovacuum contention, heap fragmentation of the hot workload) outweighs the one-time migration cost. The decision tree's reuse preference is overridden, not by modeling need, but by the write externality.
+
+Two refinements before reaching for the side table:
+
+- **Partial indexes neutralize *direct* index contention, not accumulation.** A `WHERE Type='page'` partial index keeps page rows out of the host workload's index leaves (different B-tree subtree), so concurrent inserts do not contend at the leaf. That answers "does my write *block* theirs" — but not "does my write *accumulate* dead tuples / bloat a shared GIN / fragment the shared heap." Distinguish the two: contention is solved by partitioning the key space; accumulation is solved only by moving the rows out.
+- **Steady-state small ≠ import-scale small.** A row class bounded per-entity (e.g. snapshots capped at 10/page) is cheap at interactive edit rates and can look like a non-issue. Re-evaluate the same write at bulk-import volume before dismissing it; that is where the externality becomes real.
+
+This check is the storage-side complement to the `architecture-tradeoff-reviewer` **Write Contention / Shared-Table Externality** dimension — that agent scores the trade-off across options; this tree decides whether reuse of a specific high-write table clears the bar.
+
+---
+
 ## Level 5: When Is the Property System the Right Choice?
 
 Use the PropertySystem (PropertyGroup/PropertyField/PropertyValue) when:

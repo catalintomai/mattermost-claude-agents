@@ -101,6 +101,8 @@ Messages may arrive out of send order.
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md` — use `MUST_FIX` / `SHOULD_FIX` / `PASS` with `Status: PASS | FAIL`.
 
+Prefix every finding with `[agent:race-condition-reviewer]`.
+
 ## Anti-Slop Guidance (Do NOT Flag)
 
 - **Do not flag** a `useEffect` with an empty dependency array `[]` that fires a single one-shot fetch (e.g., loading initial data on mount) — there is no race because only one request is ever in flight at the same time; only flag when the effect re-runs in response to changing values that could produce overlapping requests.

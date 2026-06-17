@@ -207,11 +207,33 @@ For implementation plans, look for:
 
 For plans that add tables, columns, or migrations, delegate to `schema-necessity-reviewer` — it owns deep storage trade-off analysis. Your role here is to flag it as a complexity red flag; the schema agent determines whether it's justified.
 
+### 11. Deferred-but-Elaborated Sections
+
+Plans frequently mark a feature as deferred / out-of-MVP, then fully specify it anyway. This inflates the doc's surface area, mis-signals scope to reviewers, and makes the deferral non-credible. The pattern is mechanical and recurs across plans.
+
+**Trigger scan.** For each marker phrase below, find its line, then count non-blank lines that follow until the next H2/H3 heading or end-of-section:
+
+| Marker phrase (case-insensitive) | Example anchor |
+|---|---|
+| `**MVP scope decision.**` | "**MVP scope decision.** The four-scope discriminator ..." |
+| `**Deferred.**` / `**Deferred —** ` | "**Deferred — structure-safe TipTap extraction.** ..." |
+| `out of MVP scope` / `out of MVP` | "ABAC integration is out of MVP scope. ..." |
+| `not in MVP` | "Per-link revocation is not in MVP." |
+| `deferred until` / `deferred to` | "Deferred until customer demand is confirmed." |
+
+**Threshold.** If the marker is followed by **> 10 non-blank lines of design specification** (column lists, schema shapes, endpoint definitions, edge-case tables) before the next H2/H3 — flag as `simplicity:DEFERRED_BUT_ELABORATED`.
+
+**Why this matters.** A genuine deferral should be 1–5 lines: "Deferred — when X is confirmed, the natural extension is Y." A 30-line deferral with column types and indexes is not a deferral; it is a full design with a hedge phrase prepended. Reviewers either accept the design (in which case the marker is misleading) or accept the deferral (in which case the 30 lines are dead weight).
+
+**Reporting.** For each finding, quote (a) the marker phrase verbatim and (b) the line count of the elaboration. Recommend collapsing to ≤ 5 lines with the shape: "Deferred — when [condition], the natural extension is [one-line description]."
+
+**Anti-pattern guard.** Do NOT flag when the elaborated section is presented as alternatives analysis (e.g. inside a "Why this versus the alternatives" subsection — that's the alternatives doing their job). Apply only when the elaboration sits directly under the deferral marker as if it were the proposed design.
+
 ## Output Format
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `simplicity:OVER_ABSTRACTION`, `simplicity:YAGNI`, `simplicity:PREMATURE_GENERALIZATION`
+**Domain tags**: `simplicity:OVER_ABSTRACTION`, `simplicity:YAGNI`, `simplicity:PREMATURE_GENERALIZATION`, `simplicity:DEFERRED_BUT_ELABORATED`
 
 **Domain-specific fields**: "Simpler alternative" with line count comparison (e.g., "Simpler alternative (NN lines): [proposed code]")
 

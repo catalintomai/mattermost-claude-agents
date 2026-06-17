@@ -6,7 +6,7 @@ tools: Read, Grep, Glob
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
-> **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — only flag issues in changed lines; pre-existing issues outside the diff are INFO only.
+> **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — only flag issues in changed lines; pre-existing issues outside the diff are out of scope and not reported.
 > **80/20 Rule**: Read `~/.claude/agents/_shared/eighty-twenty-rule.md` — apply when prioritizing findings and proposals.
 
 # TipTap Integration Reviewer
@@ -60,7 +60,7 @@ Review TipTap extension and integration code for correct patterns, anti-patterns
 
 Follow `~/.claude/agents/_shared/finding-format.md` — one finding per issue, all fields required (Tag/File/Evidence/Fix). Prefix every finding with `[agent:tiptap-reviewer]`.
 
-**Severity mapping** (maps to canonical levels — CRITICAL/HIGH → MUST_FIX, MEDIUM → SHOULD_FIX, LOW → INFO):
+**Severity mapping** (maps to canonical levels — CRITICAL/HIGH → MUST_FIX, MEDIUM → SHOULD_FIX, LOW → SHOULD_FIX with a `[NOTE]` tag):
 - **CRITICAL**: Memory leak, data loss, or crash (e.g., missing `editor.destroy()`, missing cleanup in `onExit`)
 - **HIGH**: Broken UX or accessibility failure (e.g., keyboard trap, missing ARIA, lost cursor focus)
 - **MEDIUM**: Performance degradation or fragile pattern (e.g., missing query cancellation, module-scoped state)

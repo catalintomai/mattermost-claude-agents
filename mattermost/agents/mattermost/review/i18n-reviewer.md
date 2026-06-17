@@ -301,3 +301,11 @@ c.T("api.page.delete.count", map[string]any{"Count": count}, count)
 ## Deprecated APIs
 
 - **NEVER use `localizeMessage`** — use `formatMessage` or `FormattedMessage` instead
+
+---
+
+## Output Format
+
+> **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
+
+Prefix every finding with `[agent:i18n-reviewer]`.

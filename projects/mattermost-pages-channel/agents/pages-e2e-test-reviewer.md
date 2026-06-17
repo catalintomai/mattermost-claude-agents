@@ -6,7 +6,7 @@ tools: Read, Grep, Glob
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
-> **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — only flag issues in changed lines; pre-existing issues outside the diff are INFO only.
+> **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — only flag issues in changed lines; pre-existing issues outside the diff are out of scope and not reported.
 > **80/20 Rule**: Read `~/.claude/agents/_shared/eighty-twenty-rule.md` — apply when prioritizing findings and proposals.
 
 > **Prerequisite**: Run `playwright-test-reviewer` first for general Playwright patterns. This agent focuses on test_helpers.ts adoption. If general Playwright issues are found (e.g., missing `await`, incorrect assertions), note them but prioritize test_helpers.ts findings.
@@ -34,7 +34,7 @@ tools: Read, Grep, Glob
 
 Follow `~/.claude/agents/_shared/finding-format.md` — one finding per instance, all fields required (Tag/File/Evidence/Fix).
 
-**Domain severity mapping** (maps to canonical levels — CRITICAL/HIGH → MUST_FIX, MEDIUM → SHOULD_FIX, LOW → INFO):
+**Domain severity mapping** (maps to canonical levels — CRITICAL/HIGH → MUST_FIX, MEDIUM → SHOULD_FIX, LOW → SHOULD_FIX with a `[NOTE]` tag):
 - **CRITICAL**: Bypasses test_helpers for core operations (login, unique naming) — causes flaky tests or maintenance burden
 - **HIGH**: Uses raw selectors instead of helper locators — breaks when CSS/test-ids change
 - **MEDIUM**: Hardcoded timeout values instead of named constants — obscures intent, harder to tune

@@ -152,6 +152,8 @@ For each schema change in the plan:
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
+Prefix every finding with `[agent:schema-necessity-reviewer]`.
+
 **You MUST wrap your output in the canonical structure:**
 
 ```markdown

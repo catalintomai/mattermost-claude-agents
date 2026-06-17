@@ -6,7 +6,7 @@ tools: Read, Grep, Glob
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
-> **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — only flag issues in changed lines; pre-existing issues outside the diff are INFO only.
+> **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — only flag issues in changed lines; pre-existing issues outside the diff are out of scope and not reported.
 > **80/20 Rule**: Read `~/.claude/agents/_shared/eighty-twenty-rule.md` — apply when prioritizing findings and proposals.
 
 # Pages Isolation Reviewer Agent
@@ -43,7 +43,7 @@ You review code to ensure **wiki/pages functionality is properly isolated from r
 
 Follow `~/.claude/agents/_shared/finding-format.md` — one finding per violation, all fields required (Tag/File/Evidence/Fix). Prefix every finding with `[agent:pages-isolation-reviewer]`. If you cannot confirm a violation (e.g., the filter may exist in another layer not in the diff), mark the finding `[UNVERIFIED]` and note what additional verification is needed.
 
-**Domain severity mapping** (maps to canonical levels — CRITICAL/HIGH → MUST_FIX, MEDIUM → SHOULD_FIX, LOW → INFO):
+**Domain severity mapping** (maps to canonical levels — CRITICAL/HIGH → MUST_FIX, MEDIUM → SHOULD_FIX, LOW → SHOULD_FIX with a `[NOTE]` tag):
 - **CRITICAL**: Cross-contamination causes data corruption or security bypass
 - **HIGH**: Pages appear in post feeds or posts appear as pages
 - **MEDIUM**: Missing isolation in rarely-hit code path

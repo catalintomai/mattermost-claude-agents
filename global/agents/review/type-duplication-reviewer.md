@@ -86,6 +86,8 @@ Before reporting Go struct duplication, verify:
 >
 > **Severity mapping**: `[HIGH]` duplicates → `MUST_FIX` | `[MEDIUM]`/`[LOW]` duplicates → `SHOULD_FIX` | No duplicates found → `PASS`
 
+Prefix every finding with `[agent:type-duplication-reviewer]`.
+
 ```markdown
 ## Type Deduplication Review
 

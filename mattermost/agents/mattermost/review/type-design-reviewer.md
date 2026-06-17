@@ -246,5 +246,5 @@ type PageContent =
 
 - `validation-reviewer` - For validation implementation
 - `redux-expert` - For Redux state design
-- `ts-expert` - For TypeScript patterns
-- `go-expert` - For Go patterns
+- `react-frontend-expert` - For TypeScript/React types
+- `go-backend-expert` - For Go patterns
