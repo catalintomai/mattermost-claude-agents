@@ -6,7 +6,7 @@ tools: Read, Grep, Glob
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
-> **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — only flag issues in changed lines; pre-existing issues outside the diff are INFO only.
+> **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — only flag issues in changed lines; pre-existing issues outside the diff are out of scope and not reported.
 > **80/20 Rule**: Read `~/.claude/agents/_shared/eighty-twenty-rule.md` — apply when prioritizing findings and proposals.
 
 # Confluence Alignment Reviewer
@@ -31,7 +31,7 @@ Compares Mattermost wiki/pages implementation against Atlassian Confluence patte
 
 Follow `~/.claude/agents/_shared/finding-format.md` — one finding per issue, all fields required (Tag/File/Evidence/Fix). Prefix every finding with `[agent:confluence-alignment-reviewer]`.
 
-**Domain severity mapping** (maps to canonical levels — CRITICAL/HIGH → MUST_FIX, MEDIUM → SHOULD_FIX, LOW → INFO):
+**Domain severity mapping** (maps to canonical levels — CRITICAL/HIGH → MUST_FIX, MEDIUM → SHOULD_FIX, LOW → SHOULD_FIX with a `[NOTE]` tag):
 - **CRITICAL**: Misalignment causes data loss, security issue, or migration failure
 - **HIGH**: Misalignment causes broken UX or missing core functionality
 - **MEDIUM**: Partial alignment — works but deviates from user expectations

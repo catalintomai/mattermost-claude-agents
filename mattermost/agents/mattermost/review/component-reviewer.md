@@ -318,9 +318,9 @@ MM uses both raw `@media` queries and SCSS mixins. Both are valid — match the 
 11. **Hardcoded colors** - Must use CSS variables for theme support
 12. **Semantic color drift** - Reuse existing component colors for same concepts (e.g., InProgress/Finished)
 13. **!important usage** - Avoid; use proper specificity
-13. **Direct Client4 calls** - Must go through Redux actions
-14. **Modal missing compassDesign/ModalIdentifier** - See Modal Patterns section
-15. **Hardcoded hex in SCSS** - Must use theme variables (see Theme checklist)
+14. **Direct Client4 calls** - Must go through Redux actions
+15. **Modal missing compassDesign/ModalIdentifier** - See Modal Patterns section
+16. **Hardcoded hex in SCSS** - Must use theme variables (see Theme checklist)
 
 ## Output Format
 

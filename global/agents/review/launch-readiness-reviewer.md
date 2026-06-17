@@ -141,6 +141,10 @@ Confirm these happen after deployment:
 
 ## Output Format
 
+> **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
+
+Prefix every finding with `[agent:launch-readiness-reviewer]`.
+
 Use the canonical format from `~/.claude/agents/_shared/finding-format.md`.
 
 **MUST_FIX** — Missing rollback plan, unchecked security items, no monitoring configured  

@@ -6,6 +6,7 @@ tools: Read, Write, Grep, Glob
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
+> **Diff Scope Rule**: Read `~/.claude/agents/_shared/diff-scope-rule.md` — ONLY flag issues in changed lines (diff scope). Pre-existing issues are INFO only.
 > **80/20 Rule**: Read `~/.claude/agents/_shared/eighty-twenty-rule.md` — apply when prioritizing findings and proposals.
 
 # Structural Health Reviewer
@@ -192,6 +193,8 @@ For each finding, propose a specific structural improvement:
 ## Output Format
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
+
+Prefix every finding with `[agent:structural-health-reviewer]`.
 
 **Domain tags**: `structural:SHOTGUN_SURGERY`, `structural:GOD_TYPE`, `structural:TANGLED_DEPS`, `structural:ORPHANED_INDIRECTION`, `structural:RESPONSIBILITY_SCATTER`, `structural:FRAGILE_BASE`, `structural:TEST_FRAGILITY`, `structural:WRITE_ONLY_FIELD`
 

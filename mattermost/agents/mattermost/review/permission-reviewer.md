@@ -553,6 +553,8 @@ grep -r "\.Store()\." "$API_DIR"/
 grep -r "func (a \*App)" "$APP_DIR"/ | grep -E "(Create|Update|Delete|Get)"
 ```
 
+## Output Format
+
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md` — use `MUST_FIX` / `SHOULD_FIX` / `PASS` with `Status: PASS | FAIL`.
 
 ---

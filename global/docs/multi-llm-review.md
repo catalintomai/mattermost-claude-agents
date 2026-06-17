@@ -35,11 +35,13 @@ MCP tools have different parameter names and behavior.
 **Quota fallback**: If a model returns "quota exceeded", drop down the chain:
 `gemini-2.5-flash` → `gemini-2.5-flash-lite` → `gemini-3.1-flash-lite`
 
-### Codex (Enterprise Key — verified 2026-05-18)
+### Codex (verified 2026-06-01)
 - **gpt-5.3-codex**: Best codex model for code review — use this
 - **gpt-5.5-pro**: Best reasoning model for architecture decisions — use when the question is design/arch rather than code
 - **gpt-5.2-codex**: Fallback if gpt-5.3-codex unavailable
-- Note: Requires enterprise key (`cs enterprise`). Personal key project may lack model access.
+- **Auth (corrected):** `codex exec` authenticates from its OWN login at `~/.codex/auth.json` — it does NOT read the `OPENAI_*` env vars. It does NOT require the enterprise key. Check which key is active with `codex login status` (it prints the key suffix). On this machine codex is logged in with the **personal** `sk-proj-…` key (matches `OPENAI_PERSONAL_KEY`, distinct from `OPENAI_ENTERPRISE_KEY`), so `codex exec` bills the personal key and works for any personal project.
+- **Project key-isolation caveat:** a project's CLAUDE.md may forbid specific keys (e.g. Taxes2025 forbids enterprise/cross-project keys). Before running codex on such a project, confirm `codex login status` is NOT showing a forbidden key. The personal key is fine for personal projects.
+- Reasoning effort: `~/.codex/config.toml` is set to `model_reasoning_effort = "medium"` (good default for routine reviews; avoids 10-min runs). For a deep architecture review, bump per-call with `-c model_reasoning_effort="high"` (or `"xhigh"`).
 
 ### Claude Code (Handle Directly)
 - File operations (Read, Write, Edit, Glob, Grep)

@@ -1,6 +1,6 @@
 ---
 name: api-contract-reviewer
-description: Reviews API DESIGNS and request/response SCHEMA proposals (pre-implementation) for completeness, consistency, breaking changes, and security gaps. Use BEFORE code is written — when a plan or design doc proposes a new endpoint, or a schema change is being negotiated. For reviewing already-implemented api4/ handlers, use `api-design-reviewer` (post-code) or `api-reviewer` (MM layer compliance) instead.
+description: Reviews API DESIGNS and request/response SCHEMA proposals (pre-implementation) for completeness, consistency, breaking changes, and security gaps. Use BEFORE code is written — when a plan or design doc proposes a new endpoint, or a schema change is being negotiated. For a design split across multiple section docs (a doc set), a cross-reference to the owning doc counts as ownership — review the contract across the set, not each doc in isolation. For reviewing already-implemented api4/ handlers, use `api-design-reviewer` (post-code) or `api-reviewer` (MM layer compliance) instead.
 model: sonnet
 tools: Read, Write, Grep, Glob
 ---
@@ -98,6 +98,17 @@ Reviews API designs, endpoint specifications, and request/response schemas for c
 - [ ] **ID format**: Documented and validated
 ```
 
+## Multi-document (doc-set) designs
+
+A large feature is often specified across **several** design docs — a routing/API doc plus per-concern section docs (storage, permissions, properties, search, notifications, real-time). The API contract is then **distributed**: the routing doc owns the route tree and cross-resource gates, while each section owns the endpoints, schemas, and events for its concern. Review the contract across the **set**, not each doc in isolation:
+
+- **A cross-reference is ownership.** When the doc under review points a surface at the sibling doc that owns it ("page properties: see the Properties doc"), that surface is owned — do not flag it as a missing endpoint. Flag a surface only if it is owned **nowhere** in the set (no routes, no schema, no cross-reference).
+- **Require an API-ownership map in the routing doc.** The doc that owns the route tree should carry one map of every API surface to the route or mechanism that carries it and the section that owns it, so a reader can trace the whole contract from one place. Its absence is the finding (`api-contract:MISSING_OWNERSHIP_MAP`), not each individual surface it would list.
+- **WebSocket / async events are part of the contract.** Check they are owned somewhere in the set; defer their per-event detail to `websocket-event-reviewer`.
+- **Check scope boundaries.** The routing doc should state what is out of scope (deferred capabilities, feature-flag-gated surfaces), so a reader knows an omission is deliberate.
+
+Do not import another product's doc *shape* as the standard: a single-contract doc and a distributed doc set are both valid. Judge the completeness and traceability of the contract, not whether it lives in one file.
+
 ## Mattermost API Patterns
 
 ### Standard Error Format
@@ -167,6 +178,7 @@ grep -rn "GetPrepagedPostsAround\|page.*per_page" server/channels/api4/
 - **Do not flag** a missing `idempotency` definition on `GET` or `DELETE` endpoints — idempotency is implicit for reads and deletes in REST; only flag when a `POST` or `PUT` creates side effects that are not idempotent.
 - **Do not flag** inconsistent date format between a new endpoint and a legacy endpoint when the legacy endpoint is explicitly not in scope — only flag inconsistency within the changed endpoints themselves.
 - **Do not flag** a missing versioning strategy on endpoints that are already inside `/api/v4/` — the versioning strategy is already established at the API prefix level.
+- **Do not flag** a surface as a missing endpoint when the doc cross-references the sibling design doc that owns it — in a multi-document design the contract is distributed across the set; flag only a surface owned nowhere (no routes, schema, or cross-reference anywhere in the set). Requiring every surface to live in one doc is the single-doc-shape bias, not a completeness gap.
 
 ## See Also
 

@@ -47,6 +47,8 @@ Reviews architecture documents and designs for conflation of independent concern
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
+Prefix every finding with `[agent:separation-of-concerns-reviewer]`.
+
 **Domain tags**: `soc:FEATURE_IMPL_CONFLATION`, `soc:WHAT_HOW_CONFLATION`
 
 **Domain-specific fields**: "Why independent" explaining how Concern A can vary without affecting Concern B

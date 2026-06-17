@@ -237,3 +237,9 @@ These patterns were extracted by AI analysis of PR review comments from mattermo
 - **Why**: Accessibility attributes ensure usability for assistive technologies
 - **Detection**: Custom interactive components without `role`, `aria-label`, or `aria-*` attributes
 - **MM context**: Use MM's `GenericModal`, `Menu`, `WithTooltip`, `A11yController` components which handle a11y
+
+## Output Format
+
+> **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
+
+Prefix every finding with `[agent:accessibility-reviewer]`.

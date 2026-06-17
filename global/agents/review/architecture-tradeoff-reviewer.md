@@ -38,6 +38,7 @@ For each architectural decision identified in the plan, evaluate all viable opti
 | **Operational Complexity** | HIGH | New tables/services to maintain, monitoring, backup, debugging surface area |
 | **Reuse of Existing Systems** | HIGH | Does an existing system (property system, JSON blobs, config, Props) already solve this? |
 | **Query Performance** | MEDIUM | Can the data be queried efficiently? Does it need indexing? |
+| **Write Contention / Shared-Table Externality** | HIGH *if an option reuses a high-write shared table; else N/A* | Does an option route a new row class onto an already-busy shared table (in Mattermost: `Posts`; also `Audits`, `Sessions`, `Status`)? Score the *write-side* externality, not just read fit: append-heavy/high-volume inserts, insert-then-delete churn (prune/rotation/TTL → dead tuples on the shared heap, spent against the shared autovacuum budget), large values forced into a shared expensive index (GIN/full-text the new rows are never queried through), bulk-import spikes. **Distinguish contention from accumulation**: a `WHERE Type=…` partial index partitions the key space so concurrent inserts do not *block* at the leaf (contention solved), but it does NOT stop dead-tuple accumulation, shared-GIN bloat, or heap fragmentation of the host workload (accumulation solved only by moving rows out). A side table can win this dimension `++` even while losing Migration Cost `--`. See `~/.claude/agents/_shared/storage-decision-tree.md` → Level 4.5. |
 | **Type Safety** | MEDIUM | Are constraints enforced at the DB level or only in application code? |
 | **Reversibility** | MEDIUM | How hard is it to undo this decision? Schema changes are hard to reverse. |
 | **Blast Radius** | MEDIUM | How many layers/files does this decision touch? |
@@ -60,6 +61,7 @@ For each option, score each dimension: `++` (strong advantage), `+` (advantage),
 | Operational Complexity | ... | ... | ... |
 | Reuse of Existing | ... | ... | ... |
 | Query Performance | ... | ... | ... |
+| Write Contention / Shared-Table Externality | [score + evidence, or N/A if no option reuses a high-write shared table] | ... | ... |
 | Type Safety | ... | ... | ... |
 | Reversibility | ... | ... | ... |
 | Blast Radius | ... | ... | ... |
@@ -155,6 +157,8 @@ Then add domain-specific sections AFTER the canonical ones.
 - **Do not flag** future-flexibility scores as missing when the plan explicitly cites YAGNI and limits scope to current requirements — deferring speculative extensibility is a valid engineering choice, not an evaluation gap.
 - **Do not flag** reuse of an existing system as the wrong choice solely because the existing system was built for a different domain — "blast radius" and "operational complexity" scores must be grounded in actual migration cost evidence, not abstract purity arguments about mixing concerns.
 - **Do not flag** an implicit decision (no alternatives section) when there is genuinely only one viable approach given the stated constraints — not every implementation detail is a fork in the road requiring explicit justification.
+- **Do not flag** a missing Write Contention / Shared-Table Externality score when no option under comparison reuses a high-write shared table — the dimension is N/A for choices among low-traffic tables, new isolated tables, or non-storage concerns; do not manufacture a write-externality column where there is no shared hot table in play.
+- **Do not flag** direct write *contention* as a disqualifier when the plan shows a partial index (or equivalent key-space partition) keeps the new rows out of the host workload's index leaves AND separately addresses accumulation (dead tuples, shared-GIN bloat, heap fragmentation) — partitioning that resolves leaf-level contention is a real answer to the contention half; only press the accumulation half if it is left unaddressed.
 
 ## Anti-Patterns to Avoid
 

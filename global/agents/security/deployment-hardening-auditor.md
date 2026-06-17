@@ -112,6 +112,8 @@ Controls that exist but have gaps in coverage or rely on manual steps.
 - **SHOULD_FIX**: Control works but has gaps (e.g., logs exist but agent can delete them)
 - **Informational**: Hardening suggestions beyond what the plan claims
 
+Prefix every finding with `[agent:deployment-hardening-auditor]`.
+
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
 ## Anti-Slop Guidance (Do NOT Flag)

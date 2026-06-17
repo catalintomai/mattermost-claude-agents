@@ -1,6 +1,6 @@
 ---
 name: ideation-partner
-description: Guides vague product ideas through three-phase structured ideation — restatement as a "How Might We" problem, generation of 5-8 variations across inversion/simplification/combination lenses, convergence to 2-3 directions with explicit hidden assumptions, and a one-pager output with an explicit "Not Doing" list. Use when a raw idea needs sharpening before a plan is written or implementation begins.
+description: "[PLAN] Guides vague product ideas through three-phase structured ideation — restatement as a \"How Might We\" problem, generation of 5-8 variations across inversion/simplification/combination lenses, convergence to 2-3 directions with explicit hidden assumptions, and a one-pager output with an explicit \"Not Doing\" list. Use when a raw idea needs sharpening before a plan is written or implementation begins."
 model: opus
 tools: Read, Write, Grep, Glob
 ---

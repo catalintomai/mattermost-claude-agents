@@ -30,6 +30,21 @@ Before adding config fields:
 - Check environment variable patterns
 - Look for similar feature toggles
 
+### 4. WebSocket events
+Before claiming a WS event is missing or proposing a new one, grep the single authoritative registry first:
+```bash
+grep -n "WebsocketEvent" server/public/model/websocket_message.go
+```
+Then ask: does any existing event already cover this concern (same target object type, same lifecycle trigger)?
+
+The failure mode is proposing `page_property_updated` when `property_values_updated` already exists and fires on every property value create/update/delete. The names differ but the concern — "a property value changed, clients should refresh" — is identical. A symbol sweep for the exact name `page_property_updated` returns nothing and looks like a gap; a concern-level grep (`property.*update\|update.*property`) finds `property_values_updated` immediately.
+
+The check is two steps, not one:
+1. Does an event with this exact name exist? (`grep "page_property_updated"`)
+2. Does an event covering this concern exist? (`grep -i "property.*updat\|updat.*property"`)
+
+Only after both return nothing is the event genuinely absent.
+
 ## Workflow
 
 ```

@@ -23,7 +23,7 @@ Agents within each group are independent and can run simultaneously. **Project r
 
 | Group | Agents | When |
 |-------|--------|------|
-| Cross-cutting | `simplicity-reviewer`, `naming-consistency-reviewer`, `db-call-reviewer`, `type-duplication-reviewer`, `structural-health-reviewer`, `separation-of-concerns-reviewer`, `code-reviewer`, `architecture-tradeoff-reviewer` | Always (all projects) |
+| Cross-cutting | `simplicity-reviewer`, `code-slop-reviewer`, `naming-consistency-reviewer`, `db-call-reviewer`, `type-duplication-reviewer`, `structural-health-reviewer`, `separation-of-concerns-reviewer`, `code-reviewer`, `architecture-tradeoff-reviewer` | Always (all projects) |
 | Backend | `api-reviewer`, `app-reviewer`, `store-reviewer`, `pattern-reviewer`, `concurrent-go-reviewer`, `go-silent-failure-reviewer`, `error-handling-reviewer`, `hardcoded-values-reviewer`, `production-reviewer`, `duplication-reviewer`, `logging-reviewer`, `websocket-event-reviewer`, `comment-reviewer`, `transaction-reviewer`, `ha-reviewer`, `api-design-reviewer` | Go changes, api4/ route changes |
 | Frontend | `react-frontend-expert`, `redux-expert`, `component-reviewer`, `race-condition-reviewer`, `ux-edge-case-reviewer`, `ts-silent-failure-reviewer`, `ts-test-writer`, `responsive-reviewer`, `i18n-reviewer`, `ui-pattern-reviewer` | TS/React changes |
 | Compatibility | `backwards-compatibility-reviewer`, `batch-operations-reviewer`, `null-safety-reviewer`, `deprecation-reviewer`, `license-reviewer`, `file-structure-reviewer`, `config-migration-reviewer`, `type-design-reviewer`, `client-server-alignment-reviewer`, `schema-necessity-reviewer`, `launch-readiness-reviewer` | `model/` changes, API surface changes, new files/dirs, config changes |
@@ -58,7 +58,7 @@ Every agent is tagged for swarm routing:
 |------|-------|-------|--------|
 | Review a plan | [PLAN] | `/review-plan` | `design-flaw-reviewer`, `simplicity-reviewer`, + domain agents |
 | Create a plan | [PLAN] | `/create-plan` | Same as above (built into workflow) |
-| Review architecture docs | [PLAN] | Direct use | `doc-consistency-reviewer` + `design-flaw-reviewer` |
+| Review architecture docs | [PLAN] | Direct use | `doc-consistency-reviewer` + `design-flaw-reviewer` + `doc-opacity-reviewer` + `mm-doc-clarity-reviewer` |
 | Review code | [CODE] | `/review-code` | `pattern-reviewer`, `error-handling-reviewer`, `simplicity-reviewer`, + tier agents |
 | Debug failures | [CODE] | Direct use | `debugger`, `playwright-debugger` |
 | Refactor code | [CODE] | Direct use | `refactorer` |
@@ -85,16 +85,23 @@ For long-form architecture documents, design specs, PRDs - NOT short implementat
 | Agent | Phase | Purpose | Location |
 |-------|-------|---------|----------|
 | `doc-consistency-reviewer` | [PLAN] | Internal inconsistencies, schema-text mismatch, terminology drift | `review/` |
+| `doc-opacity-reviewer` | [PLAN] | First-read comprehension — undefined specialist terms, compressed one-liner conclusions, spatial metaphors standing in for a mechanism, forward references. Context-starved (reads only the page). Advisory; distinct from doc-consistency-reviewer (cross-refs/naming). | `(root)` |
+| `mm-doc-clarity-reviewer` | [PLAN] | Comprehension at the SENIOR-MM-engineer bar (knows the platform, not the feature domain). Four shapes: domain-term/subtlety unglossed, nominalization stacks (coined nouns defining each other), mechanism-metaphors & misused terms ("projection" for a copy), define-once violations (cross-cutting term not in glossary). In-voice low-verbosity fixes; holds the MM-basics line. Run AFTER mm-doc-voice-reviewer. Distinct from doc-opacity-reviewer (fresh-reader, context-starved, over-flags canon). | `(root)` |
 
 ### Architecture (Complex Plans)
 
 | Agent | Phase | Purpose | Location |
 |-------|-------|---------|----------|
 | `architecture-assertion-auditor` | [PLAN] | Verify factual claims AND reasoning in architecture docs | `review/` |
+| `slop-detector` | [PLAN] | Flag generic/unsupported writing in architecture docs — unanchored claims, weasel tokens, empty tradeoffs, absent failure modes; produces targeted rewrite diffs | `review/` |
+| `reuse-detector` | [PLAN] | Two-level novelty scan: (1) novelty verbs ("introduces a subsystem"), (2) novel mechanisms (new column/prop key/table/constant) verified against master's existing mechanism for the same concern — catches wrappers framed as new subsystems AND mechanism duplication like `Props["snapshot_kind"]` when master already discriminates via `OriginalId + DeleteAt > 0` | `review/` |
+| `symbol-sweep-reviewer` | [PLAN] | Mechanical pre-pass: extracts every named symbol the plan references (constants, tables, columns, permissions, methods, flags) and greps codebase. Anchored=PASS, MISSING=FLAG with literal grep evidence, AMBIGUOUS=reports closest-match candidate. Fast (Haiku), no reasoning. Run first to catch symbol-level hallucinations before reasoning agents spend tokens. | `review/` |
 | `separation-of-concerns-reviewer` | [BOTH] | Layer violations | `review/` |
 | `architecture-tradeoff-reviewer` | [BOTH] | Compare design options across cost/complexity/reuse | `review/` |
 | `multi-agent-architecture-reviewer` | [PLAN] | Multi-agent system designs — orchestration contracts, inter-agent data flow, memory sharing, failure handling | `review/` |
 | `api-design-reviewer` | [BOTH] | API and interface design — contract-first compliance, error semantics, pagination, naming conventions, breaking changes | `review/` |
+| `abac-design-reviewer` | [PLAN] | ABAC designs — policy engine / PDP-PEP architecture, attribute pipeline, per-resource policies — against the ABAC anti-pattern catalog (fail-open, BOLA object-surface gaps, engine-as-grantor, attribute provenance/staleness, combining-algorithm, inheritance, scale). Distinct from `permission-design-auditor` (operation→permission semantics) | `(root)` |
+| `rbac-design-reviewer` | [PLAN] | RBAC designs — role catalog, hierarchy/inheritance, default & admin roles, assignment scope, SoD — against the RBAC anti-pattern catalog (role explosion, god roles, over-powerful defaults, privilege creep, toxic combinations, deny-in-an-additive-model, dangerous role unions). Distinct from `abac-design-reviewer` (policy/attribute designs) and `permission-design-auditor` (operation→permission semantics) | `(root)` |
 
 > MM-specific architecture reviewers (`system-design-reviewer`, `client-server-alignment-reviewer`, `permission-design-auditor`, `type-design-reviewer`) are catalogued in the Level 2 registry at `~/mattermost/.claude/agents/AGENT_REGISTRY.md`.
 
@@ -110,7 +117,7 @@ For long-form architecture documents, design specs, PRDs - NOT short implementat
 | `owasp-agentic-auditor` | [BOTH] | OWASP Top 10 for Agentic Applications — goal hijacking, tool misuse, least agency violations | `security/` |
 | `deployment-hardening-auditor` | [BOTH] | Deployment hardening for AI agent systems — process isolation, network controls, credential storage, tool policy | `security/` |
 | `aws-ec2-hardening-auditor` | [BOTH] | AWS EC2 deployment hardening — security groups, IMDSv2, IAM least-privilege, VPC, EBS encryption | `security/` |
-| `external-claims-auditor` | [PLAN] | Verify claims about external products (Confluence, Notion, etc.) | `review/` |
+| `external-claims-auditor` | [PLAN] | Two modes: (1) AUDIT — verify external-product claims (Confluence, Notion, etc.) in docs/plans against vendor docs; (2) BUILD — construct a verified single-product capability inventory from vendor docs (a research artifact that feeds product-strategy work). | `review/` |
 | `ci-design-reviewer` | [BOTH] | CI/CD pipeline changes, GitHub Actions workflows, cross-repo build coordination, merge gates, automation trust boundaries | `review/` |
 
 > MM-specific plan reviewers (`api-contract-reviewer`, `backwards-compatibility-reviewer`) are catalogued in the Level 2 registry.
@@ -142,6 +149,7 @@ Detection logic is language-agnostic — no Go/TS/MM-specific rules.
 | Agent | Phase | Purpose | Location |
 |-------|-------|---------|----------|
 | `simplicity-reviewer` | [BOTH] | Over-engineering, YAGNI violations | `review/` |
+| `code-slop-reviewer` | [CODE] | AI-generation slop the simplicity/duplication reviewers leave uncovered — dead code (unused imports/vars/params/unexported symbols/struct fields, verified project-wide), god functions, redundant defensive nesting & repeated guards, cargo-cult resilience machinery, convention-drift, noise comments. Defers abstraction/YAGNI → `simplicity-reviewer`, dup code/types → `duplication-reviewer`/`type-duplication-reviewer`, orphaned indirection & god TYPES → `structural-health-reviewer` | `review/` |
 | `naming-consistency-reviewer` | [BOTH] | File/variable/config naming pattern drift | `review/` |
 | `type-duplication-reviewer` | [CODE] | Type duplication across Go structs and TypeScript interfaces | `review/` |
 | `structural-health-reviewer` | [BOTH] | Accumulated structural fragility — shotgun surgery, god types, tangled deps, orphaned indirection, responsibility scatter | `review/` |
@@ -246,10 +254,25 @@ Use directly for doing work (not reviewing).
 | `coder` | [CODE] | Write code | `core/` |
 | `ideation-partner` | [BOTH] | Structured ideation — refine vague ideas into actionable MVP concepts through divergent/convergent thinking phases | `core/` |
 | `pr-decomposition-sequencer` | [BOTH] | Analyzes a large feature branch and produces an ordered, independently-mergeable PR sequence — clusters files by feature, builds a cross-layer dependency graph, outputs a merge-ordered plan | `core/` |
+| `feature-schedule-builder` | [PLAN] | Builds an AI-driven-development delivery schedule in relative review cycles (Day/Week N) from a caller-pointed feature table + a live code scan. Paced by HUMAN REVIEW BANDWIDTH (PRs verifiable+mergeable per cycle, parallel-PR cap, dependency serialization) — NOT human coding velocity/story points, since AI writes the code. Verifies build status against code (drops done features), estimates each remaining feature in review cycles with confidence `[derived]`, sequences by dependency + release bucket. Project-agnostic (table path / columns / layer order are inputs). Distinct from `feature-prioritization-expert` (prioritizes, no schedule) and `pr-decomposition-sequencer` (splits a branch diff, human-merge cadence). | `core/` |
 | `playwright-test-writer` | [CODE] | Write/fix Playwright E2E tests | `testing/` |
 | `browser-testing-expert` | [CODE] | Browser testing and debugging with Chrome DevTools MCP — visual verification, network analysis, accessibility tree, performance profiling | `tech/` |
 
 > MM-specific implementation/debug agents (`debugger`, `refactorer`, `go-test-writer`, `playwright-debugger`, `playwright-coordinator`) are catalogued in the Level 2 registry.
+
+### PRD / Strategy
+
+Use these BEFORE `/create-prd` when the question is "which features should we build at all" (multi-feature strategy) rather than "what are the requirements for this one feature" (single-feature PRD). They produce analytical artifacts — competitive matrices, prioritized rankings, trend reports — that feed into product-strategy docs and downstream `/create-prd` invocations.
+
+| Agent | Phase | Purpose | Location |
+|-------|-------|---------|----------|
+| `competitive-product-analyst` | [PLAN] | Cross-product feature matrix from primary sources (vendor docs, pricing, changelogs). Classifies features as Table Stakes / Widespread / Differentiation Opportunity / Declining, plus a `⚑poorly-served` quality flag (present everywhere but universally criticized = highest-value build-better target); distinguishes capability from quality; surfaces user-sentiment as `[user-signal]` hypotheses. | `core/` |
+| `feature-prioritization-expert` | [PLAN] | Applies ≥2 of RICE / MoSCoW / Kano / JTBD to a candidate feature list, synthesizes consensus picks vs framework outliers, surfaces stealth must-haves (Basic Kano + low RICE). Requires a defined release scope. | `core/` |
+| `product-trend-researcher` | [PLAN] | Mines emerging patterns from vendor launches, conference talks, research papers, funding events. Classifies Mainstream / Emerging / Speculative / Declining / Hype with named evidence + dates (Mainstream requires adoption evidence, not just ship-count). Detects fads vs trends via follow-up-shipping signals. | `core/` |
+| `feature-usage-researcher` | [PLAN] | Estimates how heavily individual features of a SINGLE product are actually used by mining multi-proxy signals (vendor marketplace install counts per category, migration-tool fidelity gap reports, community/Reddit/HN post frequency, third-party surveys). Output: per-feature usage-signal score (HIGH/MEDIUM/LOW/NO-EVIDENCE) with explicit proxy citations + honest "no first-party telemetry" disclaimer. Use to ground feature prioritization in usage frequency, not just feature presence in vendor docs or pain complaints. | `core/` |
+| `voice-of-customer-researcher` | [PLAN] | Mines SINGLE-product customer sentiment on BOTH poles — ranked pain themes (most-complained-about) AND per-feature LOVED/NEUTRAL/DISLIKED satisfaction — from review sites (G2/Capterra/TrustRadius), community forums, Reddit, HN. Output: pain-theme list + satisfaction table with proxy citations + honest "no vendor sentiment telemetry; review sentiment is self-selection-biased" disclaimer. The sentiment lens; pairs with `feature-usage-researcher` as a usage × satisfaction 2x2. NOT for usage frequency, cross-product comparison, vendor-doc presence, or trends. | `core/` |
+
+> Related: `ideation-partner` (Core Implementation above) — brainstorming new features that can then be passed to `feature-prioritization-expert` for ranking. `external-claims-auditor` (§ 1 Plan Review) — single-product fact verification (this group's focus is multi-product analysis). The five product-research lenses on one feature set: `competitive-product-analyst` (cross-product presence) + `external-claims-auditor` (single-product vendor-doc presence) + `feature-usage-researcher` (within-product usage frequency) + `voice-of-customer-researcher` (within-product sentiment: pain + satisfaction) + `feature-prioritization-expert` (criticality/ranking). Usage × satisfaction is the highest-value pairing (HIGH-usage × DISLIKED = differentiation opportunity).
 
 ---
 
@@ -356,15 +379,19 @@ Agent names follow a suffix convention that signals capabilities and tool access
 | `-orchestrator` | Coordinates other agents via Task delegation | Read, Write, Grep, Glob, Task |
 | `-coordinator` | Coordinates parallel workflows | Read, Write, Bash, Grep, Glob, Task |
 | `-validator` | Validates collections or configurations (heavier than -checker) | Read, Write, Grep, Glob |
+| `-analyst` | Multi-source analytical research producing non-findings artifacts (matrices, classification reports) | Read, Write, WebSearch, WebFetch (+ Grep, Glob only if local docs are in scope) |
+| `-researcher` | Mines emerging patterns from primary external evidence (vendor launches, papers, funding events) — produces trend reports, not findings | Read, Write, WebSearch, WebFetch (+ Grep, Glob only if local docs are in scope) |
 
 **Rules**:
 - Do NOT give `-reviewer` agents `Edit` or `Bash` tools — they should never modify source files
 - `-expert` agents may be called by orchestrators to both diagnose and fix
 - `-auditor` agents use `WebSearch` to verify external claims (e.g., `architecture-assertion-auditor`, `external-claims-auditor`)
 - `-checker` agents are fast-path validators suitable for blocking plan approval (e.g., `plan-completeness-checker`)
+- `-analyst` and `-researcher` agents produce analytical artifacts (matrices, ranked lists, trend reports), NOT severity-graded findings — they do NOT follow `_shared/finding-format.md` and instead use a custom output template per agent (the `[agent:NAME]` prefix is still required for multi-agent attribution)
 
 **Accepted exceptions**:
 - `-reviewer` agents MAY have `Bash` when their review requires running diagnostic commands (git diff, test runners, build checks)
 - `-reviewer` agents MAY have `Edit` when they operate in BOTH plan and code phases and need to apply fixes
 - `-reviewer` agents MAY have `WebSearch` or MCP read-only tools when their review scope includes verifying external claims — but prefer `-auditor` suffix in that case
+- `-expert` agents whose output is analytical documentation (not source-code edits) MAY omit `Edit` and `Bash` from their tool set — e.g., `feature-prioritization-expert` produces a prioritization report, so `Read, Write, Grep, Glob` is the correct minimal set; the `-expert` suffix is retained because the agent encodes methodological expertise (framework knowledge), not artifact type
 - These exceptions MUST be documented in the agent's frontmatter or prompt

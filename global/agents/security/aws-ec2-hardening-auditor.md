@@ -133,6 +133,8 @@ Controls that exist but have gaps (e.g., SG restricts inbound but allows all out
 - **SHOULD_FIX**: Control is specified but has gaps (e.g., SSH open to 0.0.0.0/0 "temporarily")
 - **Informational**: Hardening suggestions beyond what the plan claims (e.g., "consider GuardDuty")
 
+Prefix every finding with `[agent:aws-ec2-hardening-auditor]`.
+
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
 ## Anti-Slop Guidance (Do NOT Flag)

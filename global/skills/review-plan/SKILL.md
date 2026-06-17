@@ -73,9 +73,11 @@ Read plan file. If `--req` provided, read requirements. If `--context`, read cod
 Use three-level agent discovery from `~/.claude/docs/project-context-loading.md`. Load agents tagged `[PLAN]` or `[BOTH]`.
 
 **Minimum agents** (always run):
+- `symbol-sweep-reviewer` — mechanical pre-pass: every named symbol the plan references is grepped against the codebase; MISSING and AMBIGUOUS findings reported before any reasoning agent runs. Fast (Haiku).
 - `design-flaw-reviewer` — logical flaws, missing states, contradictions
-- `simplicity-reviewer` — unnecessary complexity, over-engineering, YAGNI violations
-- `plan-assertion-reviewer` — verifies factual claims against codebase AND checks reasoning built on those facts (with `--full`: pass `--thorough` to apply all 8 reasoning techniques)
+- `simplicity-reviewer` — unnecessary complexity, over-engineering, YAGNI violations (now includes deferred-but-elaborated detector — see rule #11)
+- `plan-assertion-reviewer` — verifies factual claims against codebase AND checks reasoning built on those facts (with `--full`: pass `--thorough` to apply all 8 reasoning techniques). For WRONG facts, reports closest-match candidate so the fix is single-edit.
+- `reuse-detector` — Level 1 (framing novelty) + Level 2 (mechanism novelty) scans; flags any proposed mechanism that duplicates a master mechanism for the same concern.
 
 **Always-run design agents** (in addition to minimum set — these are the design wave for Step 3a):
 
@@ -96,7 +98,7 @@ Use three-level agent discovery from `~/.claude/docs/project-context-loading.md`
 | Adds new props or fields to existing public types | `type-design-reviewer` |
 | API design | `api-contract-reviewer` |
 | Frontend / React | `ux-design-auditor` |
-| Architecture | `architecture-assertion-auditor` |
+| Architecture | `architecture-assertion-auditor`, `reuse-detector` |
 | External products | `external-claims-auditor` |
 | CI/CD / workflows / cross-repo builds | `ci-design-reviewer` |
 | Build tools / compiler invocation / multi-language (Go+TS, Go+Python, etc.) | `architecture-assertion-auditor` — verify build tool semantics (error formats, compilation scope, environment prerequisites) via WebSearch |
@@ -111,42 +113,62 @@ Print the `## Selection Rationale` block per `~/.claude/docs/selection-rationale
 
 The block is user-visible output, printed before any agent spawns. If the registries-read row is absent, the rationale is incomplete.
 
-### Step 3: Run Reviews — Design First, Then Technical
+### Step 3: Run Reviews — Mechanical Pre-Pass, Design, Then Technical
 
-**Review in two waves.** Design flaws in the architecture waste all effort spent fixing API names. Technical accuracy reviews are only valuable after the design is sound.
+**Review in three waves.** Stage 0 is mechanical (fast, no reasoning) — running it first cuts the work the later stages have to do and catches the cheap errors that don't need a model. Design flaws in the architecture then matter more than API names. Technical accuracy reviews are only valuable after the design is sound.
 
-#### Step 3a: Design Validation (run first)
+#### Step 3.0: Mechanical Pre-Pass (run first; cheap, deterministic)
+
+Launch the cheap mechanical checks in parallel. These run in seconds-to-minutes and use minimal model capacity:
+
+- `symbol-sweep-reviewer` — grep every named symbol the plan references; flag MISSING / AMBIGUOUS.
+- `simplicity-reviewer` (deferred-but-elaborated subset) — scan for `**Deferred**` / `MVP scope decision` / `out of MVP` markers followed by >10 lines of design specification. Flag as `simplicity:DEFERRED_BUT_ELABORATED`.
+- `architecture-assertion-auditor` (Phase 6 only — novelty-vs-anchor ratio) — count novelty markers vs `Master today:` / `file:line` anchors. If ratio < 0.5, flag the doc as structurally biased; require anchors to be added before subsequent waves run.
+
+**Halt condition.** If Stage 0 surfaces a `MUST_FIX` count of N MISSING symbols + ratio < 0.5, recommend the author fix Stage 0 issues before running Stage 3a — there is no point reasoning about a design built on fabricated symbols and unanchored novelty.
+
+**Per-section runnability.** All three Stage 0 checks are safe to run on a single plan section (e.g. `plans/architecture/.../03-storage/00-proposed.md`) without the rest of the doc. Authors are encouraged to invoke `/review-plan <section-path>` mid-drafting; the pre-pass returns results in under a minute and catches errors at the point of authorship rather than at end-of-plan review.
+
+#### Step 3a: Design Validation (run after Stage 0 clears)
 
 Launch design-focused agents in parallel:
 - `design-flaw-reviewer` — logical flaws, missing states, contradictions, state machine completeness
 - `system-design-reviewer` — entity lifecycles, permission model, data model fitness, interaction completeness
 - `separation-of-concerns-reviewer` — conflated concerns, over-coupled abstractions, orthogonal decisions bundled
-- `simplicity-reviewer` — over-engineering, YAGNI, unnecessary abstractions
+- `simplicity-reviewer` (full pass — over-engineering, YAGNI, unnecessary abstractions, including the deferred-but-elaborated rule from Stage 0)
+- `reuse-detector` (full pass — Level 1 framing novelty + Level 2 mechanism novelty + concern duplication)
 
-Focus prompt: "Is the DESIGN correct? Right abstractions? Complete state machines? All entry points covered? Simplest solution?" Do NOT ask about API names, file paths, or code syntax.
+Focus prompt: "Is the DESIGN correct? Right abstractions? Complete state machines? All entry points covered? Simplest solution? Does any proposed mechanism duplicate a master mechanism for the same concern?" Do NOT ask about API names, file paths, or code syntax.
 
-#### Step 3b: Technical Feasibility (run after 3a, or in parallel if design is stable)
+#### Step 3b: Technical Feasibility (run after 3a clears)
 
-Launch technical agents AND multi-LLM reviewers:
-- `plan-assertion-reviewer` — verify factual claims against codebase
+Launch reasoning-heavy technical agents AND multi-LLM reviewers:
+- `plan-assertion-reviewer` — verify factual claims against codebase; for WRONG facts, report closest-match candidates
+- `architecture-assertion-auditor` (full pass — assertion categories, reasoning techniques, structural analysis on top of Stage 0's Phase 6 ratio)
 - Domain-specific agents (from Step 2 routing table)
 - Project-specific agents (from three-level discovery)
 - All models from `~/.claude/docs/multi-llm-review.md`
 
 Focus prompt: "Can this be BUILT? Correct API calls? Right file paths? Migration versions? Code-level accuracy?"
 
-**When to run 3a and 3b in parallel**: If the plan sections being reviewed are mature/stable (e.g., Round 2+ after design was already validated). For NEW sections or major redesigns, run 3a first, fix design issues, then run 3b.
+**When to run 3a and 3b in parallel**: If the plan sections being reviewed are mature/stable (e.g., Round 2+ after design was already validated) and Stage 0 surfaced no MUST_FIX findings. For NEW sections or major redesigns, run Stage 0 → 3a → 3b sequentially.
 
-**Quick mode**: Gemini only, no agents — skip the two-wave split.
+**Quick mode**: Gemini only, no agents — skip the wave split. Stage 0 still runs (it's fast and mechanical) and is recommended even in quick mode.
+
+**Per-section mode**: `/review-plan <single-section-path>` runs Stage 0 only by default; pass `--full` to run 3a and 3b on the section as well. Use this during drafting to catch errors at authorship time.
 
 ### Step 4: Synthesize with 80/20 Filter
 
-**Design findings take priority over technical findings.** A wrong abstraction is more expensive than a wrong API name.
+**Mechanical findings take priority over reasoning findings; design findings take priority over technical findings.** A fabricated symbol is wasted reasoning effort. A wrong abstraction is more expensive than a wrong API name.
 
-1. **MUST FIX** -- 2+ sources agree (agent + LLM, agent + agent, LLM + LLM) AND meets blocker criteria. Design flaws that 2+ design agents agree on are automatic MUST FIX.
-2. **SHOULD FIX** -- single-source valid findings, not blocking
-3. **DEFER** -- valid concerns for future
-4. **SKIP** -- reject over-engineering
+Priority order for synthesis:
+
+1. **Stage 0 MUST_FIX** — symbol-sweep MISSING / AMBIGUOUS findings, novelty-vs-anchor ratio < 0.5, deferred-but-elaborated sections > 10 lines. Single-source by design (these are mechanical checks); MUST_FIX without cross-validation.
+2. **Stage 3a MUST_FIX** — design flaws or duplicated-mechanism findings, 2+ sources agree.
+3. **Stage 3b MUST_FIX** — factual errors or invalid reasoning, 2+ sources agree.
+4. **SHOULD_FIX** — single-source valid findings, not blocking.
+5. **DEFER** — valid concerns for future.
+6. **SKIP** — reject over-engineering.
 
 ### Step 5: Present Results and Offer Next Round
 

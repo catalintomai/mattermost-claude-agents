@@ -46,7 +46,7 @@ tools: Read, Write, Grep, Glob, WebSearch
 
 
 
-# permission-design-auditor
+# Permission Design Auditor
 
 Reviews permission system **design** for semantic correctness. Unlike `permission-reviewer` (which checks code), this agent evaluates whether the permission MODEL makes sense.
 
@@ -271,4 +271,8 @@ Fix: Restrict to comment author, page author, or channel admin
 - **Do not flag** read operations for missing ownership checks — reads are scoped to channel membership, not ownership; "edit your own" and "delete your own" are ownership-gated, but reads are not, by design.
 - **Do not flag** `ManageChannelProperties` as an incorrect permission for wiki-creation operations — creating a wiki in a channel is a channel configuration action and `ManageChannelProperties` is the semantically correct gate; verify the Confluence/Notion equivalent before proposing a lower permission.
 
+## Output Format
+
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md` — use `MUST_FIX` / `SHOULD_FIX` / `PASS` with `Status: PASS | FAIL`.
+
+Prefix every finding with `[agent:permission-design-auditor]`.

@@ -1,6 +1,6 @@
 ---
 name: pr-decomposition-sequencer
-description: Analyzes a large feature branch and produces an ordered, independently-mergeable PR sequence. Clusters changed files into logical features, builds a cross-layer dependency graph, and outputs a merge-ordered plan with per-PR file lists and dependency rationale. Use when a long-running branch must be split before merging to master.
+description: "[PLAN] Analyzes a large feature branch and produces an ordered, independently-mergeable PR sequence. Clusters changed files into logical features, builds a cross-layer dependency graph, and outputs a merge-ordered plan with per-PR file lists and dependency rationale. Use when a long-running branch must be split before merging to master."
 model: sonnet
 tools: Read, Write, Bash, Grep, Glob
 ---
