@@ -2,6 +2,7 @@
 name: client-server-alignment-reviewer
 description: Verifies client4.ts and client4.go methods match api4/ route definitions. Use after adding or modifying API endpoints. Not for Playbooks API parity — use playbooks-api-parity-reviewer.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 

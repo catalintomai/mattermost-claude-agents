@@ -2,6 +2,7 @@
 name: doc-duplication-reviewer
 description: "[PLAN] Use before publishing/republishing a multi-page architecture-doc run to find prose REDUNDANCY — the same mechanism, explanation, list, or steelman written out in full in 2+ places where one canonical statement plus a pointer would do. Separates INTENTIONAL duplication (per-section POC-state callouts, one-line decision recaps, rolled-up parity verdicts, template headers) from EXCESS via a deletion test; escalates to MUST_FIX only when the copies have DIVERGED. Distinct from doc-consistency-reviewer (contradictions/cross-refs — it never flags identical passages), reuse-detector (mechanism novelty vs master), and duplication-reviewer / type-duplication-reviewer (Go/TS code, not prose)."
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 

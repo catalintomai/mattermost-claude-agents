@@ -2,6 +2,7 @@
 name: design-flaw-reviewer
 description: Reviews feature designs and implementation plans for logical contradictions, impossible states, missing state transitions, race conditions, and mechanism-guarantee mismatches (e.g., a plan claiming "NEVER" enforced by an LLM rather than deterministic code). Use before implementation begins on any non-trivial feature. For verifying codebase factual claims in a plan (function signatures, schemas, constants), use plan-assertion-reviewer instead. For UX quality of states, use ux-edge-case-reviewer.
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 
@@ -93,6 +94,70 @@ When a plan proposes new storage (tables, columns, files), **always search the c
 | **Premature normalization** | "Will this data ever be queried independently of its parent?" |
 
 **MANDATORY CHECK** for new database tables: Search codebase for existing storage on the parent entity. Flag only if the proposal contradicts an established pattern.
+
+### 8. Value Used at the Wrong Scope (High)
+
+A value that is only meaningful within one scope is stored, compared, or persisted at a wider or
+narrower one. The shapes: a per-parent value written to a global field; an *effective* (override-merged)
+value persisted back as if it were the *configured* one; a lookup that matches on a name without the
+group/namespace that disambiguates it; an identifier from one namespace stored in a column that means
+something else.
+
+**Detection**: for every value the design moves between layers, name the scope it is valid in and the
+scope it lands in. If those differ, ask what happens when a second entity at the wider scope exists.
+The tell is a field whose meaning requires a qualifier you cannot supply from where it is stored
+("active *for which import*", "the value *before or after* the override").
+
+```
+FLAG — the test restores the effective (override-merged) value into persisted config,
+so the override is baked in permanently and the original configured value is lost.
+
+OK — the configured value is captured before the override is applied, and that is what is restored.
+```
+
+Severity: MUST_FIX when the wrong-scope write is persisted or corrupts a second entity's state;
+SHOULD_FIX when it is recoverable. Establish cardinality first — if only one entity can ever exist at
+the wider scope, there is no collision and no finding.
+
+**Validated by MM PR review**: T243 — PR #37580 `global_attributes.spec.ts` — restores the effective
+overridden value into persisted config (ACCEPTED). Also PR #35952 `webhook.go` (webhook id stored in
+`PostReadStatus.UserId`) and PR #36490 `useClassificationMarkings.ts` (field selectors match same-named
+fields from another group).
+
+### 9. Client-Settable Field Without Enforcing Infrastructure (High)
+
+The design gives a client (or an intermediate layer) control over a field whose stated meaning depends
+on machinery the design never specifies. A schedule is persisted with no scheduler that acts on it; a
+report serializes a decision no commit path ever writes; a request body carries a value the server is
+supposed to derive. The field exists, so downstream readers trust it — but nothing keeps it true.
+
+**Detection**: for each new persisted or serialized field, name the component that enforces its meaning
+and locate it in the design. If the answer is "a later phase" or "the client sets it correctly", the
+field is decorative. Also check the inverse: any server-derived value (ip_address, user_agent, actor id,
+timestamps) that the design decodes from the request body rather than from the session.
+
+```
+FLAG — a DND schedule row is persisted, but no job or hook consults it, so the user's status
+never changes at the scheduled time. The field reads as enforced and is not.
+
+OK — the schedule row is written and a named scheduler job reads it on its tick; the design
+states which job, and its cadence bounds the enforcement lag.
+```
+
+Severity: MUST_FIX when a security or privacy property rests on the unenforced field (a server-derived
+identity accepted from the client); SHOULD_FIX when it is a functional gap. A field explicitly scoped as
+inert-for-now with its activating work named is a deferral, not a finding.
+
+**Validated by MM PR review**: T234 — PR #36340, the report serializes an uncommitted reviewer decision. Also
+PR #36209 (DND schedule persisted with no recurring enforcement) and PR #36934
+`app/session_attributes.go` (client header values overwrite server-derived `ip_address`/`user_agent`,
+ACCEPTED).
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] Transform applied at the wrong lifecycle stage — normalization at draft-save that belongs at create time (T98)
+- [ ] Mitigation narrows the failure window without removing the failure condition, which stays reachable (T281, PR #36592)
+- [ ] Related fields written or reset independently, so one can advance without the other (T244, PR #37345)
 
 ## Review Process
 

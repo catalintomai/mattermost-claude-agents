@@ -2,6 +2,7 @@
 name: redux-expert
 description: Redux state management expert for React applications. Use when writing or reviewing Redux actions, reducers, selectors, thunks, RTK, state normalization, and performance optimization.
 model: sonnet
+effort: medium
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -272,6 +273,7 @@ These patterns were extracted by AI analysis of PR review comments from mattermo
 - **Rule**: Selectors that derive/filter/map must use `createSelector` for memoization
 - **Detection**: `.filter()`, `.map()`, `.reduce()` directly in `useSelector` callback
 - **Fix**: Extract to memoized selector using `createSelector` from `reselect`
+- **Also**: `createSelector` with `(state) => state` (or `(state) => state.entities`) as an input selector defeats memoization entirely — the input's reference changes on every dispatched action, so the result function re-runs and returns a new array every time. Input selectors must be narrow slices (`getCurrentTeamId`, `state.entities.channels.channels`). Validated by MM PR review: PR #37082 `sidebar_join_request_counts_sync.tsx` — "Using `(state: GlobalState) => state` as an input selector means its returned value changes on every single Redux action."
 
 ### redux_immutable_updates
 - **Rule**: Reducer updates must produce new object references for changed subtrees
@@ -348,6 +350,13 @@ const mapStateToProps = (state: GlobalState, ownProps: OwnProps) => ({
 });
 export default connect(mapStateToProps, { fetchPages })(PagesList);
 ```
+
+## Corpus checklist (single-sighting patterns)
+
+Patterns seen once or twice in MM PR review. Check them, but weight a hit as a candidate, not a rule.
+
+- [ ] A new member of a pure-predicate family calls `store.getState()` directly instead of operating on the `state` its sibling predicates receive as a parameter (T90, PR #37322 `admin_definition_helpers.tsx`)
+- [ ] A component builds and dispatches a raw action object inline instead of calling the thunk in the feature's `actions/` module (T331, PR #36803 content flagging)
 
 ## Anti-Slop Guidance (Do NOT Flag)
 

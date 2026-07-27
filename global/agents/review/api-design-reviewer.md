@@ -2,6 +2,7 @@
 name: api-design-reviewer
 description: Reviews REST API IMPLEMENTATIONS (code-level) for contract correctness, error semantics consistency, missing pagination, breaking changes, and naming convention violations. Use when reviewing a diff that adds or modifies route handlers or TypeScript API client types — i.e., when the code already exists. For pre-implementation API design proposals (spec/plan docs), use `api-contract-reviewer`. For MM layer-boundary compliance (api4/ calling App not Store), use `api-reviewer`.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -121,6 +122,91 @@ When reviewing actual implementation:
 - [ ] No verbs in REST paths
 - [ ] Third-party responses are parsed/validated before use
 
+## OpenAPI Spec Drift
+
+The single highest-frequency finding class on reviewed API PRs. A handler and its spec are edited in separate files by separate habits, so the spec keeps describing the endpoint as it was proposed rather than as it was built. The spec is what generated clients are built from, so drift is a client-breaking defect even when the handler is correct.
+
+**Detection**: for every handler the diff adds or modifies, open the matching `api/v4/source/*.yaml` schema and diff it against the structs the handler actually decodes and encodes. Check four things, in this order:
+
+1. **Type mismatch** — the declared JSON type of every field against the Go field it decodes into. A field the handler decodes as a structured object but the spec advertises as a string produces clients that send the wrong shape. Tag `api-design:SPEC_DRIFT`.
+2. **Response-only fields in `required`** — when one schema serves both the request and the response, any field the server populates (ids, timestamps, computed counts) that sits in `required` forces every generated request client to send it. Either split the schema into request and response variants, or drop those fields from `required`. Tag `api-design:SPEC_DRIFT`.
+3. **Undocumented headers and query parameters** — conditional-request headers (`ETag`, `If-None-Match`), and any query param the handler reads (`graceful`, `include_diffs`) that the spec never declares. A parameter the handler honors but the spec omits is invisible to every generated client.
+4. **Undocumented or incomplete enum values and permission text** — allowed values the handler accepts but the spec does not list, and permission prose that describes a narrower check than the handler performs.
+
+Severity: `MUST_FIX` when the drift makes a generated client send or expect the wrong shape (1 and 2); `SHOULD_FIX` for omissions that only hide a capability (3 and 4).
+
+**Validated by MM PR review**: PR #37348 `api/v4/source/definitions.yaml` — "Keeping them in `required` forces generated request clients to send all three keys." (accepted); PR #36471 `api/v4/source/cards.yaml` — "`PatchCard` decodes `props` as a structured object, but the spec advertises it as a string." (accepted, four instances in one PR); PR #37458 `api/v4/source/teams.yaml:1459` — "The schema permits an object without `emails` … It also references `graceful` without declaring that query parameter" (accepted).
+
+## Partial Update Mishandles Absent Fields
+
+The second-highest API implementation class in the MM PR corpus (13 sightings). A PATCH/update path
+cannot distinguish "field omitted" from "field cleared", so an omitted field is written as its zero
+value, or a whole map/blob is replaced when the caller sent one key. The write is lossy in a way the
+caller cannot detect, and the data it erased was written by a different subsystem.
+
+**Detection**: for every update handler and every `Patch*`/`Update*` app or store method the diff
+touches, ask three questions per field:
+1. Does the patch struct use pointers (or an explicit presence set) so an absent field is
+   distinguishable from a zero value? A non-pointer scalar on a patch type is the cue.
+2. Does the write replace a container (`Props`, a JSON blob, a settings map) wholesale rather than
+   merging the supplied keys? Grep for other writers of that container — if a second subsystem appends
+   to it, the replace erases their key.
+3. Does the update path recompute or carry over server-managed fields (`LastUsed`, `UpdateAt`,
+   masked/hidden values) rather than writing whatever the request body contained?
+
+```go
+// FLAG — full Props replace erases `previewed_in`, which the preview subsystem appends independently.
+query := s.getQueryBuilder().Update("Posts").Set("Props", model.MapToJSON(post.Props))
+```
+```go
+// OK — only the supplied keys are merged; other writers' keys survive.
+query := s.getQueryBuilder().Update("Posts").
+    Set("Props", sq.Expr("Props || ?::jsonb", model.MapToJSON(patch.Props)))
+```
+
+Severity: MUST_FIX when the overwrite destroys data another subsystem owns, or when a hidden/masked
+value is overwritten by a visible one; SHOULD_FIX when the field is merely stale. A field that is
+*designed* to be fully replaced is not a finding — confirm by finding a second writer before flagging.
+Tag `api-design:LOSSY_PATCH`.
+
+**Validated by MM PR review**: T173 — PR #36517 `access_control_masking.go:382` — a visible string overwrites a
+hidden scalar (ACCEPTED). Also PR #37546 `post_store.go` (full `Props` replace erases appended
+`previewed_in`) and PR #36416 `sqlstore/webhook_store.go` (generic `UpdateIncoming` writes stale
+`LastUsed`).
+
+## Value Passed Into the Wrong Parameter Slot
+
+A call site supplies an argument that is type-correct but semantically wrong for that slot: adjacent
+same-typed parameters swapped, an id passed where a title is expected, a private key file passed to the
+public-key option, an empty string standing in for a required scope id. The compiler is silent because
+the arity and types line up, so this survives to review (8 sightings).
+
+**Detection**: for every new or modified call the diff introduces with two or more same-typed
+parameters, read the callee's signature and match each argument to its parameter name. Pay particular
+attention to `(id, name)`, `(from, to)`, `(teamID, channelID)`, and any variadic-options or
+CLI-flag-mapped call.
+
+```go
+// FLAG — the map key advertises "updated" but the value written is the Deleted timestamp.
+a["updated"] = tab.DeleteAt
+```
+```go
+// OK — the value matches the key it is stored under.
+a["updated"] = tab.UpdateAt
+```
+
+Severity: MUST_FIX when the wrong value crosses a trust or persistence boundary (a private key in a
+public-key slot, an id written to the wrong column); SHOULD_FIX otherwise. Tag `api-design:WRONG_SLOT`.
+
+**Validated by MM PR review**: T128 — PR #35636 `model/channel_tab.go:268` — `a["updated"]` holds `Deleted`
+(ACCEPTED). Also PR #35720 (private key file passed as `SignaturePublicKeyFiles`) and PR #36282
+(`gh pr create --milestone $MILESTONE_NUMBER` where the flag takes a title).
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] New list endpoint invents its own `limit`/`offset` params instead of the platform's `Page`/`PerPage` convention (T138)
+- [ ] Path or query segment interpolated into a client helper without escaping, so an id containing a reserved character breaks the URL or the selector (T208, PR #36518)
+
 ## Output Format
 
 Use the canonical format from `~/.claude/agents/_shared/finding-format.md`.
@@ -144,6 +230,7 @@ Domain tags: `[agent:api-design-reviewer]` prefix on all findings. Use sub-tags 
 | `api-design:NO_PAGINATION` | List endpoint without pagination |
 | `api-design:VERB_IN_URL` | REST endpoint uses verb instead of noun |
 | `api-design:NAMING` | Convention deviation |
+| `api-design:SPEC_DRIFT` | OpenAPI schema disagrees with the handler's actual decode/encode, headers, params, or enum values |
 
 Cite the specific endpoint, field, or line. Generic warnings not grounded in the reviewed material are noise.
 

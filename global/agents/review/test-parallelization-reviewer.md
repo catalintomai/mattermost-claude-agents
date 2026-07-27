@@ -2,6 +2,7 @@
 name: test-parallelization-reviewer
 description: Reviews test code for parallel-safety issues — shared mutable state, environment variable leaks, fixture isolation, and race conditions under concurrent test execution. Use when reviewing PRs that enable parallel test execution, refactor test setup/teardown, or touch shared test infrastructure.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -143,6 +144,80 @@ grep -n 't\.Parallel' file_test.go | head -1  # Line Y
 
 **Do not flag:** Tests that use `t.Setenv` in a subtest but do NOT call `t.Parallel()` in the parent test — this is safe and intentional (t.Setenv prevents the subtest from going parallel, which is fine).
 
+### Step 7: Check Filesystem Locks in Shared Fixtures
+
+Fixtures that serialize workers through a lock FILE (a shared external service, a one-time seed, a downloaded artifact) are the most common home-grown parallelism primitive, and verify-then-act on a path is always TOCTOU: between the check and the action, another worker can delete, recreate, or replace the file at that path.
+
+Three defects to look for, each observed in one PR:
+
+1. **Reclaim race** — `stat` the lock, decide it is stale, then `rm` it. Another worker can create a fresh lock in the gap, and the `rm` deletes the live one. A shared heartbeat can likewise refresh or delete a replacement it does not own.
+2. **Path-based ownership check** — an `ownsLock()` that re-reads the path to confirm a token, then acts on the path again. The confirmation is stale by the time the action runs.
+3. **Move-aside then restore** — renaming a non-owned lock out of the way leaves the path absent, so another worker acquires it; the restore then renames over the top and two workers are in the critical section.
+
+**What to require:**
+- An **ownership token** written into the lock (worker id + nonce), checked on every mutation — refresh and release must both verify the token, not just the path's existence.
+- **fd-based operations**: open the lock once and act through the handle (`handle.utimes()`, `handle.stat()`, `fchmod`) rather than re-resolving the path. A handle keeps referring to the file you validated even after the path is replaced.
+- **Atomic acquire**: `open(..., 'wx')` / `O_CREAT|O_EXCL` (or `link()`), never `existsSync` followed by a write.
+
+**Detection**: for each lock/latch/semaphore file in the diff, list every operation on `LOCK_PATH`. If any pair is `read/stat` then `write/rm/rename` on the same path with no intervening handle, flag `parallel:FS_LOCK_TOCTOU` and quote both lines. Reference: PR #37614 (saturninoabril) on `ai_bridge_fixture.ts` — "`stat`/`rm` can reclaim a lock another worker recreated in the gap" and "`ownsLock()` is a TOCTOU check" (both accepted; fixed with an ownership token in 9dc84a9 and fd-based `handle.utimes()` in 651a04bb). The third finding was declined by the author as not solvable with plain filesystem primitives — a genuine limitation is an acceptable answer, so report the race and let the author scope it.
+
+---
+
+## Corpus-Derived Detection Rules
+
+### R1. A test must read and mutate only state it owns (High)
+
+The most frequent parallel-safety defect in the corpus. Two shapes, one cause — the test treats process- or server-wide state as if it were its own: it READS a shared collection and indexes positionally, or it WRITES a shared global and never restores it. Both pass in isolation and fail the moment a sibling test runs in the same process, worker, or server.
+
+```go
+// BAD — reads the server's whole log buffer and indexes by position
+logs, _ := th.SystemAdminClient.GetLogs(ctx, 0, 10)
+require.Equal(t, expected, logs[i-10])
+
+// BAD — mutates config for the subtest, relies on a LATER subtest's cleanup
+th.App.UpdateConfig(func(cfg *model.Config) { *cfg.ServiceSettings.MaximumURLLength = 100 })
+
+// GOOD — filter to rows this test created, and restore in the test's own cleanup
+mine := filterByPrefix(logs, testRunID)
+require.Len(t, mine, 1)
+original := *th.App.Config().ServiceSettings.MaximumURLLength
+t.Cleanup(func() { th.App.UpdateConfig(func(cfg *model.Config) { *cfg.ServiceSettings.MaximumURLLength = original }) })
+```
+
+**Detection**: (a) flag every positional index (`[0]`, `[i-10]`, `.first()`, `getLastPost()`) into the result of a query the test did not scope to its own fixtures — a system post or a sibling's row satisfies it just as well; (b) flag every global stubbed or mutated in the diff — `global.fetch`, `Date.now`, `window.open`, `console.error`, `jest.spyOn`, `viper` state, a process-global set by a setup route, a role patch, an ABAC/banner/config field — with no `t.Cleanup`/`afterEach` restore in the SAME test that set it; (c) flag a subtest whose precondition is state an earlier subtest left behind, and any object shared across subtests then mutated in place (`opts`, a struct passed to `Sanitize()`); (d) flag unscoped destructive SQL (`DELETE FROM TeamMembers` with no `WHERE` on this test's ids). Tag `parallel:SHARED_STATE` (reads) or `parallel:MISSING_CLEANUP` (unrestored writes). Validated by MM PR review: #35816 `server/config/logger.go` (accepted), #36659 `system_test.go` positional `logs[i-10]` (accepted), #37073 `long_url_embedded_image_spec.js` (`MaximumURLLength` never restored, accepted), #37143 `type_change_value_cleanup_test.go` (shared mutable `opts` across subtests, accepted), #37159 `mmctl/commands/post_e2e_test.go` (viper hard-reset, accepted), #36638 masking specs (`purgeFieldsByPrefix` cross-worker, accepted), #34536 `brand_image_setting.test.tsx` (`global.fetch` mock never restored), #35465 `product_notices.test.tsx` (`Date.now`/`window.open`/`console.error` never restored), #36325 `api4/channel_test.go` (subtest relies on the previous subtest's cleanup), #36797 `sqlstore/integrity_test.go` (unscoped `DELETE FROM TeamMembers`), #37457 `webhook_serve.js` (`/setup` stores baseUrl and admin creds in process globals), #37370 `api4/data_retention_test.go` (in-place `Sanitize()`).
+
+### R2. Resource names must be unique per run and per worker (Medium)
+
+A fixture named by a constant — `"testbot"`, `Masking*`, a fixed LDAP group — is the same row for every worker and every rerun against a shared server. The second worker either collides on a uniqueness constraint or, worse, silently operates on the first worker's object; a purge-by-prefix teardown then deletes a sibling's live fixtures.
+
+```go
+// BAD — collides on rerun and across workers
+bot, _, _ := client.CreateBot(ctx, &model.Bot{Username: "testbot"})
+
+// GOOD — unique per run; teardown scoped to this test's own id
+bot, _, _ := client.CreateBot(ctx, &model.Bot{Username: "testbot-" + model.NewId()})
+```
+
+**Detection**: flag every literal name/username/prefix used to create or look up a server-side fixture (bot, team, remote cluster, LDAP group, property field) in a test that can run concurrently or rerun against a persistent server. Flag prefix-scoped teardown (`purgeFieldsByPrefix('Masking')`, `deleteAllTeamsNamed(...)`) whose prefix is not unique to the worker. Require a `model.NewId()`/worker-index suffix on both create and cleanup. Tag `parallel:PORT_CONTENTION`. Validated by MM PR review: #37460 `group_mentions/support.ts`, `ldap/support.ts`, `group_configuration/support.ts` (fixed shared LDAP groups and users mutated across workers), #36642 `editor_states.spec.ts:31` and `modes_and_role_views.spec.ts:36` (global `purgeFieldsByPrefix('Masking')`), #36355 `bot_e2e_test.go` (hardcoded `"testbot"` username).
+
+### R3. Test-side concurrency primitives must be bounded and on the test goroutine (Medium)
+
+Tests spawn goroutines to exercise concurrent code, then get the test harness's own rules wrong: `require`/`FailNow` outside the test goroutine leaves the test hung instead of failed, an unbounded channel receive hangs until the package timeout with no diagnostic, and an assertion made while holding the lock under test can deadlock against the code it is testing.
+
+```go
+// BAD — hangs forever if the backend never starts; no timeout, no message
+<-be.started
+
+// GOOD — bounded, and the failure names what did not happen
+select {
+case <-be.started:
+case <-time.After(5 * time.Second):
+    t.Fatal("backend never signalled started")
+}
+```
+
+**Detection**: in any test that starts a goroutine or waits on a channel, flag (a) a bare `<-ch` or `wg.Wait()` with no `select`/`time.After` bound, (b) `require.*`/`t.Fatal`/`FailNow` called inside a spawned goroutine — require `assert.*` plus a channel-reported error instead, (c) an assertion or `require.Len` evaluated while a mutex the production code also takes is held, and (d) a resource release (slot, connection, semaphore) asserted immediately after `close()` with no wait for the release to land. Tag `parallel:TEST_CONCURRENCY_MISUSE`. Validated by MM PR review: #36856 `docextractor_test.go` (unbounded receive on `be.started`, accepted), #37301 `docextractor_test.go` (slot release not awaited after `close()`, accepted), #36862 `api4/shared_channel_metadata_test.go` (`require.Len` while holding `muA`).
+
 ---
 
 ## Output Format
@@ -166,6 +241,8 @@ Domain tags:
 | `parallel:PORT_CONTENTION` | Hardcoded ports or resources that conflict under parallelism |
 | `parallel:DB_COUPLING` | Test relies on database state from another test |
 | `parallel:INCONSISTENT_PATTERN` | Override pattern inconsistency (e.g., direct field access vs setter) |
+| `parallel:FS_LOCK_TOCTOU` | Verify-then-act on a lock file path; missing ownership token or fd-based operations |
+| `parallel:TEST_CONCURRENCY_MISUSE` | Unbounded channel wait, `require` off the test goroutine, assertion under a contended lock |
 
 ## Anti-Slop Guidance (Do NOT Flag)
 

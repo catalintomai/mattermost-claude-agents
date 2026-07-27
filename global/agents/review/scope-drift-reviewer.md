@@ -2,6 +2,7 @@
 name: scope-drift-reviewer
 description: Validates that every changed file in a branch traces to a specific requirement in plans/ and flags untraced bug fixes, refactors, and cleanups in pre-existing code. Use after implementation to verify diff coverage against plan requirements and catch scope drift before PR review.
 model: sonnet
+effort: medium
 # Tools note: Bash justified — runs git diff/log to enumerate changed files and trace them to plan requirements. Write included for swarm output files only.
 tools: Read, Write, Grep, Glob, Bash
 ---
@@ -139,6 +140,10 @@ These are normal incidentals of editing. Only flag cleanup that goes BEYOND the 
 | `scope:PARTIAL_IMPL` | Plan requirement only partially implemented |
 
 ---
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] PR description contradicts the diff — the stated rename or opt-in posture is not what the code does, or a flag the description calls opt-in defaults to enabled (T267, PR #35354)
 
 ## Severity Mapping
 

@@ -2,6 +2,7 @@
 name: symbol-sweep-reviewer
 description: Mechanical pre-pass that extracts every named symbol from a plan/ADR/design doc and greps it against the codebase. Anchored symbols report PASS; missing symbols report FLAG with the literal grep evidence. No reasoning, no design judgment — fast deterministic verification of "does this symbol exist?" Use as Stage 0 before plan-assertion-reviewer and reuse-detector. Catches symbol-level hallucinations like a fabricated `EnableWikis` flag or `App.ExecuteInTransaction` method.
 model: haiku
+effort: low
 tools: Read, Grep, Glob, Bash
 ---
 

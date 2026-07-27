@@ -2,6 +2,7 @@
 name: confluence-alignment-reviewer
 description: Use when wiki/pages Go or TypeScript files change. Compares implementation against Confluence patterns, identifies deviations, and recommends alignment where appropriate.
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 

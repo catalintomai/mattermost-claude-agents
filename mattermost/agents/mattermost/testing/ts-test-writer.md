@@ -2,6 +2,7 @@
 name: ts-test-writer
 description: Writes and reviews TypeScript/Jest unit tests — React components, Redux state, hooks, selectors, actions, mocking. NOT for Go tests (use go-test-writer). NOT for E2E/browser tests (use playwright-test-writer).
 model: sonnet
+effort: medium
 tools: Write, Read, Edit, Bash, Grep, Glob
 ---
 
@@ -185,6 +186,30 @@ it('fetches pages on mount', async () => {
 });
 ```
 
+### Every Async Call Must Be Awaited, Including Inside Handlers (Validated by MM PR review)
+
+A dropped `await` does not fail the test — it makes it nondeterministic. The assertion runs before the navigation, render, or upload it depends on, so the test passes on a fast machine and flakes in CI. Two shapes recur: a helper that returns a promise called as if it were synchronous, and a callback registered on an event (`filechooser`, `onChange`) whose own async work is never awaited. When a helper is CHANGED to async, every existing call site becomes a latent bug.
+
+```typescript
+// BAD — navigation not awaited; the next assertion races the render
+channelsPage.goto(team.name, channel.name);
+expect(await header.textContent()).toBe(channel.display_name);
+
+// BAD — the handler's async work escapes the test's control
+page.on('filechooser', (chooser) => { chooser.setFiles(filePath); });
+
+// BAD — the callback fires after the assertion window
+render(<ManageTeams onMemberChange={onMemberChange}/>);
+expect(onMemberChange).toHaveBeenCalledWith('team_admin');
+
+// GOOD
+await channelsPage.goto(team.name, channel.name);
+page.on('filechooser', async (chooser) => { await chooser.setFiles(filePath); });
+await waitFor(() => expect(onMemberChange).toHaveBeenCalledWith('team_admin'));
+```
+
+**Detection**: after writing or editing a test, flag every call to a function returning a promise that is not `await`ed or returned — page-object methods, `setFiles`, `userEvent.*`, render helpers, and any project helper whose signature is `async`. Assert on a callback fired by an async interaction only inside `waitFor`, never bare. When the diff makes an existing helper `async`, grep every call site and update them all. Validated by MM PR review: PR #36548 `group_message_profiles.spec.ts` (`channelsPage.goto(...)` not awaited), #37431 `add_file_bookmark.spec.ts` (`setFiles()` not awaited in the `filechooser` handler), #37400 `manage_teams_dropdown.test.tsx` (`onMemberChange` assertion not gated on `waitFor`).
+
 ### Over-Mocking Antipattern (Validated by MM PR review)
 
 The single most common test-quality concern in MM React PRs is tests that mock so much they end up asserting nothing. Reviewers (especially hmhealey) consistently push back on this.
@@ -241,6 +266,18 @@ renderWithContext(<MyComponent />, {}, {history});
 Mattermost's Jest config already resets mocks between tests. Explicit `beforeEach(() => { jest.clearAllMocks(); })` is dead code AI tools love to add.
 
 **Verbatim reviewer evidence**: hmhealey on PR #33610 `setting_item_min.test.tsx`: "This shouldn't be needed because we have Jest globally configured to do this between tests, but Claude loves adding it to every one of these files."
+
+## Mutation Resilience (Assertion Strength)
+
+Before finishing each test, mentally mutate the code under test and confirm an assertion fails:
+
+- A handler wired to the wrong callback or dropped entirely → assert the observable OUTCOME (`onSave` called with the right args, element appears/disappears), not just that the component rendered.
+- A flipped conditional in render logic → test BOTH branches' visible output (`toBeVisible()` on one, `queryBy... → toBeNull()` on the other).
+- A reducer writing the wrong field or ignoring the action → assert the exact resulting state slice, not `toBeDefined()`.
+- A selector with an off-by-one or wrong key → test with state where the wrong key would return something different, not a single-entry store where every path returns the same object.
+- `mockFn.toHaveBeenCalled()` alone kills no wrong-argument mutant — assert `toHaveBeenCalledWith(...)` when the arguments carry the behavior, and prefer asserting the rendered result over the call itself.
+
+`mutation-test-reviewer` audits this after the fact; write tests that already pass its audit.
 
 ## Mock-Implementation Alignment Check
 

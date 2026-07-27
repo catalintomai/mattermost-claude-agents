@@ -2,6 +2,7 @@
 name: agent-reviewer
 description: Validates Claude Code agent (.md) files for frontmatter correctness, tool configuration, description quality, and agentic design best practices. Use when reviewing new or modified agent files, or auditing the full ~/.claude/agents/ and .claude/agents/ directories. Distinct from plan-completeness-checker (which reviews plan files, not agent files).
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 

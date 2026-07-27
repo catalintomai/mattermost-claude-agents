@@ -2,6 +2,7 @@
 name: copilot-ai-expert
 description: Advisory expert on LLM integration patterns including streaming, context management, rate limiting, and RAG. Use when designing AI features that call external LLM providers or build RAG pipelines. Not for non-LLM features; not for WebRTC/audio — use calls-webrtc-expert.
 model: sonnet
+effort: medium
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 

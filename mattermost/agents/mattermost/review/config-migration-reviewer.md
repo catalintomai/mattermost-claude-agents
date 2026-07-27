@@ -2,6 +2,7 @@
 name: config-migration-reviewer
 description: Reviews configuration changes for backward compatibility, restart requirements, default values, environment variable conventions, and feature flag lifecycle. Use when reviewing new config fields, config struct changes, or feature flag additions/removals.
 model: haiku
+effort: low
 tools: Read, Write, Grep, Glob
 ---
 
@@ -190,6 +191,66 @@ Plugin settings should not use key paths that shadow or conflict with server con
 
 Flag any plugin config struct whose top-level keys match server config section names (`ServiceSettings`, `EmailSettings`, etc.).
 
+### 8. Feature or Plugin Removal Leaves Config Entries Behind (High)
+
+Removal paths are reviewed for what they delete from the database and rarely for what they delete from config. A per-feature or per-plugin config entry that survives an uninstall is not inert: the next install reads it back and the feature restarts in a half-configured state that no admin chose.
+
+The sharpest case is a settings map keyed by an identifier — `PluginSettings.Plugins[id]`, `PluginSettings.PluginAccessControl[id]`, or any `map[string]X` in a settings struct. Deleting the plugin's rows while leaving its map entry means a reinstall finds filtering still switched on with an allow-list that no longer has any members, so the feature comes back denying everyone.
+
+```go
+// BAD: uninstall clears storage but not the config entry keyed by plugin id
+func (a *App) removePluginData(id string) *model.AppError {
+    if err := a.Srv().Store().PluginAccessControl().DeleteByPluginID(id); err != nil {
+        return err
+    }
+    return nil // config still holds PluginAccessControl[id] with Enabled=true, UserIds=[]
+}
+
+// GOOD: the config entry is removed on the same path, including early returns
+func (a *App) removePluginData(id string) *model.AppError {
+    a.UpdateConfig(func(cfg *model.Config) {
+        delete(cfg.PluginSettings.PluginAccessControl, id)
+    })
+    return a.Srv().Store().PluginAccessControl().DeleteByPluginID(id)
+}
+```
+
+**Detection**: for every removal/uninstall/disable path in the diff, list the settings keys the feature writes (grep the feature's identifier against `server/public/model/config.go` and the map keys it indexes). Confirm each one is deleted on that path — including on every early return, since removal paths commonly bail out before the cleanup when storage is already empty. Then ask what a fresh install reads: if the leftover entry changes behavior from the documented default, it is a finding.
+
+Flag as `cfg:ORPHANED_ENTRY`.
+
+**Reference**: PR #37571 `server/channels/app/plugin_install.go:546-548` — "Clear the ACL config entry before the early return." Removal only deletes DB rows, not `PluginSettings.PluginAccessControl[id]`; reinstall retains enabled filtering with an empty allow-list.
+
+### 9. New Behavior Not Gated Behind Its Flag (High — validated by MM PR review)
+
+A feature flag is only a kill switch if *every* observable effect of the feature sits behind it. In practice the handler and the UI get gated and the rest does not: the migration still creates the table, the connection pool still opens, the fetch still fires before the gate is consulted, or a permission change ships unconditionally. Operators who leave the flag off still pay for the feature, and rolling back the flag no longer rolls back the behavior.
+
+```go
+// WRONG: pool opened during startup regardless of the flag
+func (s *Server) initAuditStore() {
+    s.auditDB = sql.Open(driver, dsn)                  // runs with Enable=false
+    if !*s.Config().AuditSettings.Enable { return }
+}
+
+// CORRECT: the gate precedes every effect, including resource acquisition
+func (s *Server) initAuditStore() {
+    if !*s.Config().AuditSettings.Enable { return }
+    s.auditDB = sql.Open(driver, dsn)
+}
+```
+
+**Detection**: for each flag referenced in the diff, enumerate the feature's effects — DDL/migration files, resource acquisition (DB pools, goroutines, listeners, schedulers), data fetches, permission/role writes, and websocket registrations — and confirm the flag is consulted *before* each. Two specific tells: a migration file added in the same PR as a flagged feature (migrations run unconditionally, so state a deliberate decision or gate the write path instead), and a fetch dispatched in a component that renders the gate lower down. Flag as `cfg:UNGATED_BEHAVIOR`.
+
+**Validated by MM PR review** — PR #37253 `db/migrations/postgres/000205_create_user_post_delivery.up.sql` (table created with the flag off — ACCEPTED, human); PR #36737 (audit DB opened when `Enable=false` — ACCEPTED); PR #35527 (Recaps fetched before the feature gate passes). One sighting was dismissed as intentional (#36922 `file_attachment_list.tsx`, MediaGallery gate removed on purpose) — confirm the removal is not the point of the PR before flagging.
+
+## Corpus checklist (single-sighting patterns)
+
+Seen once or twice across the MM PR corpus. No full rule yet — check them, report only with concrete evidence in the diff.
+
+- [ ] Wrong config tag for the deployment tier — `cloud_restrictable` on a setting Cloud admins must be able to change, so the API filters it out of the response and the System Console control does nothing (T102, PR #37322 `public/model/config.go`)
+- [ ] Feature gate also disables the cleanup path — one flag guards writes and the retention/purge job alike, so disabling the feature leaves existing rows unpurged forever (T291, PR #37253 `store/store.go`: "Gating writes is fine; gating deletes is not")
+- [ ] Temporary flag without its removal marker — a new feature flag omits the `// FEATURE_FLAG_REMOVAL: ... - Remove this when ...` comment its siblings in the struct carry (T298, PR #37368 `public/model/feature_flags.go`)
+
 ## Review Process
 
 ### Step 1: Find New Config Fields
@@ -250,13 +311,14 @@ Verify that new hot-reloadable fields have a corresponding listener if they need
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `cfg:RESTART_REQUIRED`, `cfg:MISSING_DEFAULT`, `cfg:ENV_NAMING`, `cfg:BREAKING_CHANGE`, `cfg:STALE_FLAG`, `cfg:MISSING_VALIDATION`, `cfg:PLUGIN_CONFLICT`
+**Domain tags**: `cfg:RESTART_REQUIRED`, `cfg:MISSING_DEFAULT`, `cfg:ENV_NAMING`, `cfg:BREAKING_CHANGE`, `cfg:STALE_FLAG`, `cfg:MISSING_VALIDATION`, `cfg:PLUGIN_CONFLICT`, `cfg:ORPHANED_ENTRY`
 
 **Severity mapping**:
 - `cfg:BREAKING_CHANGE` (removed/renamed field without migration) → `MUST_FIX`
 - `cfg:MISSING_DEFAULT` (nil pointer, zero-value changes behavior on upgrade) → `MUST_FIX`
 - `cfg:MISSING_VALIDATION` (unchecked integer, format, or enum field) → `SHOULD_FIX`
 - `cfg:ENV_NAMING`, `cfg:RESTART_REQUIRED`, `cfg:PLUGIN_CONFLICT` → `SHOULD_FIX`
+- `cfg:ORPHANED_ENTRY` (removal path leaves a config entry that re-arms on reinstall) → `SHOULD_FIX`
 - `cfg:STALE_FLAG` → `SHOULD_FIX`
 
 ## Anti-Slop Guidance (Do NOT Flag)

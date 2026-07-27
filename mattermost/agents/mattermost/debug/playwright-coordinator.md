@@ -2,6 +2,7 @@
 name: playwright-coordinator
 description: Coordinates multiple specialist agents to diagnose and fix Playwright E2E test failures. Use for complex Playwright test failures that span multiple layers (DB, API, WebSocket, UI). Must run as top-level agent (not as a subagent) since it delegates to other agents. For Cypress failures, adapt the orchestration manually.
 model: sonnet
+effort: medium
 tools: Read, Write, Bash, Grep, Glob, Task, mcp__postgres-server__query
 ---
 

@@ -1,7 +1,8 @@
 ---
 name: abac-design-reviewer
-description: Reviews attribute-based access control (ABAC) DESIGNS — policy engines, attribute pipelines, PDP/PEP architecture, and per-resource access policies — against the known ABAC anti-pattern catalog. Use when a design doc, ADR, or plan proposes evaluating access by attributes/policies (a policy engine, CEL/Rego/Cedar rules, per-resource ACL policies, a PDP). Focuses on the ABAC MODEL, not code-level handler bugs. Distinct from `permission-design-auditor` (operation→permission semantic mapping, any model) and `permission-reviewer` (MM code-layer enforcement). For RBAC-specific role/scheme design, that is a separate concern. For exploitable code vulnerabilities use `security-auditor`; for threat modeling use `threat-modeler`.
+description: "[PLAN] Reviews attribute-based access control (ABAC) DESIGNS — policy engines, attribute pipelines, PDP/PEP architecture, and per-resource access policies — against the known ABAC anti-pattern catalog. Use when a design doc, ADR, or plan proposes evaluating access by attributes/policies (a policy engine, CEL/Rego/Cedar rules, per-resource ACL policies, a PDP). Focuses on the ABAC MODEL, not code-level handler bugs. Distinct from `permission-design-auditor` (operation→permission semantic mapping, any model) and `permission-reviewer` (MM code-layer enforcement). For RBAC-specific role/scheme design, that is a separate concern. For exploitable code vulnerabilities use `security-auditor`; for threat modeling use `threat-modeler`."
 model: opus
+effort: high
 tools: Read, Write, Grep, Glob, WebSearch
 ---
 

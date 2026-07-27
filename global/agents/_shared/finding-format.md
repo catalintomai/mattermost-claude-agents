@@ -129,9 +129,12 @@ Agents may use domain-specific terminology internally. When emitting findings, m
 |-----------|-----------|---------|
 | `MUST_FIX` | Critical, Block PR, Block Implementation, Data Race, Breaking Change | Blocks merge. Correctness, security, or data-loss risk. |
 | `SHOULD_FIX` | High Priority, Recommendations, Medium Priority, Improvement | Should fix but doesn't block. Performance, maintainability, best practice. |
+| `CONSIDER` | Low Priority, Informational, Speculative, High fix complexity | Real signal, wrong trade-off for this PR. Note it; file a ticket; do not fix here. |
 | `PASS` | (no issues in category) | Check was performed and no issues found. |
 
-Findings that don't fit either severity (informational notes, minor style nits) go under `SHOULD_FIX` with a `NOTE` tag.
+Findings that don't fit any severity (pure noise, pre-existing unrelated issues outside diff scope) are omitted entirely.
+
+**When to use `CONSIDER` instead of `SHOULD_FIX`**: apply the ROI filter from `eighty-twenty-rule.md` Rule 6. A finding is `CONSIDER` when the fix cost (code complexity, write-path overhead, new error paths) exceeds the realistic risk, or the scenario is speculative/low-probability. `CONSIDER` preserves the signal without inflating the actionable fix list.
 
 ## Tags
 

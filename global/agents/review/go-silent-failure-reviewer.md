@@ -2,6 +2,7 @@
 name: go-silent-failure-reviewer
 description: Detects silent failure patterns in Go code — ignored errors, blank-identifier error suppression, empty error handlers, and unchecked deferred closes. Use when reviewing Go files (.go) in a PR or before a release scan. For TypeScript/JavaScript, use ts-silent-failure-reviewer instead. For MM-specific error wrapping/AppError propagation patterns, also consult error-handling-reviewer (Level 2).
 model: haiku
+effort: low
 tools: Read, Grep, Glob
 ---
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
@@ -78,6 +79,35 @@ default:
     // message dropped silently
 }
 ```
+
+### 6. Failure Misrouted Into a Success-Shaped Result (High — validated by MM PR review)
+
+The most frequent shape in the MM corpus is not a dropped `err` variable — it is a failure that reaches the caller wearing a success signature. Four sub-shapes, all of which the patterns above miss because an `if err != nil` block *is* present:
+
+```go
+// WRONG: per-item failures printed, aggregate returns nil — script exits 0
+for _, u := range users {
+    if err := addUser(u); err != nil { fmt.Printf("failed: %v\n", err) }
+}
+return nil
+
+// WRONG: accumulator discarded — only the last append survives
+multierror.Append(result, err)          // result never reassigned
+// CORRECT: result = multierror.Append(result, err)
+
+// WRONG: transport error logged, zero value returned as if it were the answer
+if err := client.Call("Plugin.OnActivate", args, &ret); err != nil {
+    log.Error(err.Error())              // caller sees ret's zero value == success
+}
+
+// WRONG: non-success envelope treated as done, so the sync cursor advances past unsent rows
+if resp.Status != StatusOK { logger.Warn("send failed") }
+s.updateCursor(batch.LastAt)            // data loss, not just a lost log line
+```
+
+**Detection**: For every error branch in the diff, ask what the *caller* observes. Tells: an `if err != nil` block with no `return`/`continue` that changes the outcome; a `multierror.Append`/`errors.Join` call whose result is not reassigned; a wrap (`errors.Wrap`, `.Wrap(err)`) applied to a different or already-nil error variable than the one that failed; a loop that reports per-item errors but returns `nil` or exits 0; a state advance (cursor, watermark, status→done) on the failure path; `2>/dev/null` or `|| true` in an embedded shell step. Flag as `sfh:MISROUTED_FAILURE`; MUST_FIX when a cursor, watermark, or delete follows the swallowed failure (data loss), SHOULD_FIX otherwise.
+
+**Validated by MM PR review** — PR #37299 `public/plugin/client_rpc_generated.go` (RPC error only logged, zero value returned); PR #37499 `sync_send_remote.go` (non-success envelope treated as success, cursor advances — ACCEPTED); PR #36995 `team_users.go` (`team users add` prints failures, returns nil) and `channel.go:437` (drops the `GetChannelByName` error); PR #36409 `app/session.go` (`GetSessions` failure only logged → revoked-session attributes orphaned); PR #34253 `client_rpc.go` (transport failure returns success-shaped values); PR #36243 (`RowsAffected` error swallowed); PR #37347 (missing `return`, ACCEPTED, human).
 
 ## Analysis Workflow
 

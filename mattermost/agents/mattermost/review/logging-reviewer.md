@@ -2,6 +2,7 @@
 name: logging-reviewer
 description: Reviews code for logging hygiene — correct log levels, structured logging with mlog, PII prevention, and duplicate logging avoidance. Use when reviewing new log statements, Go backend changes, or any code that emits log output.
 model: haiku
+effort: low
 tools: Read, Write, Grep, Glob
 ---
 
@@ -213,7 +214,33 @@ rctx.Logger().Error("Failed to update page",
 - Store method: primary key of the entity being operated on
 - Background job: job ID or batch identifier
 
-### 6. Log Volume on Hot Paths (Medium)
+### 6. Hardcoded Caller Name in Log Message (Medium)
+
+A log message string inside a helper function that embeds the name of one specific caller as a prefix (`"CreateSpace: compensating archive failed"`). The helper can be called from multiple places, so the prefix lies as soon as it is reused — or is simply redundant when the function is only ever called from one place, since the structured fields already carry enough context.
+
+```go
+// BAD: caller name hardcoded in a generic helper's log message
+func (s *Service) archiveOrphanChannel(channelID, reason string, cause error) {
+    if delErr := s.client.Channel.Delete(channelID); delErr != nil {
+        s.logWarn("CreateSpace: compensating channel archive also failed; channel may be orphaned",
+            "channel_id", channelID, "failure_reason", reason, ...)
+    }
+}
+
+// GOOD: message describes what happened; structured fields carry the context
+s.logWarn("compensating channel archive failed; channel may be orphaned",
+    "channel_id", channelID, "failure_reason", reason, ...)
+```
+
+**Tell**: the log message string starts with (or contains) a `FunctionName:` or `FunctionName —` prefix that names a caller of the enclosing function, not the enclosing function itself.
+
+**Fix**: drop the caller prefix from the message string. The `failure_reason` / `cause` fields already identify the calling context. → `SHOULD_FIX`
+
+**Do NOT flag**: a log in a non-helper where the function name appears as the grammatical subject of the message (`"CreateSpace: backing channel created"` inside `CreateSpace` itself) — that is the function documenting its own action, not a caller leaking in.
+
+Domain tag: `log:CALLER_PREFIX`
+
+### 7. Log Volume on Hot Paths (Medium)
 
 ```go
 // BAD: Info or Debug inside a loop over messages/posts
@@ -273,6 +300,72 @@ grep -n "Logger.*Error\|mlog\.Error" <app_file>
 
 Look for `mlog.Info` or `mlog.Debug` inside `for` loops, websocket handlers, or per-message processing functions.
 
+### 8. Audit Record Defective (High)
+
+By far the most frequent logging defect in the MM corpus, and the one an ordinary log-level review misses: the audit row is written, but it records something other than what happened. Four shapes recur.
+
+**Outcome recorded before it is known.** `auditRec.Success()` (or an audit write) placed before the operation it attests to actually completes — the send, the encode, the commit. The audit then claims success for a delivery that failed.
+
+```go
+// BAD: the audit says "delivered" before the send is attempted
+auditRec.Success()
+if err := a.sendNotificationEmail(c, post, user); err != nil {
+    return err
+}
+
+// GOOD: the outcome is recorded after the outcome exists
+if err := a.sendNotificationEmail(c, post, user); err != nil {
+    auditRec.AddErrorCode(err.StatusCode)
+    return err
+}
+auditRec.Success()
+```
+
+**`Success()` before all extra props are set.** Any `auditRec.AddEventPriorState` / `AddEventResultState` / `SetExtra*` call after `Success()` may not reach the emitted record.
+
+**`Auditable()` omits a field the change added.** When a model struct gains a field that a mutation can change, its `Auditable()` map must include it, or the audit trail cannot show what was modified.
+
+**Update audited with no before-image.** An update or upsert that records only the new state leaves no way to reconstruct what changed; record prior state as well.
+
+Also flag the frontend analogue: an error log that drops the identifier needed to act on it (a plugin/option pair reduced to a bare message).
+
+Tag `log:AUDIT_DEFECT`, severity MUST_FIX when the record misstates an outcome or omits a mutated field, SHOULD_FIX for a missing before-image.
+
+**Validated by MM PR review**: PRs #36806/#36821/#36822/#36865/#36937/#36948/#36956/#36997/#37019/#37021/#37051/#37053/#37066/#37067/#37068 `app/notification_email.go`, `notification_push.go`, `webhook.go`, `api4/post.go` — delivery audit written before the send or encode is confirmed; PR #36934 `platform/session.go` — a successful revocation never recorded (accepted); PR #36726 `api4/user.go` — `auditRec.Success()` before `SetExtraSessionProps` (accepted); PR #36289 `ChannelPatch.Auditable()` omits `default_category_name` (accepted); PR #37395 — update/upsert audits lack a before-image; PR #36569 `new_channel_modal.tsx` — Redux error log drops the `<pluginId>:<optionId>` identifier (accepted).
+
+### 9. Sensitive Value in a Log or Audit Payload (Critical)
+
+Section 3 covers the field a developer names explicitly. This one covers the field they pass through: a value that is *usually* safe but can carry sensitive content, emitted wholesale.
+
+```go
+// BAD: a malformed DSN puts connection-string fragments (including the password) into the log
+mlog.Error("Failed to ping database", mlog.Err(err))
+
+// BAD: free-text user input in the audit map
+func (r *ChannelJoinRequest) Auditable() map[string]any {
+    return map[string]any{"id": r.Id, "denial_reason": r.DenialReason}
+}
+
+// GOOD: log the classification, not the raw payload
+mlog.Error("Failed to ping database", mlog.String("db_error", sanitizeDSNError(err)))
+// GOOD: audit that a reason was given, not its contents
+return map[string]any{"id": r.Id, "has_denial_reason": r.DenialReason != ""}
+```
+
+Two cues: an error wrapped from a driver, parser, or HTTP client that may embed the input it choked on, and any user-supplied free-text field (reason, comment, description, filename) added to an `Auditable()` map. Tag `log:PII_LEAK`, severity MUST_FIX.
+
+**Validated by MM PR review**: PR #36406 `server/cmd/mattermost/commands/db_ping.go` — `mlog.Err(err)` exposes connection-string fragments on malformed DSN paths (accepted); PR #36539 `server/public/model/channel_join_request.go` — `Auditable()` emits the full user-provided `denial_reason` (accepted); PR #36071 `e2e-tests/playwright/lib/src/browser_context.ts` — `password`/`token` embedded in storage-state filenames.
+
+---
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] Sibling log branches carry inconsistent structured fields — the failure branch omits context the success branch includes (T295, PR #37302)
+- [ ] Format verbs (`%s`, `%d`) passed to a non-formatting structured logger, so they print literally (T313, PR #34253)
+- [ ] Histogram left on default buckets for the magnitude actually observed (T334, PR #37122)
+
+---
+
 ## When NOT to Flag
 
 - **Test files** (`*_test.go`): any logging style is acceptable
@@ -285,13 +378,14 @@ Look for `mlog.Info` or `mlog.Debug` inside `for` loops, websocket handlers, or 
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `log:WRONG_LEVEL`, `log:UNSTRUCTURED`, `log:PII_LEAK`, `log:DUPLICATE`, `log:MISSING_CONTEXT`, `log:HOT_PATH`
+**Domain tags**: `log:WRONG_LEVEL`, `log:UNSTRUCTURED`, `log:PII_LEAK`, `log:DUPLICATE`, `log:MISSING_CONTEXT`, `log:HOT_PATH`, `log:CALLER_PREFIX`, `log:AUDIT_DEFECT`
 
 **Severity mapping**:
 - `log:PII_LEAK` → `MUST_FIX`
+- `log:AUDIT_DEFECT` (outcome misstated, mutated field omitted) → `MUST_FIX`; missing before-image → `SHOULD_FIX`
 - `log:WRONG_LEVEL` (critical event logged at Debug) → `MUST_FIX`
 - `log:DUPLICATE`, `log:UNSTRUCTURED`, `log:WRONG_LEVEL` (expected condition logged as Error) → `SHOULD_FIX`
-- `log:MISSING_CONTEXT`, `log:HOT_PATH` → `SHOULD_FIX`
+- `log:MISSING_CONTEXT`, `log:HOT_PATH`, `log:CALLER_PREFIX` → `SHOULD_FIX`
 
 ## Anti-Slop Guidance (Do NOT Flag)
 

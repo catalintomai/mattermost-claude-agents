@@ -6,11 +6,13 @@ A curated collection of [Claude Code](https://claude.ai/code) agents, skills, an
 
 ```
 ├── global/
-│   ├── agents/     → ~/.claude/agents/                    language-agnostic agents (any project)
-│   ├── skills/     → ~/.claude/skills/                    slash-command skills
-│   └── docs/       → ~/.claude/docs/                      shared rule & reference docs
+│   ├── agents/           → ~/.claude/agents/              language-agnostic agents (any project)
+│   ├── agents-disabled/  → ~/.claude/agents-disabled/     parked agents, not loaded
+│   ├── skills/           → ~/.claude/skills/              slash-command skills
+│   └── docs/             → ~/.claude/docs/                shared rule & reference docs
 ├── mattermost/
-│   └── agents/     → ~/mattermost/.claude/agents/         MM-suite agents (all Mattermost repos)
+│   ├── agents/           → ~/mattermost/.claude/agents/          MM-suite agents (all Mattermost repos)
+│   └── agents-disabled/  → ~/mattermost/.claude/agents-disabled/ parked MM agents, not loaded
 └── projects/
     ├── mattermost-plugin-playbooks/   → ~/mattermost/mattermost-plugin-playbooks/.claude/
     ├── mattermost-pages-channel/          → ~/mattermost/mattermost-pages-channel/.claude/
@@ -48,11 +50,7 @@ Available in **any project**.
 | `coder` | Generalist implementation agent for cross-language work |
 | `ideation-partner` | Structured ideation: HMW problem → variations → convergence → one-pager |
 | `pr-decomposition-sequencer` | Splits a large branch into ordered, independently-mergeable PRs |
-| `competitive-product-analyst` | Builds feature-comparison matrices across competing products from primary sources |
 | `feature-prioritization-expert` | Applies RICE/MoSCoW/Kano/JTBD frameworks to a candidate feature list |
-| `feature-usage-researcher` | Estimates real-world usage frequency of a single product's features from proxy signals |
-| `product-trend-researcher` | Researches emerging product-category trends, classified by maturity with dated evidence |
-| `voice-of-customer-researcher` | Mines review sites/forums for product pain themes and per-feature satisfaction |
 | `feature-schedule-builder` | Builds an AI-dev delivery schedule paced by human review bandwidth, in review cycles |
 
 ### Code Review (`review/`)
@@ -72,6 +70,10 @@ Available in **any project**.
 | `type-duplication-reviewer` | Audits TS/Go type definitions for duplicate consolidation opportunities |
 | `go-silent-failure-reviewer` | Detects ignored errors, blank-identifier suppression, empty handlers (Go) |
 | `ts-silent-failure-reviewer` | Same as above for TypeScript/JavaScript |
+| `go-ownership-reviewer` | Map/slice/pointer aliasing and ownership violations in Go (single-goroutine) |
+| `efficiency-reviewer` | Wasted in-memory work: discarded computation, repeated traversal, loop-invariant work |
+| `cli-tool-reviewer` | CLI command correctness: output-mode contracts, ignored flags, file-handling hygiene |
+| `plugin-alignment-reviewer` | Compares a MM plugin repo against canonical sibling plugin repos on GitHub |
 | `race-condition-reviewer` | Async race conditions, stale closures, event handler races (TS/React) |
 | `ui-pattern-reviewer` | AI aesthetic anti-patterns, WCAG violations, off-scale spacing, hardcoded colors |
 | `api-design-reviewer` | Reviews REST API implementations (code-level) for contract correctness |
@@ -162,14 +164,6 @@ Available in **any project**.
 | `ci-design-reviewer` | Reviews CI/CD design proposals and workflow changes |
 | `ci-gate-reviewer` | Verifies CI merge-gate enforcement when `continue-on-error` or `fail-fast` is touched |
 
-### Python (`review/`)
-
-| Agent | Description |
-|-------|-------------|
-| `py-async-reviewer` | Python asyncio: blocking calls, fire-and-forget tasks, missing cleanup |
-| `py-datetime-reviewer` | Python datetime: timezone consistency, naive datetimes, deprecated APIs |
-| `py-sqlite-reviewer` | Python sqlite3: connection management, WAL mode, parameterized queries |
-
 ### Shared Rules (`_shared/`)
 
 These files are loaded by agents at runtime — not invoked directly.
@@ -193,6 +187,39 @@ These files are loaded by agents at runtime — not invoked directly.
 | `error-handling-patterns.md` | Universal Go, TypeScript, and React error handling patterns |
 | `db-reference.md` | Relational database reference material for database review agents |
 | `security-pr-policy.md` | No exploit details in public PR descriptions |
+
+---
+
+## Disabled Agents
+
+Install locations: `~/.claude/agents-disabled/` and `~/mattermost/.claude/agents-disabled/`
+
+These agents are **parked, not deleted**. Claude Code only loads agents from `agents/`, so anything under `agents-disabled/` is not discoverable and delegating to it will fail. They are kept in the repo so they can be restored by moving the file back under the corresponding `agents/` directory.
+
+**Global** (`global/agents-disabled/`)
+
+| Agent | Group | Why parked |
+|-------|-------|------------|
+| `competitive-product-analyst` | `core/` | Product-research set — not in active use |
+| `feature-usage-researcher` | `core/` | Product-research set — not in active use |
+| `product-trend-researcher` | `core/` | Product-research set — not in active use |
+| `voice-of-customer-researcher` | `core/` | Product-research set — not in active use |
+| `py-async-reviewer` | `review/` | No active Python codebase |
+| `py-datetime-reviewer` | `review/` | No active Python codebase |
+| `py-sqlite-reviewer` | `review/` | No active Python codebase |
+
+**Mattermost suite** (`mattermost/agents-disabled/`)
+
+| Agent | Group | Why parked |
+|-------|-------|------------|
+| `playbooks-expert` | `features/` | Playbooks domain set — re-enable before routing a Playbooks PR |
+| `playbooks-api-parity-reviewer` | `features/` | Playbooks domain set |
+| `run-lifecycle-reviewer` | `features/` | Playbooks domain set |
+| `attribute-template-reviewer` | `features/` | Playbooks domain set |
+| `calls-webrtc-expert` | `features/` | Not in active use |
+| `mobile-expert` | `features/` | Not in active use |
+| `playbooks-migration-reviewer` | `migration/` | Playbooks domain set |
+| `slack-migration-expert` | `migration/` | Not in active use |
 
 ---
 
@@ -254,6 +281,7 @@ The tree mirrors `mattermost/agents/mattermost/<group>/`. `security-orchestrator
 | `test-coverage-reviewer` | Test coverage gaps for new/changed code |
 | `ci-failure-reviewer` | CI failure diagnosis |
 | `jira-alignment-reviewer` | Codebase alignment with Jira-described architecture |
+| `confluence-parity-auditor` | Audits Confluence-parity claims against the canonical feature inventory |
 
 ### Feature Domain Experts (`features/`)
 
@@ -261,14 +289,10 @@ The tree mirrors `mattermost/agents/mattermost/<group>/`. `security-orchestrator
 |-------|---------|
 | `plugin-expert` | MM plugin architecture: manifests, hooks, KV store, webapp registry |
 | `copilot-ai-expert` | LLM integration: SSE streaming, context window, PII redaction, RAG |
-| `mobile-expert` | React Native MM mobile: offline sync, push, touch targets |
-| `calls-webrtc-expert` | WebRTC lifecycle, screen sharing, SFU architecture |
 | `shared-channels-expert` | Shared Channels and remote cluster federation |
 | `property-system-expert` | PropertyGroupStore/PropertyValueStore interfaces |
-| `playbooks-expert` | Mattermost Playbooks: full stack |
-| `playbooks-api-parity-reviewer` | Playbooks REST/GraphQL/slash-command API parity |
-| `run-lifecycle-reviewer` | Playbooks run state-machine transitions |
-| `attribute-template-reviewer` | Playbooks template variable substitution |
+
+> Playbooks domain agents (`playbooks-expert`, `playbooks-api-parity-reviewer`, `run-lifecycle-reviewer`, `attribute-template-reviewer`) plus `mobile-expert` and `calls-webrtc-expert` are currently parked — see [Disabled Agents](#disabled-agents).
 
 ### Infrastructure (`infra/`)
 
@@ -283,10 +307,10 @@ The tree mirrors `mattermost/agents/mattermost/<group>/`. `security-orchestrator
 
 | Agent | Purpose |
 |-------|---------|
-| `slack-migration-expert` | Slack-to-Mattermost migration pipeline |
 | `confluence-migration-expert` | Confluence-to-Mattermost wiki migration |
-| `playbooks-migration-reviewer` | Playbooks migrations in sqlstore |
 | `migration-code-orchestrator` | Orchestrates review of mmetl/import*.go for idempotency, integrity, error handling |
+
+> `slack-migration-expert` and `playbooks-migration-reviewer` are currently parked — see [Disabled Agents](#disabled-agents).
 
 ### Debug (`debug/`)
 
@@ -308,6 +332,7 @@ The tree mirrors `mattermost/agents/mattermost/<group>/`. `security-orchestrator
 |-------|---------|
 | `go-test-writer` | Go test specialist (`*_test.go`) for MM server code |
 | `ts-test-writer` | TypeScript/Jest unit tests for MM webapp |
+| `mutation-test-reviewer` | Mutation analysis: would the tests fail if the code were wrong? |
 
 ### Security (suite root)
 
@@ -334,6 +359,7 @@ Invoked as slash commands: `/skill-name`
 | `triage-issue` | `/triage-issue` | Diagnose a bug, identify root cause, design TDD fix plan, create Jira ticket |
 | `security-fix` | `/security-fix` | TDD-driven fix for security tickets — failing tests first, then implementation |
 | `multi-review` | `/multi-review` | Multi-LLM review (GPT + Gemini + Claude) for code and architecture decisions |
+| `test-checkpoints` | `/test-checkpoints` | Layered test-quality pipeline: compile/lint → unit → coverage → mutation → reviewers → E2E |
 | `git-guardrails` | `/git-guardrails` | Install a PreToolUse hook blocking dangerous git commands |
 
 ---

@@ -2,6 +2,7 @@
 name: code-slop-reviewer
 description: Reviews source code (.go/.ts/.tsx/.py/etc) for AI-generation slop that the simplicity/duplication reviewers leave uncovered — dead code (unused imports/vars/params/private symbols/struct fields), god functions, redundant defensive nesting and repeated guard checks, cargo-cult patterns copied without a justifying need, and code that ignores the surrounding file's idiom. Use on any code diff, especially AI-authored or fast-generated changes. Defers abstraction/YAGNI to simplicity-reviewer, duplicate code/types to duplication-reviewer & type-duplication-reviewer, and orphaned indirection / god TYPES to structural-health-reviewer — this agent owns the leftover code-tightness gaps, not those.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob, Bash
 ---
 
@@ -116,13 +117,79 @@ Look for comments the diff adds that restate the code they sit on (`// increment
 
 **Boundary**: do not flag godoc/docstrings, "why" comments, `TODO`/`FIXME` with substance, or comments explaining a non-obvious workaround. For MM-specific godoc-presence rules, defer to `comment-reviewer`.
 
+### 7. Vacuous Code (`slop:VACUOUS`)
+
+Code that is *live* — it compiles, it runs, nothing is unreferenced — but computes nothing. §1 catches
+symbols with no reader; this catches statements with no effect. The largest single defect class in the
+MM PR corpus (61 sightings), and the one static analysis misses because every symbol is used.
+
+Look for, on changed lines:
+- [ ] A branch unreachable given an upstream filter or gate (a `case` for a type the caller already
+      excluded; an `if` on a flag the enclosing block already asserted)
+- [ ] Both arms of a ternary / both sides of an `if/else` producing the same value
+- [ ] A self-referential alias or no-op assignment (`x = x`, `const foo = foo`, a wrapper that only
+      forwards to the identical signature it shadows)
+- [ ] A computed result never returned, stored, or asserted — including a builder chain whose terminal
+      call is missing, so the whole chain is discarded
+- [ ] A comment or scratch marker addressed to a reviewer rather than the next reader
+
+```go
+// FLAG — `IsPage()` is already false for every post reaching this switch (filtered at the caller),
+// so the arm is unreachable and its body has never run.
+switch post.Type {
+case model.PostTypePage:
+    return a.handlePage(post)
+```
+```go
+// OK — both arms differ in the value they produce; the branch does work.
+if post.IsPinned {
+    return model.PostActionPin
+}
+return model.PostActionNone
+```
+
+Severity: MUST_FIX when the vacuous branch means an intended behavior never executes; SHOULD_FIX when
+it is pure dead weight. Verify unreachability by reading the caller, not by inspection of the switch
+alone — "I don't see how this is reached" is not evidence. Validated by MM PR review (T227, PR #36983,
+unused `SCRIPT_DIR` in `feature_flag_monthly_audit.py`, ACCEPTED).
+
+### 8. Lint Violation the Repo Already Enforces (`slop:LINT_BREAK`)
+
+A defect the project's own configured linter would reject. Second-largest corpus class (50 sightings)
+because generated code is written without running the pipeline. Cheap to catch, and it blocks CI.
+
+Read the repo's lint config first — `.golangci.yml`, `.eslintrc*`, `eslint.config.*`, `ruff.toml` —
+and flag only rules it actually enables. Then check changed lines for:
+- [ ] Unused imports, variables, or caught-error bindings (including `_error`-style names that are
+      still flagged when the rule is `no-unused-vars` without a `caughtErrorsIgnorePattern`)
+- [ ] Import ordering / grouping against the enforced `goimports` local prefix or `import/order` groups
+- [ ] A stray BOM, trailing whitespace, or mixed line endings the repo's formatter strips
+
+```ts
+// FLAG — `no-unused-vars` is enabled with no caught-error exemption, so this fails the pipeline.
+} catch (_error) {
+    return fallbackLocale;
+}
+```
+```ts
+// OK — the binding is read, so the rule does not fire.
+} catch (error) {
+    logError(error);
+    return fallbackLocale;
+}
+```
+
+Severity: MUST_FIX — the pipeline rejects the merge, so it is a hard break regardless of behavior.
+Do NOT invent a rule the config does not enable; a style you prefer is not a lint violation.
+Validated by MM PR review (T114, PR #35443, unused `_error` in `autotranslation_helpers.ts`, ACCEPTED).
+
 ## Output Format
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
 Prefix every finding with `[agent:code-slop-reviewer]` per the canonical format.
 
-**Domain tags**: `slop:DEAD_CODE`, `slop:GOD_FUNCTION`, `slop:DEFENSIVE_BLOAT`, `slop:CARGO_CULT`, `slop:CONVENTION_DRIFT`, `slop:NOISE_COMMENT`
+**Domain tags**: `slop:DEAD_CODE`, `slop:GOD_FUNCTION`, `slop:DEFENSIVE_BLOAT`, `slop:CARGO_CULT`, `slop:CONVENTION_DRIFT`, `slop:NOISE_COMMENT`, `slop:VACUOUS`, `slop:LINT_BREAK`
 
 **Domain-specific fields**: "Lines removed by fix" (for slop, the win is a line-count reduction — state the delta, e.g. "Fix removes 14 lines, no behavior change").
 
@@ -151,6 +218,10 @@ Prefix every finding with `[agent:code-slop-reviewer]` per the canonical format.
 3. **"Does this resilience machinery wrap something that can actually fail that way?"** — If no, it's cargo-cult.
 4. **"Does this new code read like the three functions above it?"** — If not, it's convention drift.
 5. **"Does this comment tell me something the code doesn't?"** — If no, it's noise.
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] Orphaned CSS rules left behind after the markup that rendered those classes was replaced (T104, PR #37382)
 
 ## Self-rewrite hook
 After every 5 uses OR on any false-positive report:

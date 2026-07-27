@@ -2,6 +2,7 @@
 name: aws-ec2-hardening-auditor
 description: Reviews AWS EC2 deployment plans and Terraform/CloudFormation configs for Security Group misconfigurations, IMDSv1 exposure, over-permissive IAM roles, unencrypted EBS volumes, and missing CloudTrail/GuardDuty. Use when a deployment plan places a workload on EC2 and AWS-specific security controls must be verified.
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob, WebSearch
 ---
 

@@ -2,6 +2,7 @@
 name: shared-channels-expert
 description: Expert in Mattermost Shared Channels and remote cluster federation. Use when designing cross-server features, adding entity types to the sync pipeline, or reviewing RemoteCluster auth.
 model: sonnet
+effort: medium
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 

@@ -2,6 +2,7 @@
 name: deployment-hardening-auditor
 description: Reviews AI agent deployment plans for process isolation, network controls, credential management, tool policy enforcement, and operational security — verifying each claimed control is actually enforceable at the OS/runtime level. Use when a deployment plan describes how an AI agent system will be deployed to production, staging, or a developer machine.
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob, WebSearch
 ---
 

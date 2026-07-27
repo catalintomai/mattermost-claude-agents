@@ -2,6 +2,7 @@
 name: concurrent-go-reviewer
 description: Reviews Go code for concurrency safety (races, deadlocks, goroutine leaks). Use when reviewing Go code that uses goroutines, channels, mutexes, sync.Map, or any sync primitives.
 model: sonnet
+effort: medium
 # Tools note: Bash is justified — this agent runs the Go race detector (go test -race ./...) and grep
 # commands to find goroutine spawns, mutex definitions, and shared state patterns (see Detection Commands section).
 tools: Read, Write, Grep, Glob, Bash
@@ -397,6 +398,124 @@ func cloneJSONValue(v any) any {
 ```
 
 **Detection**: For every `maps.Copy` or `maps.Clone` call in the diff, inspect the value type. If the value type is `any`/`interface{}`, `map[...]X`, or `[]X` (slice), flag as `concurrent:SHALLOW_COPY_RACE`. Reference: PR #35541 (nickmisasi) — replaced shallow `maps.Copy` with `cloneJSONValue`.
+
+### 15. Volatile Getter TOCTOU (High — validated by MM PR review)
+
+A getter that reads a field which another goroutine can replace (`s.License()`, `s.Config()`, `a.Srv().Store()`) returns a *snapshot*, not a stable reference. A nil-guard that calls the accessor once to test and again to use has a window between the two calls in which the pointer can be swapped for `nil`, so the guard does not prevent the panic it was written to prevent.
+
+```go
+// WRONG: two calls — the pointer can change between the check and the use
+if s.License() != nil && s.License().IsCloud() {
+    ...
+}
+
+// CORRECT: snapshot once, then check and use the snapshot
+license := s.License()
+if license != nil && license.IsCloud() {
+    ...
+}
+```
+
+The same window reopens one frame down when a callee **re-reads** the volatile value the caller already snapshotted. Passing the snapshot down (or re-checking inside the callee against its own local) is the fix; a helper that takes no argument and calls `s.License()` itself defeats a caller-side guard.
+
+```go
+// WRONG: caller snapshots and guards, then the callee reads the live value again
+func (api *API) getPreviewSubscription(c *Context, ...) {
+    license := c.App.Srv().License()
+    if license == nil { ... return }
+    api.buildPreview(c)   // reads c.App.Srv().License().SkuShortName internally — nil again
+}
+
+// CORRECT: pass the snapshot the caller already validated
+api.buildPreview(c, license)
+```
+
+**Detection**: In the diff, find every accessor call that appears more than once in a single expression, statement pair, or `if`-body — `X() != nil && X().Field`, or `if X() != nil { use(X()) }` — where `X` returns a pointer read from mutable server/app state (License, Config, Store, Client, a plugin handle). Flag as `concurrent:VOLATILE_GETTER_TOCTOU`. Then follow each guarded call into its callees: if a callee re-reads the same accessor instead of receiving the snapshot, flag the callee too. A `nil` guard on a *local variable* is not a finding.
+
+**Reference**: PR #35718 — `app/server.go:1373` "calls `s.License()` twice; if the license pointer changes between those calls, this can still panic on `.IsCloud()`"; `api4/cloud.go:95` "`getPreviewSubscription` re-reads the license … That reopens the TOCTOU nil-panic window this sweep is supposed to remove."
+
+### 16. Synchronization Signal Fires Before the Work It Gates (High — validated by MM PR review)
+
+A channel close, `WaitGroup.Done`, or flag set is only a valid barrier if it happens **after** the work the waiter depends on. When the signal is placed at the point the work is *scheduled* rather than *completed*, the waiter observes a state that the work has not yet produced — and the bug is invisible in tests because the goroutine usually wins the race.
+
+```go
+// WRONG: the channel unblocks before the hook body has run,
+// so the main thread reads tw.wrote while the plugin has not written yet
+go func() {
+    close(hookHasRunCh)          // signals "hook ran" — it has only STARTED
+    a.Plugins().FileWillBeUploaded(...)
+}()
+<-hookHasRunCh
+if !tw.wrote { ... }             // reads state the hook has not produced
+
+// CORRECT: signal after the gated work completes
+go func() {
+    defer close(hookHasRunCh)
+    a.Plugins().FileWillBeUploaded(...)
+}()
+<-hookHasRunCh
+if !tw.wrote { ... }
+```
+
+**Detection**: For every `close(ch)`, `wg.Done()`, `once.Do`, or atomic flag set in the diff, identify the state the waiting side reads after unblocking, then confirm that state is written *before* the signal on every path. Placement at the top of a goroutine body, or before the call that produces the state, is the tell. Flag as `concurrent:SIGNAL_BEFORE_WORK`.
+
+**Reference**: PR #37567, `app/upload.go:118` — "The main thread checks `!tw.wrote` immediately after `hookHasRunCh` unblocks, which happens *before* the plugin starts executing `FileWillBeUploaded`."
+
+### 17. Check-Then-Insert on a Per-User Quota (CONSIDER)
+
+A per-user cap enforced as `count rows → compare to limit → insert` is a check-then-act across two statements: two concurrent requests from the same user both read `2 < 3` and both insert, yielding 4. The deterministic fixes are a unique/partial index, a `SELECT ... FOR UPDATE` on the owning row, or an atomic conditional insert.
+
+**Report at CONSIDER severity, not MUST_FIX.** MM authors deliberately keep some of these as *soft* limits — the cap exists to discourage abuse, not to enforce an invariant, and the cost of serializing every request is not worth closing a window that overshoots by one. State the window, name the fix, and ask whether the limit is meant to be hard; do not assert a bug.
+
+**Detection**: A `Get*Count` / `Get*ByStatus` read whose result is compared against a limit constant, followed in the same function by an insert of the counted entity, with no transaction, row lock, or unique constraint between them. Flag as `concurrent:QUOTA_CHECK_TOCTOU` at CONSIDER.
+
+**Reference**: PR #35478, `app/recap.go` — "another concurrent request from the same user could pass the same check, allowing more than 3 pending recaps." The author declined it as a deliberate soft limit and CodeRabbit deferred.
+
+**Escalate to MUST_FIX when the cap is a hard invariant** — i.e. a unique/partial index or DB constraint already backs it, or the read-then-write is a status transition rather than a count. Two tells: (a) the insert can return `23505` and the store does not map it to `ErrConflict`, so the loser surfaces a 500 instead of a conflict; (b) a read of current status followed by an *unconditional* write of the new status, which lets two workers both transition the same row. Both are real defects, not soft limits (T132).
+
+```go
+// WRONG: read status, then write unconditionally — two sweepers both mark Failed
+r, _ := store.GetRecap(id)
+if r.Status == StatusRunning { store.UpdateRecapStatus(id, StatusFailed) }
+
+// CORRECT: conditional write, one winner
+store.UpdateRecapStatusIf(id, StatusRunning, StatusFailed) // UPDATE ... WHERE Status = ?
+```
+
+**Validated by MM PR review** — PR #35676 `access_control_policy_store.go` (racy COUNT pre-check, `23505` not mapped to `ErrConflict`, ACCEPTED); PR #37603 `jobs/recap/scheduler.go` (read-then-unconditional `UpdateRecapStatus`); PR #36498 `azurestore.go MakeContainer` (TOCTOU with `TestConnection`, ACCEPTED); PR #36409 `app/migrations.go` (multi-node field creation aborts on the unique constraint).
+
+### 18. Cancelled or Stopped Async Work Completes Late (High — validated by MM PR review)
+
+A stop signal (`close(stopCh)`, `cancel()`, deregistration, or a `Stop()` flag) only prevents *new* work if every worker checks it before its next unit of work — not just before its next blocking receive. A worker that drains a queue in a `for range` loop, or a timer whose callback was already scheduled, keeps producing effects against a subsystem the caller believes is torn down: writes to a closed store, pings to an unregistered remote cluster, or panics on resources the shutdown path already freed.
+
+```go
+// WRONG: stop channel only guards the receive; the loop keeps draining afterwards
+for job := range s.queue {
+    s.process(job) // still runs after close(s.extractionStop)
+}
+
+// CORRECT: re-check the stop signal per unit of work
+for {
+    select {
+    case <-s.extractionStop:
+        return
+    case job, ok := <-s.queue:
+        if !ok { return }
+        s.process(job)
+    }
+}
+```
+
+**Detection**: For every stop/cancel signal introduced or consumed in the diff, find each consumer and ask whether it re-checks the signal *between* units of work. Tells: `for x := range ch` with the stop channel checked only outside the loop; `time.AfterFunc`/`time.Timer` whose callback captures a handle that deregistration removes; a `Start` that continues initializing after its context is already cancelled; fire-and-forget `go func()` with no shutdown coordination (use `a.Srv().Go` so shutdown can track it). Flag as `concurrent:LATE_COMPLETION`.
+
+**Validated by MM PR review** — PR #36856 `platform/goroutines.go:64` (worker drains the queue after `extractionStop` is closed); PR #36592 `remote_cluster.go:48` (delayed ping fires on an already-unregistered row, ACCEPTED); PR #36945 `app/session.go` (untracked goroutine dropped at shutdown instead of `a.Srv().Go`); PR #37350 `app/delivery_tracking_content_review.go` (delete races the cancellation poll, human).
+
+## Corpus checklist (single-sighting patterns)
+
+Patterns seen once or twice in the MM PR corpus. No full rule yet — check them, report only with concrete evidence in the diff.
+
+- [ ] Shared state mutated across two sequential lock acquisitions where one critical section is required — read/merge/write of a cached map under separate locks (T237, PR #36934 `localcachelayer/session_attribute_layer.go`)
+- [ ] Shutdown drains the in-flight batch but not items still buffered in the channel, so queued work is silently discarded (T310, PR #35952 `app/platform/service.go`, `postReadStatusChan`)
 
 ## Review Checklist
 

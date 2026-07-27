@@ -2,6 +2,7 @@
 name: system-design-reviewer
 description: Reviews feature designs for semantic mismatches, missing state transitions, and consistency issues. Use when a design doc or plans/ files are ready for review before code review.
 model: sonnet
+effort: medium
 # WebSearch: justified — system design review may need to verify external API contracts, protocols, or industry standards
 tools: Read, Write, Grep, Glob, WebSearch
 ---

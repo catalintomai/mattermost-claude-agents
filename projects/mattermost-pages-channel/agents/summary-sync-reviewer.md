@@ -2,6 +2,7 @@
 name: summary-sync-reviewer
 description: Use when a wiki/pages DETAIL page changed (or the summary-freshness build gate flags an area) to check whether that area's per-area SUMMARY page still reflects its detail. Runs BOTH a contradiction lens AND an omission lens — a summary can contradict nothing yet omit a whole component the detail added. NOT for code review; it compares two prose docs (summary vs detail). Distinct from confluence-parity-doc-validator (which checks Confluence claims) and doc-consistency-reviewer (cross-refs/naming).
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 

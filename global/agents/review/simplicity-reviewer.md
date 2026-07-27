@@ -2,6 +2,7 @@
 name: simplicity-reviewer
 description: Reviews code and plans for unnecessary complexity and over-engineering. Use when reviewing any PR or plan to catch over-engineering, YAGNI violations, or speculative abstractions.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -228,6 +229,58 @@ Plans frequently mark a feature as deferred / out-of-MVP, then fully specify it 
 **Reporting.** For each finding, quote (a) the marker phrase verbatim and (b) the line count of the elaboration. Recommend collapsing to ≤ 5 lines with the shape: "Deferred — when [condition], the natural extension is [one-line description]."
 
 **Anti-pattern guard.** Do NOT flag when the elaborated section is presented as alternatives analysis (e.g. inside a "Why this versus the alternatives" subsection — that's the alternatives doing their job). Apply only when the elaboration sits directly under the deferral marker as if it were the proposed design.
+
+### 12. Change Made in a Layer the Data Never Flows Through
+
+Work added at a layer that cannot observe the condition it claims to handle, or that repeats work an
+adjacent layer already did. The recurring shape in the MM corpus: a client-side filter over a result
+set the API already filtered, or a fetch whose results are discarded because the consumer re-derives
+them. The code is harmless and looks defensive, which is why it survives review.
+
+```tsx
+// FLAG — the API already applies the same exclusion, so this filter can never remove a row.
+const users = await searchProfiles(term, {not_in_channel_id: channelId});
+const filtered = users.filter((u) => !members[u.id]);
+```
+```tsx
+// OK — the filter applies a constraint the API does not take as a parameter.
+const filtered = users.filter((u) => u.delete_at === 0);
+```
+
+**Detection**: for every filter, map, or guard the diff adds, name the producer and check whether the
+producer already applies it. Read the API/store call's parameters, not its name. Severity: SHOULD_FIX
+when the redundant work is a wasted round trip; INFO when it is a cheap in-memory pass. Defensive
+duplication at a genuine trust boundary (server re-validating client input) is correct and not a
+finding.
+
+**Validated by MM PR review**: T121 — PR #37519 `channel_invite_modal.tsx` / `channel_members_rhs.tsx` —
+client filter redundant with API filtering. Also PR #36275 `channel_invite_modal.tsx`
+(`searchProfiles` results fetched then ignored).
+
+### 13. Identical Guard Repeated in Every Branch
+
+The same condition is evaluated in each arm of a switch, each branch of an if/else chain, or once per
+loop iteration when it is loop-invariant. Each copy is individually correct, so nothing fails — but the
+reader must compare the arms to discover they agree, and the next edit updates only one copy.
+
+```tsx
+// FLAG — `isDisabled` is evaluated identically in both branches.
+if (setting.type === 'bool') {
+    return <BoolSetting disabled={this.isDisabled(setting)} />;
+}
+return <TextSetting disabled={this.isDisabled(setting)} />;
+```
+```tsx
+// OK — computed once above the branch.
+const disabled = this.isDisabled(setting);
+```
+
+**Detection**: read sibling branches side by side and look for a repeated identical expression. Severity:
+INFO, or SHOULD_FIX when the repeated expression is expensive or has a side effect. Do not flag branches
+whose guards merely look similar but differ in an argument — that difference is the point.
+
+**Validated by MM PR review**: T99 — PR #37407 `admin_console/schema_admin_settings.tsx` — `isDisabled`
+evaluated twice. Also PR #36246 `selectors/entities/recaps.ts` (identical `count++` in two branches).
 
 ## Output Format
 

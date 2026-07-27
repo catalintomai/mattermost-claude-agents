@@ -2,6 +2,7 @@
 name: owasp-agentic-auditor
 description: Reviews multi-agent AI system plans and architectures against the OWASP Top 10 for Agentic Applications 2026 — covering goal hijacking (ASI01), tool misuse (ASI02), identity/privilege abuse (ASI03), memory poisoning (ASI06), and rogue agents (ASI10). Use when designing or reviewing any system where LLM agents have tool access, inter-agent communication, or persistent memory.
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob, WebSearch, WebFetch
 ---
 

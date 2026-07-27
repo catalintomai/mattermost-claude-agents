@@ -2,6 +2,7 @@
 name: hardcoded-values-reviewer
 description: Reviews code for hardcoded values that should be constants. Catches magic numbers, repeated strings, and config values. Use when reviewing code for magic numbers, repeated string literals, or hardcoded configuration values.
 model: haiku
+effort: low
 tools: Read, Write, Grep, Glob
 ---
 
@@ -142,6 +143,26 @@ return model.NewAppError("GetPage", "some.error.id", ...)
 // GOOD - defined in i18n files, but ID should be consistent pattern
 return model.NewAppError("GetPage", "app.page.get.not_found", ...)
 ```
+
+### 6. Hardcoded Value Where a Source of Truth Already Supplies It
+
+The highest-frequency hardcoded-value shape in the MM PR corpus (30 sightings), and the one the magic-number rule misses: the literal is *readable* and looks deliberate, but the repo already carries the same value in a variable the code could read. Two copies then drift silently — the pinned one keeps working while the authoritative one moves.
+
+Recurring instances: a workflow hardcoding `origin/master` where the base ref is an input; a Dockerfile pinning a Node version beside a `NODE_VERSION` ARG; a checkout pinned to a SHA that differs from its sibling jobs; a spec building `/api/v4` by hand where `getBaseRoute()` exists; a `package.json` pinning a version that `.nvmrc` or the peer package already fixes; a Go toolchain version in a Dockerfile diverging from `go.mod`.
+
+```yaml
+# BAD: on a push run the base ref is not master, so the diff is computed against the wrong tree
+- run: git diff origin/master...HEAD --name-only
+
+# GOOD: read the ref the event supplies
+- run: git diff ${{ github.event.pull_request.base.sha }}...HEAD --name-only
+```
+
+**Detection**: for each literal the diff introduces — version, ref, URL prefix, path, image tag, timeout — grep the repo for the same value. A second occurrence in a config file, ARG, `.nvmrc`, `go.mod`, workflow input, or an exported helper is the source of truth; the literal is a copy. Name the specific source of truth in the finding; "should be a constant" without pointing at the existing one is not actionable.
+
+**Severity**: MUST_FIX when the two copies can disagree without failing loudly (a version skew, a base ref that silently diffs the wrong tree); SHOULD_FIX when divergence surfaces immediately. Do not flag a literal whose duplicate you did not actually find, and do not flag a deliberately pinned value whose pin is the point (a lockfile, a security-pinned action SHA).
+
+**Validated by MM PR review**: T149 — PR #37099 `server-ci.yml` — hardcoded `origin/master` on push runs (ACCEPTED). Also PR #36930 `.cursor/Dockerfile` (hardcoded Node version vs the `NODE_VERSION` ARG), PR #36418 (`server/go.mod` 1.26.2 vs `Dockerfile.buildenv` 1.25.9), and PR #37277 `masking_admin_roles.spec.ts` (`/api/v4` hardcoded over `getBaseRoute()`).
 
 ## Review Process
 

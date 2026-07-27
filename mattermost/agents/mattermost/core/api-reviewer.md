@@ -2,6 +2,7 @@
 name: api-reviewer
 description: API layer code reviewer for Mattermost. Ensures API handlers follow established patterns, call App layer (not Store directly), and contain no business logic that belongs in the App layer. Use when reviewing code changes that touch server/channels/api4/ or API handler logic.
 model: sonnet
+effort: medium
 # Tools note: Bash is justified — this agent runs grep commands to verify route/handler cleanup after
 # endpoint removal (see "Removing API Endpoints" and "Verification" sections).
 tools: Read, Write, Grep, Glob, Bash
@@ -462,6 +463,12 @@ func xxxHandler(c *Context, w http.ResponseWriter, r *http.Request) {
 
 **Domain-specific sections** (after canonical sections):
 - Pattern Checklist: 7 items (no store imports, path params, permissions, audit logging, error handling, response encoding, App methods)
+
+## Corpus checklist (single-sighting patterns)
+
+Seen once or twice in the MM PR corpus — check when the diff shape matches, but do not treat as a recurring rule.
+
+- [ ] api4 and `*_local.go` handlers duplicated — the local-mode variant copies the implementation instead of sharing it, so the two drift (T139, PR unrecorded; see `app-reviewer` §5 for the divergence this produced in `api4/user_local.go`, PR #36352)
 
 ## Anti-Slop Guidance (Do NOT Flag)
 

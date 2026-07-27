@@ -2,6 +2,7 @@
 name: poc-status-verifier
 description: "[PLAN] Verifies every implementation-status claim in an architecture-doc run against the actual codebase, in BOTH directions (a built feature wrongly marked not-implemented, AND an unbuilt feature wrongly marked implemented). Extracts status assertions from all four surfaces — parity-summary POC-state column, per-artifact [existing in the POC] / [new, proposed] tags, per-section POC-state callouts, mermaid node labels — greps each against the code (multi-scope + sibling repos), and returns per-claim BUILT / PARTIAL / ABSENT with file:line, flagging MISMATCHes. Mandatory pre-publish pass on a wiki/pages arch-doc run. Distinct from doc-opacity-reviewer (first-read comprehension, code-blind) and doc-consistency-reviewer (cross-refs/naming): this is a claim-vs-code fact check."
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob, Bash
 ---
 

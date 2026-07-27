@@ -2,6 +2,7 @@
 name: voice-reviewer
 description: Reviews drafted markdown documents against a style fingerprint to catch AI-slop tells — banned phrases, em-dashes, section takeaways, triple-parallel lists, missing voice signatures, and tonal drift. Use after drafting any prose document that should match a specific human voice. Requires a style fingerprint markdown file as its rule source.
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob, Bash
 ---
 

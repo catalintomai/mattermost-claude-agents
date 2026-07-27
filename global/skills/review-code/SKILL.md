@@ -14,6 +14,8 @@ Comprehensive code review using **specialized agents** AND **multi-LLM review** 
 
 Works on: **Local changes** (uncommitted+staged vs HEAD, default) or **GitHub PRs** (`--pr` flag). Pass `--scope=branch` to review the entire branch vs base instead.
 
+**Inline PR comments are opt-in via `--comment`.** By default, PR reviews print findings to chat only — exactly as before. Pass `--comment` to additionally prepare each MUST_FIX / SHOULD_FIX as a GitHub review comment anchored to the affected line. Even with `--comment`, comments are *prepared and shown to you first* and posted ONLY after your explicit yes — no flag authorizes the post, and nothing is ever committed or pushed. See `## Inline PR Comments`.
+
 > `/create-plan` -> `/create-code` (includes auto-review) -> `/create-test` -> `/fix-test`
 
 **Note**: `/create-code` now auto-runs `/review-code` as its final step. Use this skill standalone for: reviewing code not written via `/create-code`, re-reviewing after manual edits, reviewing PRs, or when you want swarm/full mode.
@@ -38,7 +40,9 @@ Works on: **Local changes** (uncommitted+staged vs HEAD, default) or **GitHub PR
 /review-code <file-or-directory>          # Review specific path
 /review-code backend                      # Go files only
 /review-code frontend                     # TypeScript/React files only
-/review-code --pr 123                     # Review GitHub PR #123
+/review-code --pr 123                     # Review GitHub PR #123 (chat output only)
+/review-code --pr 123 --comment           # Review PR + prepare inline comments (asks before posting)
+/review-code --comment                    # Prepare inline comments for the PR on the current branch (asks before posting)
 /review-code --quick                      # Tier 1 agents only (no multi-LLM)
 /review-code --full                       # All tiers + multi-LLM (most thorough)
 /review-code --agents-only                # Skip multi-LLM review
@@ -94,6 +98,7 @@ Read `~/.claude/agents/AGENT_REGISTRY.md` **in full, no line limit**. The Parall
    - **Identify changed-file paths**: Run `git diff --name-only` against the active scope's base to get the path list.
    - **Identify sibling/parent components**: Scan the diff for `import`, `styled(...)`, `extends`, prop types, and interface references. Add their paths to the codebase-paths list.
    - **Identify pattern exemplars**: For each changed construct (styled component, API handler, store method, etc.), identify 2-3 existing sibling paths that establish the convention (e.g., for a new `MemberButton`, identify the `DotMenuButton` and `TitleButton` paths from the same file/package).
+   - **Resolve external-package symbols to their real source (MANDATORY when the diff depends on them)**: When the diff uses a symbol, type, prop, or allowed-value set from a package **outside the repo's own tree** (`@mattermost/*`, `mattermost-redux`, a sibling plugin, any third-party lib), locate the actual definition — first in sibling checkouts under the workspace (e.g. `~/mattermost/mattermost/webapp/platform/shared/...`), then in `node_modules`, then in the package's published `.d.ts`. Bundle the verified definition (the union/interface/signature, quoted from source) into the agent context as **VERIFIED ground truth**, labeled with its file path. If the definition cannot be located, instruct agents to mark any claim about that symbol `UNVERIFIED` and to **NOT** infer the API from a web search, the symbol's name, or memory. *Why this exists*: on PR #2295 an external reviewer flagged `size='xs'`, `emphasis='quaternary'`, and a `typeof Button` union as invalid — all three were correct code; the reviewer couldn't find `@mattermost/shared`'s types, fell back to a web search, and hallucinated the allowed values. Our agents were right only because the orchestrator had bundled `button_classes.ts`'s real unions. Make that resolution a step, not luck.
    - **Pass paths, not bundled content (default for local scopes)**: Include the codebase-paths list inline in each agent prompt. Agents Read on demand from the working tree. Bundling full file contents inline duplicated ~50 KB × N across the swarm; passing paths lets each agent fetch only what it needs and keeps prompts lean.
    - **Exception — `--pr` mode**: When reviewing a PR with no local checkout, fetch each path's content via `gh` and bundle inline — agents have no working tree to Read from.
    - **Why include codebase context at all**: Diff-only review produces false positives — agents flag "issues" that are actually established codebase conventions (e.g., color opacity values, touch target sizes, missing focus styles that no sibling component has either). The diff alone doesn't show convention.
@@ -128,10 +133,49 @@ Read `~/.claude/agents/AGENT_REGISTRY.md` **in full, no line limit**. The Parall
 
    This step is a HARD GATE. No finding passes to the user without diff verification. Catches agents that read full files for context and then flagged pre-existing issues.
 11. **Present results** -- the user-visible output is structured as: (1) Selection Rationale block from Step 5 already printed at the top, (2) MUST_FIX and SHOULD_FIX findings that passed both gates (dedup + diff-scope), (3) verdict. If not READY, ask user: "N MUST_FIX found. Fix and run another round?"
+12. **Post inline PR comments (opt-in via `--comment`, and ALWAYS confirm first)** -- Only when `--comment` is passed AND a PR is in scope (`--pr <n>`, or `--comment` resolves an open PR for the current branch), prepare the same findings as inline review comments anchored to their lines. Without `--comment`, skip this step entirely — chat output only.
+    - **Posting to a PR is an outward-facing write and ALWAYS requires explicit confirmation — no flag authorizes it.** `--comment` only selects inline-comment output; it does NOT pre-authorize the post. First print the chat summary, then print the target and count (`Ready to post N inline comments to <owner>/<repo>#<n>`) and the exact comment list, and STOP for a yes/no. Post only after the user says yes.
+    - Never `git commit`, push, or otherwise write to the repo as part of this step — inline comments are GitHub PR review comments only.
+    - Skip silently for local scopes (no PR to comment on). See `## Inline PR Comments` for the mechanism.
 
 ## Prompts & Output Format
 
 See `~/.claude/docs/review-prompts.md` for: code review prompt template, output format, and agent prompt rules (neutral framing to avoid confirmation bias).
+
+## Inline PR Comments
+
+Findings already carry everything an inline GitHub review comment needs — the canonical finding format (`~/.claude/agents/_shared/finding-format.md`) requires `file:line` plus a verbatim `Diff evidence:` `+` line. **No agent changes are needed**; this is purely an orchestrator output step. Each finding that passed the dedup + diff-scope gates maps to one comment anchored on the new-version (RIGHT) side at its cited line.
+
+**Authorization (non-negotiable):** posting is an outward-facing write. ALWAYS print the chat summary and the full prepared comment list, then ask for a yes/no before sending anything. No flag (`--comment`, `--pr`) authorizes the post on its own. Never `git commit`, push, or write to the repo — these are PR review comments only.
+
+**Comment body** — keep it the same content the user sees in chat, one finding per comment:
+
+```
+**[severity] [agent:TAG]** — [one-line description]
+
+[Evidence / why it matters]
+
+**Fix:** [concrete fix]
+
+<sub>via /review-code</sub>
+```
+
+**Posting mechanism** — batch all comments into a SINGLE PR review (one notification, one reviewable thread), prefer the GitHub MCP tools per project policy (`mcp__github__pull_request_review_write` to create + submit a review with a `comments` array; `mcp__github__add_comment_to_pending_review` for incremental). Equivalent `gh` fallback:
+
+```bash
+gh api -X POST /repos/<owner>/<repo>/pulls/<n>/reviews \
+  -f commit_id='<head sha from gh pr view --json headRefOid>' \
+  -f event='COMMENT' \
+  -f body='Automated review summary — N MUST_FIX, M SHOULD_FIX. See inline comments.' \
+  -f 'comments[][path]=<file>' -F 'comments[][line]=<line>' \
+     -f 'comments[][side]=RIGHT' -f 'comments[][body]=<comment body>'
+```
+
+(Build the `comments` array programmatically — one entry per finding. For multi-line findings add `start_line` + `start_side`.)
+
+**Line anchoring** — the diff-scope gate (Step 10) already guarantees every finding sits on a `+` line in the PR diff, so each comment line is valid for the GitHub API. If a `COMMENT`-event review is rejected (422 — line not in diff for a borderline finding), retry that single comment as a general (non-inline) review comment rather than failing the whole batch, and report which findings fell back.
+
+**Findings with no resolvable line** (whole-file or cross-file pattern findings) go in the review `body` summary, not as inline comments.
 
 ## Pattern Completeness — Single Source of Truth
 
@@ -149,6 +193,7 @@ Read `~/.claude/agents/AGENT_REGISTRY.md` **in full, no line limit** for agent l
 - **Tier 6 (Compatibility)**: If `model/` files changed, fields removed/renamed, API surface changes, or new files/dirs added — `backwards-compatibility-reviewer`, `batch-operations-reviewer`, `null-safety-reviewer`, `deprecation-reviewer`, `license-reviewer`, `file-structure-reviewer`
 - **Tier 7 (Infrastructure)**: If CI/CD files changed (`.github/`, `Makefile`, `Dockerfile`, `.gitlab-ci.yml`) or `--ci` flag — `ci-failure-reviewer`
 - **Tier 2 (Security)**: With `--security`, `--thorough`, or `--full` flag
+- **`comment-reviewer`**: Always included with `--full`/`--thorough`, independent of file-type triggers (it already runs whenever Tier 3/Backend triggers on `*.go` changes; this guarantees it also runs on `--full` reviews of non-Go changes).
 - **Project group**: If changed files match project-specific patterns — agents from **project** registry (`<project>/.claude/agents/AGENT_REGISTRY.md`, "Parallel Groups" table). Discovered automatically via three-level agent discovery; no hardcoded agent names here.
 
 **Routing rule**: Only spawn `[CODE]` or `[BOTH]` agents. NEVER spawn `[PLAN]`-only agents.
@@ -161,10 +206,11 @@ Uses canonical pattern from `~/.claude/docs/swarm-harness.md#convergence-pattern
 
 | Flag | Effect |
 |------|--------|
-| `--pr <number>` | Review GitHub PR instead of local changes |
+| `--pr <number>` | Review GitHub PR instead of local changes (chat output only unless `--comment` is also passed) |
+| `--comment` | Opt in to inline-comment output for the PR in scope (or the open PR on the current branch). Does NOT authorize posting — you are always asked before anything is sent to GitHub |
 | `--quick` | Tier 1 agents only, no multi-LLM (fastest) |
 | `--security` | Tier 1 + Tier 2 (Security) agents + security-focused multi-LLM. Narrower than `--full` |
-| `--full` / `--thorough` | All tiers + multi-LLM (most thorough) |
+| `--full` / `--thorough` | All tiers + multi-LLM (most thorough); always includes `comment-reviewer` regardless of file type |
 | `--agents-only` | Skip multi-LLM review |
 | `--llm-only` | Skip agents, multi-LLM only |
 | `--swarm` | Parallel agents via teams + auto-fix convergence (env var guard — see swarm-harness.md) |

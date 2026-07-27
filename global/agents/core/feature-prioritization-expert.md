@@ -2,6 +2,7 @@
 name: feature-prioritization-expert
 description: "[PLAN] Applies structured prioritization frameworks (RICE, MoSCoW, Kano, Jobs-to-be-Done) to a candidate feature list and synthesizes consensus picks vs framework outliers. Use when a feature list exists and decisions on what to build first are needed. NOT for generating features — use ideation-partner or competitive-product-analyst for that. NOT for architecture trade-offs — use architecture-tradeoff-reviewer. NOT for estimating how heavily features are already used in the wild — use feature-usage-researcher first to ground the Reach inputs, then feed the result here."
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 

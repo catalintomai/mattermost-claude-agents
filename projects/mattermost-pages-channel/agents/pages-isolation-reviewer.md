@@ -2,6 +2,7 @@
 name: pages-isolation-reviewer
 description: Use when reviewing Go or TypeScript wiki/pages changes. Detects cross-contamination between wiki/pages and regular posts — missing type filters, wrong WebSocket events, mixed Redux state.
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 

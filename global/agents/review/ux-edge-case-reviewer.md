@@ -2,6 +2,7 @@
 name: ux-edge-case-reviewer
 description: Reviews plans and code for user-facing edge cases (empty states, errors, loading UX, recovery paths). Use when reviewing UI components, API error responses, or loading state logic for user-facing edge cases — or when a plan describes specific UI states and behaviors that need UX quality validation before implementation.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -147,6 +148,36 @@ How the UI handles partial failures or unavailable features.
 | Feature behind license/flag | Hidden cleanly vs broken UI? |
 | API returns unexpected shape | Crash vs safe fallback? |
 
+### 8. Terminal Loading or Error-as-Empty (High — validated by MM PR review, T215)
+
+Distinct from "no loading indicator": here the indicator exists but the component can never leave it. The `loading` flag is cleared only on the success path, so a rejected fetch leaves a spinner on screen forever with no error and no retry. The mirror image is an error rendered as an empty state — a failed load falls through to the "nothing here yet" branch, so the user is told the list is empty when it actually failed to load, and stops looking.
+
+Detection cue: for every `setLoading(false)` / `isLoading = false` in the diff, check it also runs in the `catch` / error branch — a `finally` is the fix. Then check the render tree has three distinct branches, not two: loading, error, empty. A component whose render reads `if (loading) … if (!items.length) …` with no error branch has this defect whenever the fetch can fail. Also flag a gate that only recognizes one error shape (an editor that exits loading on a 403 but stays stuck on a 500).
+
+```tsx
+// BAD — rejection leaves the spinner up forever, then reads as "empty"
+useEffect(() => {
+    loadBots().then((res) => {
+        setBots(res);
+        setLoading(false);
+    });
+}, []);
+
+// GOOD
+useEffect(() => {
+    loadBots().
+        then(setBots).
+        catch(setError).
+        finally(() => setLoading(false));
+}, []);
+```
+
+Not a finding: a component whose fetch genuinely cannot reject (a synchronous selector read), or a permanent spinner shown deliberately during a full-page redirect.
+
+Severity `SHOULD_FIX`; `MUST_FIX` when the stuck state is the user's only route to the feature, or when error-as-empty could be read as data loss. Tag `ux-edge:TERMINAL_LOADING`.
+
+**Validated by MM PR review**: PR #37336 `integrations/bots/bots.tsx` (permanent spinner — accepted, also raised by a human reviewer). PR #36919 `bots.tsx:156` (rejected `loadBots` leaves a permanent loading state). PR #37362 `session_attributes.tsx` (error shown as empty — accepted). PR #36472 `channel_settings_permissions_policy_tab.tsx` (editor stuck loading on a non-403 — accepted).
+
 ## Review Process
 
 ### Step 0: Establish Sibling Patterns (MANDATORY — before any finding)
@@ -245,6 +276,16 @@ For every user action (button click, form submit, delete):
 | `ux-edge:STALE_AFTER_DISCONNECT` | No refresh/indicator after connection loss |
 | `ux-edge:UNTRANSLATED` | User-facing string not using i18n |
 | `ux-edge:NO_SUCCESS_FEEDBACK` | Action completes with no visible confirmation |
+| `ux-edge:TERMINAL_LOADING` | Loading state never cleared on the failure path, or an error rendered as empty |
+
+## Corpus checklist (single-sighting patterns)
+
+Patterns seen once or twice in MM PR review. Check them, but weight a hit as a candidate, not a rule.
+
+- [ ] Read-only or locked branch renders empty instead of showing the current value (a locked avatar field drops the existing photo rather than displaying it non-editable) (T80, PR #37458 `user_settings_general.tsx`, PR #36246 `recaps_link.tsx`)
+- [ ] Preset or disabled-by-design field has no recovery path — the prefilled value is rejected downstream and the control cannot be changed to a valid one (T82, PR #36707 `user_access_token_section.tsx`)
+- [ ] Admin-facing error surfaces internal detail instead of actionable guidance — admins see this message often, so it needs a next step, not a stack-level description (T140, PR #35730 `server/config/store.go:422`)
+- [ ] Value silently clamped to a bound with no visible indication that the entry was changed (T232, PR #35327 `datetime_input.tsx`)
 
 ## See Also
 

@@ -2,6 +2,7 @@
 name: type-duplication-reviewer
 description: Audits TypeScript type definitions and Go struct definitions for duplication and consolidation opportunities. Use when reviewing code that introduces new type or struct definitions to check for existing duplicates.
 model: haiku
+effort: low
 tools: Read, Write, Grep, Glob
 ---
 
@@ -84,7 +85,7 @@ Before reporting Go struct duplication, verify:
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 >
-> **Severity mapping**: `[HIGH]` duplicates → `MUST_FIX` | `[MEDIUM]`/`[LOW]` duplicates → `SHOULD_FIX` | No duplicates found → `PASS`
+> **Severity mapping**: Exact duplicates → `MUST_FIX` | Structurally similar / near-duplicate types → `SHOULD_FIX` | Speculative consolidation opportunities → `CONSIDER` | No duplicates found → `PASS`
 
 Prefix every finding with `[agent:type-duplication-reviewer]`.
 
@@ -93,7 +94,7 @@ Prefix every finding with `[agent:type-duplication-reviewer]`.
 
 ### Duplicates Found
 
-#### [MEDIUM] TypeName: Identical type defined in N locations
+#### MUST_FIX: TypeName: Identical type defined in N locations
 
 **File 1**: `path/to/file1.ts:NN`
 ```typescript

@@ -2,6 +2,7 @@
 name: confluence-parity-doc-validator
 description: Mechanically validate Confluence-parity claims in any plans/docs against the canonical Confluence Feature Inventory. Reports ungrounded claims, broken inventory citations, and proposed inventory additions. Use after editing the MW Parity Matrix snapshot, the PRD, the Master Feature Table, or any architecture-doc section that asserts Confluence behavior. Distinct from `confluence-alignment-reviewer` which validates CODE against Confluence patterns; this validates DOCS against the inventory.
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 

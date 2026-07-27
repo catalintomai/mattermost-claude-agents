@@ -2,6 +2,7 @@
 name: license-reviewer
 description: Reviews code for license and feature flag handling. Ensures correct SKU checks, license validation, and feature gating. Use when reviewing code that gates features by license tier, checks feature flags, or handles cloud vs self-hosted differences.
 model: haiku
+effort: low
 tools: Read, Write, Grep, Glob
 ---
 
@@ -127,6 +128,29 @@ hidden: !minLicenseTier(license, LicenseTierProfessional)
 - "This we should probably replace with `minLicenseTier` that does the level check instead"
 - "Same here the `minLicenseTier` should be good to cover Entry"
 - "Why do we need this check? The flag is enabled for Entry"
+
+### 1c. Inequality Gate Passes on an Absent Field (High — validated by MM PR review)
+
+A gate written as `x !== Allowed` or `x != wanted` is not the negation of `x === Allowed` when `x` can be absent: `undefined`, `""`, and `nil` are all "not equal", so the *unset* case takes the permissive branch. This is the default-open form of §1b — the same tier or type field, but the direction of the comparison decides whether a missing value is admitted or refused. It reads as correct in review because the enumerated cases are all handled; only the absent case falls through.
+
+```go
+// WRONG: an untyped (empty) resource type is "not equal" to every known type — gate open
+if resourceType != model.AccessControlPolicyTypeChannel {
+    return a.searchUnrestricted(...)   // untyped search bypasses the channel restriction
+}
+
+// CORRECT: enumerate what is permitted; absent falls to the deny branch
+switch resourceType {
+case model.AccessControlPolicyTypeChannel:
+    return a.searchRestricted(...)
+default:
+    return nil, model.NewAppError(..., http.StatusBadRequest)
+}
+```
+
+**Detection**: for every `!==`/`!=` in the diff whose left side is a license field, SKU name, resource type, or id that can be unset, ask what happens when it *is* unset — if the unset case takes the branch that grants access or skips a restriction, it is a finding. The same shape appears in multi-field predicates: a condition that needs *both* ids present but is written as a single inequality passes when either is empty. Prefer positive enumeration (`switch`, `===` against the allowed set) plus an explicit presence check. Flag as `license:INEQUALITY_ADMITS_ABSENT`.
+
+**Validated by MM PR review** — PR #36003 `server/channels/api4/access_control.go` (untyped search bypasses the gate — ACCEPTED); PR #37384 `app/platform/web_conn.go` (`notInThread` requires both ids set, but the inequality passes when either is empty).
 
 ### 2. Wrong License Tier
 
@@ -265,6 +289,13 @@ const MyComponent = () => {
     // ...
 };
 ```
+
+## Corpus checklist (single-sighting patterns)
+
+Seen once or twice across the MM PR corpus. No full rule yet — check them, report only with concrete evidence in the diff.
+
+- [ ] NOTICE or license attribution defect — a duplicate attribution block in a generated NOTICE, or attribution not updated when a dependency is vendored as a fork (T282, PR #36609 `NOTICE.txt:2643` duplicate block; PR #37579 `docextractor/pdf.go` still credits the upstream author after forking)
+- [ ] License floor set above the feature's tier — an Enterprise gate on a capability that ships at Professional, blocking paying licensees (T113, PR #37319 `selectors/calls.ts:84`)
 
 ## Output Format
 

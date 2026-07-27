@@ -2,6 +2,7 @@
 name: jira-alignment-reviewer
 description: Verifies codebase architecture matches Jira epic intent for the current project. Use after a major architectural change or when implementation may have diverged from the Jira-described design.
 model: sonnet
+effort: medium
 # mcp__mcp-atlassian__ tools: justified — Jira alignment review requires querying Jira to fetch issue architecture intent and component definitions
 tools: Read, Write, Grep, Glob, mcp__mcp-atlassian__jira_get_issue, mcp__mcp-atlassian__jira_search, mcp__mcp-atlassian__jira_get_project_issues
 ---

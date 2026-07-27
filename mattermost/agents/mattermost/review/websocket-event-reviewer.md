@@ -1,7 +1,8 @@
 ---
 name: websocket-event-reviewer
 description: Reviews WebSocket event definitions, broadcasting, and handling for correctness and consistency. Use when reviewing new WebSocket events, event broadcasting code, frontend WS handlers, or clustered (HA) deployment changes.
-model: haiku
+model: sonnet
+effort: high
 tools: Read, Write, Grep, Glob
 ---
 
@@ -197,6 +198,76 @@ c.App.Publish(msg)
 
 Search for `WebHub.Broadcast*` or `hub.Send` calls that are NOT inside the `Hub` implementation itself — these are likely HA violations.
 
+### 8. Non-Idempotent Handling of a Duplicate Event (High)
+
+WebSocket delivery is at-least-once: reconnects, cluster republishes, and overlapping subscriptions all redeliver. A handler or reducer that applies a **relative** change (decrement, increment, push, append) on a terminal event double-applies when the event arrives twice, and the corruption is permanent — a count drifts negative and never recovers.
+
+```typescript
+// BAD: terminal event decrements unconditionally
+case ChannelTypes.JOIN_REQUEST_RESOLVED: {
+    return {...state, [channelId]: state[channelId] - 1};
+}
+
+// GOOD: track what has been applied, make redelivery a no-op
+case ChannelTypes.JOIN_REQUEST_RESOLVED: {
+    if (state.resolved[requestId]) {
+        return state;
+    }
+    ...
+}
+```
+
+**Detection**: For each WS event whose handler mutates a counter, list, or set, ask whether applying it twice equals applying it once. Relative arithmetic (`- 1`, `+ 1`, `push`, `concat`) on an event that fires once per entity lifecycle is the signature; absolute assignment from the payload is inherently safe. Flag as `ws:NON_IDEMPOTENT_HANDLER`. Terminal events (resolved, deleted, completed, left) are the highest risk because nothing later corrects the drift.
+
+**Reference**: mattermost/mattermost PR #37078, `mattermost-redux/src/reducers/entities/channels.ts`: "A duplicate terminal WebSocket event therefore remains 'untracked' and decrements `countsByChannel` again" (accepted).
+
+### 9. Broadcasting a Degraded Payload on the Error Branch (High)
+
+When the query backing an event fails, broadcasting anyway sends an empty or partial snapshot that clients cannot distinguish from a genuine empty result. Every connected client then renders "nobody is here" as fact. Skip the broadcast and log, or send an explicit error event — never a silent downgrade.
+
+```go
+// BAD: query failed, clients are told the page has no editors
+editors, err := a.store.GetPageActiveEditors(pageID)
+if err != nil {
+    a.logger.Error("failed to load presence", mlog.Err(err))
+}
+msg.Add("editors", editors) // nil on the error path
+a.Publish(msg)
+
+// GOOD: no broadcast on failure — clients keep their last known state
+editors, err := a.store.GetPageActiveEditors(pageID)
+if err != nil {
+    a.logger.Error("failed to load presence", mlog.Err(err))
+    return
+}
+```
+
+**Detection**: For each `Publish`/broadcast call, trace every value in the payload back to its producer. If any producer returns `(value, err)` and the error branch falls through to the same broadcast (logged-and-continue, or `err` assigned but unchecked), flag as `ws:DEGRADED_BROADCAST`. The tell is a payload field that is nil, empty, or zero exactly when the error path was taken.
+
+**Reference**: mattermost-plugin-docs PR #5, `server/app/page_presence.go`: "Do not broadcast an empty snapshot when the presence query fails" (accepted).
+
+### 10. Throttle / Dedup Key Coarser Than Consumer Identity (High)
+
+A rate-limit or dedup key that omits a dimension consumers are distinguished by suppresses *legitimate* events, not just redundant ones. Keying presence throttling on `pageID` alone means editor A's update starts the window and editor B's **first** snapshot is dropped inside it — B is invisible to everyone until the window expires.
+
+```go
+// BAD: page-only key — one editor's update suppresses another's first event
+if a.rateLimiter.Allow(pageID) { ... }
+
+// GOOD: key includes every dimension the payload varies by
+if a.rateLimiter.Allow(pageID + "_" + userID) { ... }
+```
+
+**Detection**: For every throttle, debounce, or dedup key built for a WS broadcast, compare the key's components against the fields that vary in the payload. Any payload field that identifies a distinct actor or target and is absent from the key is a finding: `ws:THROTTLE_KEY_GRANULARITY`. State which event gets wrongly suppressed and for whom. A coarse key is correct only when the payload is a full snapshot that already carries every actor's state.
+
+**Reference**: mattermost-plugin-docs PR #5, `server/app/page_draft.go`: "Rate-limit presence per editor and test cross-editor updates" — "page-only key suppresses editor B's first snapshot after editor A" (accepted).
+
+## Corpus checklist (single-sighting patterns)
+
+Seen once or twice across the MM PR corpus. No full rule yet — check them, report only with concrete evidence in the diff.
+
+- [ ] Bulk operation emits one event per item — a mark-all/bulk-update loop publishes a websocket event per row, producing an O(n) burst where one batched event carrying the id list would do (T316, PR #36246 `app/recap.go`, one `recap_updated` per affected recap)
+
 ## Review Process
 
 ### Step 1: Enumerate New Events
@@ -252,12 +323,15 @@ grep -rn "addMessageListener\|addChannelListener" webapp/ --include="*.tsx" --in
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `ws:NAMING`, `ws:BROADCAST_SCOPE`, `ws:UNTYPED_PAYLOAD`, `ws:HANDLER_PLACEMENT`, `ws:MISSING_EVENT`, `ws:MISSING_DOC`, `ws:HA_DIRECT_SEND`
+**Domain tags**: `ws:NAMING`, `ws:BROADCAST_SCOPE`, `ws:UNTYPED_PAYLOAD`, `ws:HANDLER_PLACEMENT`, `ws:MISSING_EVENT`, `ws:MISSING_DOC`, `ws:HA_DIRECT_SEND`, `ws:NON_IDEMPOTENT_HANDLER`, `ws:DEGRADED_BROADCAST`, `ws:THROTTLE_KEY_GRANULARITY`
 
 **Severity mapping**:
 - `ws:HA_DIRECT_SEND` → `MUST_FIX` (breaks clustered deployments)
 - `ws:BROADCAST_SCOPE` (over-broad on sensitive events) → `MUST_FIX`
 - `ws:MISSING_EVENT` (mutating operation with no broadcast) → `MUST_FIX`
+- `ws:NON_IDEMPOTENT_HANDLER` (relative mutation on a terminal event) → `MUST_FIX` (drift is permanent)
+- `ws:DEGRADED_BROADCAST` → `MUST_FIX` (clients render a failure as fact)
+- `ws:THROTTLE_KEY_GRANULARITY` → `SHOULD_FIX`
 - `ws:NAMING`, `ws:BROADCAST_SCOPE` (non-sensitive) → `SHOULD_FIX`
 - `ws:UNTYPED_PAYLOAD`, `ws:HANDLER_PLACEMENT` → `SHOULD_FIX`
 - `ws:MISSING_DOC` → `SHOULD_FIX`

@@ -2,6 +2,7 @@
 name: test-engineer
 description: Designs unit and integration test suites, analyzes coverage gaps, and detects mock abuse (everything mocked, internal functions mocked, tests that still pass with all mocks removed). Use when adding tests for new code, analyzing coverage gaps in existing code, or writing a regression test that reproduces a specific bug. For Playwright E2E test writing or review (*.spec.ts), use playwright-test-writer or playwright-test-reviewer instead.
 model: sonnet
+effort: medium
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -149,6 +150,62 @@ When analyzing test coverage, include a **Mock Quality** section:
 - Tests that mock the thing they're supposed to be testing
 - Multiple levels of mocking (A mocks B which mocks C — unclear what's being tested)
 ```
+
+## Corpus-Derived Detection Rules
+
+### R1. The test must enter through the seam the user does (High)
+
+A test that calls the handler function, the unexported helper, or the internal command func directly skips everything wrapped around it — the router, the flag registration, the precheck, the permission middleware, the auth identity. It passes while the real entry path is broken, which is the exact regression it was written to prevent. The same defect appears as the wrong actor (an admin client authoring a post the test claims a member sent) and as the wrong instance (a remount or a second session's page object, so assertions read a stale tree).
+
+```go
+// FLAG — calls the command func directly; the Cobra registration and localOnlyPrecheck under test never run
+err := nukeUsersCmdF(client, cmd, []string{})
+require.NoError(t, err)
+
+// CORRECT — go through the registered command, so the precheck is exercised
+cmd := NewSystemNukeUsersCmd()
+require.NoError(t, cmd.Execute())
+```
+
+**Detection**: for the mechanism the diff changes, name its real entry point (registered command, HTTP route, dispatched action, user-visible control) and confirm the test reaches it. Flag a test that invokes an unexported function where a `storetest`/handler seam exists, a `TestForSystemAdminAndLocal`-style helper still using `SystemAdminClient` for the non-admin arm, a fixture created by the wrong client identity, and a component remounted instead of re-read. Validated by MM PR review: #37197 `server/cmd/mmctl/commands/system_e2e_test.go` (calls `nukeUsersCmdF` directly, skipping the Cobra registration and `localOnlyPrecheck` under test — accepted), #36180 `custom_profile_attributes_test.go` (`TestForSystemAdminAndLocal` still uses `SystemAdminClient`), #36888 sqlstore role test (tests internal `createRole` instead of the storetest seam), #37455 `reply_notifications.spec.ts` (`adminClient.createPost({user_id: sender.id})` authored as admin), #36560 `demo_file_components.spec.ts` (hovers the first match, clicks the last listitem), #37530 (`close()` clicks body at (0,0)).
+
+### R2. A test double must satisfy the real contract it stands in for (High)
+
+A stub that returns a shape the production type never produces makes the test agree with itself and disagree with the system. The recurring forms are a mock omitting fields the model's `SetDefaults`/constructor always sets, a mock resolving `undefined` where the interface returns an array, two fixture helpers that cross-reference by different ids, a browser-API double missing the constants and `readyState` the code branches on, and a page object asserting copy that does not exist in production.
+
+```typescript
+// FLAG — the real store returns PropertyValue[]; the double resolves undefined
+jest.spyOn(client, 'getPropertyValues').mockResolvedValue(undefined);
+
+// CORRECT — the double returns what the contract guarantees, empty case included
+jest.spyOn(client, 'getPropertyValues').mockResolvedValue([]);
+```
+
+**Detection**: for every mock, stub, fake, fixture helper, or page object added or changed, open the real implementation and diff the surface — return type and empty-value shape, fields set by the constructor/`SetDefaults`, constants and lifecycle state the caller reads, ordering guarantees, and the exact user-facing string. Flag any divergence, plus a stub left behind for an export the diff removed, and a helper pair whose register and fetch paths return different ids. Validated by MM PR review: #36180 `testlib/store.go` (register and fetch return different group IDs — accepted), #36231 (mock resolves `undefined` for `PropertyValue[]` — accepted), #37352 `mock_browser_api.ts` (no `readyState`, no constants; `close()` before `connect()`), #37453 `channel_bookmarks_create_modal.ts` (page-object message text absent from production copy).
+
+### R3. A registered expectation that is never asserted proves nothing (Medium)
+
+`mock.On(...)`, `.Once()`, and `expect(fn).toHaveBeenCalled` style setups are inert until something verifies them. Without `AssertExpectations`/`AssertNumberOfCalls`, a mock configured for an interaction that never happens is indistinguishable from one that did — and `.Maybe()` makes the expectation optional outright, which is the opposite of what a test asserting "the masking policy is applied" needs.
+
+```go
+// FLAG — the expectation is registered and never checked; the call may never happen
+mockStore.On("GetPolicy", mock.Anything).Return(policy, nil).Once()
+// ... exercise ...
+// (no AssertExpectations)
+
+// CORRECT
+defer mockStore.AssertExpectations(t)
+mockStore.AssertNumberOfCalls(t, "GetPolicy", 1)
+```
+
+**Detection**: for every `mock.On`/`When`/`spyOn` added in the diff, grep the same test for `AssertExpectations`, `AssertNumberOfCalls`, `AssertCalled`, or an explicit `toHaveBeenCalledWith`. Flag any with none. Flag `.Maybe()` on an expectation the test's own title claims is required, and flag a new mock omitted from an existing `AssertExpectationsForObjects` list. Validated by MM PR review: #36513 `access_control_test.go` (`.Once()` with no `AssertExpectations`, three instances — accepted), #36772 `api4/access_control_test.go` (`.Maybe()` makes the masking expectation optional — accepted), #35952 (`PostReadStatusStore` omitted from `AssertExpectations`), #37213 `jobs/jobs_test.go` (`mock.On` without `.Once()` or a count assertion).
+
+## Corpus checklist (single-sighting patterns)
+
+Single corpus sightings — not yet frequent enough for a full rule, but check for them.
+
+- [ ] Test setup repeats a non-idempotent helper action — a fixture re-adds a member the helper already added, against an API that rejects duplicates (T304)
+- [ ] Mocked test where the surrounding suite's convention is e2e — an mmctl test against a mock client rather than a real server (T141)
 
 ## Coverage Analysis Output
 

@@ -2,6 +2,7 @@
 name: architecture-tradeoff-reviewer
 description: Compares architectural options (new table vs property system, new service vs extending existing, new column vs JSON blob) across migration cost, operational complexity, reuse, and reversibility. Use when a plan proposes a non-trivial design choice and alternatives should be evaluated, or when a plan dismisses alternatives without rigorous comparison.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 

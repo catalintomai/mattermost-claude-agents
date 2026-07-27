@@ -2,6 +2,7 @@
 name: plan-assertion-reviewer
 description: Verifies implementation plans — codebase facts (schema, function signatures, constants) AND reasoning chains (wrong conclusions from correct facts). No WebSearch; codebase-only. For architecture docs and ADRs (which need external/domain verification), use architecture-assertion-auditor instead.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 

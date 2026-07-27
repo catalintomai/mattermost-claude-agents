@@ -2,6 +2,7 @@
 name: websocket-expert
 description: Implements WebSocket connections, reconnection with exponential backoff, presence tracking, collaborative editing sync (OT/CRDT patterns), and domain-specific event design. Use when building real-time features, debugging connection lifecycle issues, or designing WebSocket event schemas. For Mattermost WebSocket code in web_hub.go or mattermost-redux, use existing MM patterns first.
 model: sonnet
+effort: medium
 tools: Write, Read, Edit, Bash, Grep, Glob
 ---
 

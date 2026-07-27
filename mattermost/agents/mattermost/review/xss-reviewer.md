@@ -1,7 +1,8 @@
 ---
 name: xss-reviewer
 description: XSS prevention reviewer for Mattermost. Ensures user input is properly sanitized before rendering in both Go and React. Use when reviewing code that renders user-provided content in HTML templates, React components, or API responses.
-model: haiku
+model: sonnet
+effort: high
 tools: Read, Write, Grep, Glob
 ---
 
@@ -317,6 +318,15 @@ data:text/html,<script>alert('XSS')</script>
 - **Do not flag** `model.SanitizeUnicode` as "missing" on fields that are numeric IDs, timestamps, or enum values — unicode sanitization is only relevant for free-form user-entered text.
 - **Do not flag** Go email templates that use `template.HTMLEscapeString` or the `html/template` package's automatic contextual escaping — these are already safe; only flag direct string concatenation into raw HTML.
 - **Do not flag** content that originates from system-generated values (e.g., server-constructed error codes, UUIDs, enum constants) — only user-controlled input is an XSS vector.
+
+---
+
+## Corpus checklist (single-sighting patterns)
+
+Patterns seen once or twice in MM PR review. Check them, but weight a hit as a candidate, not a rule.
+
+- [ ] Sanitizer allowlist too narrow for content attached to the live DOM — strips `<script>` and `on*` but still permits resource-bearing attributes and elements (`href`/`xlink:href`/`src`, `foreignObject`, `iframe`), or an editor `insertContent` call that does not sanitize HTML at all (T107, PR #37168 `utils/svg_preview.ts`, PR #36143 `link_popover.tsx`)
+- [ ] Untrusted value reaches an HTML sink — values interpolated into a string that is then cast to `template.HTML`, bypassing contextual escaping (T203, PR #35701 `server/channels/app/email/email.go`)
 
 ---
 

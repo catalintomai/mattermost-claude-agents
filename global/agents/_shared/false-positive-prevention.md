@@ -53,7 +53,15 @@ Pattern that doesn't work:
 Do not hallucinate or make guesses about this domain
 ```
 
-### 7. Mark Uncertainty Visibly
+### 7. Convention Claims Require a Convention Check
+
+Before asserting that changed code violates a convention, verify the convention actually holds locally: read the surrounding file, the sibling handlers in the same package, and the generated artifact the change targets. "This differs from how I would write it" is not a violation; "this differs from every sibling in the same file" is.
+
+Two retractions on one PR make the cost concrete. A reviewer flagged a handler for rewriting `GetSinglePost` failures as permission errors — a maintainer showed the identical pattern in `updatePost`, `postPatchChecks`, and the patch and restore handlers, and the reviewer withdrew it ("My original comment was wrong. Apologies for the noise!"). The same reviewer asked for `make i18n-extract` on an `en.json` key that was already in canonical order, so the regeneration would have been a no-op.
+
+If the convention check cannot be performed with the material available, downgrade the finding to `[UNVERIFIED]` rather than asserting the violation.
+
+### 8. Mark Uncertainty Visibly
 
 - [VERIFIED] — Found in authoritative source, traceable, reproducible
 - [UNVERIFIED — reason] — Could not verify; flagged for manual review

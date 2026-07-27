@@ -2,6 +2,7 @@
 name: plan-completeness-checker
 description: Checks implementation plans for structural completeness against plan-templates.md checklists. Use after drafting a plan and before running plan-assertion-reviewer. Reports MISSING_SECTION, EMPTY_SECTION, and INCOMPLETE_SECTION findings for any plan file (.md).
 model: haiku
+effort: low
 tools: Read, Glob
 ---
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.

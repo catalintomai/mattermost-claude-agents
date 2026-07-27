@@ -2,6 +2,7 @@
 name: caching-expert
 description: Expert in Mattermost three-tier caching (LRU→Redis→PostgreSQL), invalidation order, and stampede prevention. Use when adding cached entities or reviewing write paths that mutate cached data.
 model: sonnet
+effort: medium
 tools: Read, Write, Edit, Grep, Glob
 ---
 
@@ -117,6 +118,40 @@ When an entity changes, identify all cache keys that derived data from it and in
 | **handle_cache_invalidation_risks** | Handle invalidation failures gracefully | No error handling/retry on cache invalidation |
 | **avoid_excessive_cache_invalidation** | Batch invalidations in bulk operations | `for item := range items { cache.Delete() }` |
 | **cache_effectiveness_validation** | New caching needs hit/miss metrics | cache.Get/Set without metrics |
+| **invalidation_wired_to_update_only** | Every path that changes the cached shape must invalidate — create included | Helper called from update/upsert but absent from the create/insert path |
+| **cached_value_shared_by_reference** | Deep-clone before caching and before returning | Pointer/map/slice stored into or returned from the cache without a copy |
+| **local_purge_is_cluster_wide** | Purge name and blast radius must match the backend | `purgeLocal*` on a cache that may be Redis-backed |
+
+### Invalidation Wired Into Update but Not Create (validated by MM PR review)
+
+A new invalidation helper is typically added while fixing a stale-read bug on the update path, so it gets wired into `Update`/`Upsert` and nowhere else. If a *create* can also change what a cached entry resolves to — a new row that a cached derived value (a subject, a membership list, a computed permission set) should now include — the stale entry survives until TTL expiry or an unrelated purge.
+
+**Detection**: For each invalidation helper touched by the diff, grep every call site of the helper, then grep every mutation entry point for the same entity (`Create*`, `Insert*`, `Add*`, `Delete*`, `Remove*`). Any mutation that changes the cached shape but does not call the helper is a finding.
+
+**Reference**: mattermost/mattermost PR #36441, `app/property_value.go:412` — "This helper is only wired into update/upsert flows … that stale subject survives until TTL expiry or a later purge."
+
+### Cached Model Returned by Reference (validated by MM PR review)
+
+Storing a pointer (or a struct containing maps/slices) into the cache, or handing the cached pointer back to a caller, gives every caller a live handle on the shared entry. One caller mutating a field — or a patch applied in place — corrupts what every other reader sees, and on a local LRU there is no serialization boundary to catch it. Deep-clone on the way in and on the way out.
+
+**Detection**: `cache.Set(key, obj)` / `cache.Get(key, &obj); return obj` where `obj` is a pointer or contains reference-typed fields, with no `Clone()`/copy between. Cross-check with `go-ownership-reviewer`, which owns the general aliasing rule; this entry is the cache-specific instance of it.
+
+**Reference**: mattermost/mattermost PR #36441, `app/access_control.go` — "Deep-clone `model.Subject` before caching or returning it."
+
+### A "Local" Purge That Is Cluster-Wide (validated by MM PR review)
+
+In the three-tier setup a cache handle may be backed by a per-node LRU **or** by shared Redis, chosen by config. A helper named `purgeLocalXCache` reads as "this node only" and gets called freely — on a Redis-backed cache the same call flushes the shared entry for every node in the cluster. The name has to match the widest backend the handle can have, and the blast radius has to be acceptable at that width; a full-cache purge where a keyed delete would do is the usual second half of this finding.
+
+**Detection**: Any `Purge()`/`Flush()` on a cache handle obtained from the cache provider, especially one whose name or comment claims local scope. Confirm the backend is unconditionally in-memory before accepting a "local" claim; if it can be Redis, require either a rename plus a comment stating the cluster-wide effect, or a targeted `Remove(key)`.
+
+**Reference**: mattermost/mattermost PR #36441, `app/access_control.go` — "`purgeLocalAccessControlSubjectCache` is not local on Redis-backed caches; it purges the entire shared cache cluster-wide."
+
+## Corpus checklist (single-sighting patterns)
+
+Seen once or twice across the MM PR corpus. No full rule yet — check them, report only with concrete evidence in the diff.
+
+- [ ] Watermark column not advanced by the mutation — an ETag/epoch derived from `MAX(CreateAt)` while the mutations are in-place updates, or an `UpdateAt` left unbumped so `SinceUpdateAt` incremental sync never sees the change (T285, PR #36820 `sqlstore/access_control_policy_store.go:973`, active toggles do not advance `CreateAt`)
+- [ ] Negative result cached permanently — one startup or first-call failure sets `unavailable`/`false` with no recheck path, so every later call fails without retrying (T241, PR #35487 `playwright/lib/src/webhook.ts`, a temporary `/setup` failure pins `isAvailable = false`)
 
 ## Anti-Slop Guidance (Do NOT Flag)
 

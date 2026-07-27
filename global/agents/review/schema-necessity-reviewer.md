@@ -2,6 +2,7 @@
 name: schema-necessity-reviewer
 description: Challenges every proposed database migration by investigating whether existing storage (property systems, JSON blobs, Props fields) could achieve the same goal without a schema change. Use when a plan adds CREATE TABLE, ALTER TABLE, or migration files. Not anti-migration — justifies migrations that are genuinely necessary and flags ones that are not. Once a migration is accepted as necessary, run database-architecture-auditor next to review its correctness (indexes, FKs, normalization).
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 

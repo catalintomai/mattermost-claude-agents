@@ -67,6 +67,7 @@ The Parallel Groups routing table for `/review-code` lives in the **global** reg
 | `type-design-reviewer` | [BOTH] | Go struct + TS interface design, encapsulation, invariants | `mattermost/review/type-design-reviewer.md` |
 | `client-server-alignment-reviewer` | [BOTH] | client4.ts ↔ client4.go ↔ api4 alignment | `mattermost/review/client-server-alignment-reviewer.md` |
 | `api-contract-reviewer` | [PLAN] | API contract completeness before implementation | `mattermost/review/api-contract-reviewer.md` |
+| `confluence-parity-auditor` | [PLAN] | Spec-side-first Confluence parity audit for plans claiming parity in a named domain (space permissions, page restrictions, …): builds a verified behavior inventory from Atlassian primary docs, then classifies every row against the plan (REPRODUCED / GAP-NAMED / SILENTLY-ABSENT / DIVERGENCE) + reverse MM-ism sweep. Catches parity OMISSIONS the plan-driven `external-claims-auditor` structurally cannot see; wrong-claim findings defer to it | `mattermost/review/confluence-parity-auditor.md` |
 | `test-coverage-reviewer` | [CODE] | Test coverage gaps for new/changed code | `mattermost/review/test-coverage-reviewer.md` |
 | `ci-failure-reviewer` | [CODE] | CI failure diagnosis: flaky vs real | `mattermost/review/ci-failure-reviewer.md` |
 | `jira-alignment-reviewer` | [BOTH] | Codebase alignment with Jira-described architecture | `mattermost/review/jira-alignment-reviewer.md` |
@@ -77,23 +78,23 @@ The Parallel Groups routing table for `/review-code` lives in the **global** reg
 |-------|-------|---------|------|
 | `plugin-expert` | [CODE] | MM plugin architecture: manifest, hooks, KV store, webapp registry | `mattermost/features/plugin-expert.md` |
 | `copilot-ai-expert` | [CODE] | LLM integration: SSE streaming, context window, PII redaction, RAG | `mattermost/features/copilot-ai-expert.md` |
-| `mobile-expert` | [CODE] | React Native MM mobile: offline sync, push, touch targets, safe-area | `mattermost/features/mobile-expert.md` |
+| `mobile-expert` | [CODE] | React Native MM mobile: offline sync, push, touch targets, safe-area | `agents-disabled/mattermost/features/mobile-expert.md` — **DISABLED, not loaded** |
 | `shared-channels-expert` | [CODE] | Remote-cluster federation, cross-server sync, conflict resolution | `mattermost/features/shared-channels-expert.md` |
-| `calls-webrtc-expert` | [CODE] | WebRTC peer lifecycle, screen sharing, SFU, SRTP/DTLS | `mattermost/features/calls-webrtc-expert.md` |
+| `calls-webrtc-expert` | [CODE] | WebRTC peer lifecycle, screen sharing, SFU, SRTP/DTLS | `agents-disabled/mattermost/features/calls-webrtc-expert.md` — **DISABLED, not loaded** |
 | `property-system-expert` | [BOTH] | PropertyGroupStore/PropertyFieldStore/PropertyValueStore patterns | `mattermost/features/property-system-expert.md` |
-| `playbooks-expert` | [BOTH] | Playbooks plugin: API/App/Store, SQL migrations, property/condition system | `mattermost/features/playbooks-expert.md` |
-| `run-lifecycle-reviewer` | [BOTH] | Playbooks run state machine, status transitions, permission paths | `mattermost/features/run-lifecycle-reviewer.md` |
-| `attribute-template-reviewer` | [BOTH] | Playbooks channel-name templates, run-name construction, variable resolution | `mattermost/features/attribute-template-reviewer.md` |
-| `playbooks-api-parity-reviewer` | [CODE] | Playbooks REST/GraphQL/slash command parity | `mattermost/features/playbooks-api-parity-reviewer.md` |
+| `playbooks-expert` | [BOTH] | Playbooks plugin: API/App/Store, SQL migrations, property/condition system | `agents-disabled/mattermost/features/playbooks-expert.md` — **DISABLED, not loaded** |
+| `run-lifecycle-reviewer` | [BOTH] | Playbooks run state machine, status transitions, permission paths | `agents-disabled/mattermost/features/run-lifecycle-reviewer.md` — **DISABLED, not loaded** |
+| `attribute-template-reviewer` | [BOTH] | Playbooks channel-name templates, run-name construction, variable resolution | `agents-disabled/mattermost/features/attribute-template-reviewer.md` — **DISABLED, not loaded** |
+| `playbooks-api-parity-reviewer` | [CODE] | Playbooks REST/GraphQL/slash command parity | `agents-disabled/mattermost/features/playbooks-api-parity-reviewer.md` — **DISABLED, not loaded** |
 
 ### Mattermost Migration (Data Imports)
 
 | Agent | Phase | Purpose | File |
 |-------|-------|---------|------|
 | `migration-code-orchestrator` | [CODE] | Bulk import / mmetl correctness orchestrator (delegates to source experts) | `mattermost/migration/migration-code-orchestrator.md` |
-| `slack-migration-expert` | [CODE] | Slack workspace migration pipeline | `mattermost/migration/slack-migration-expert.md` |
+| `slack-migration-expert` | [CODE] | Slack workspace migration pipeline | `agents-disabled/mattermost/migration/slack-migration-expert.md` — **DISABLED, not loaded** |
 | `confluence-migration-expert` | [CODE] | Confluence XML → mmetl → MM import pipeline | `mattermost/migration/confluence-migration-expert.md` |
-| `playbooks-migration-reviewer` | [CODE] | Playbooks plugin migrations.go pattern compliance | `mattermost/migration/playbooks-migration-reviewer.md` |
+| `playbooks-migration-reviewer` | [CODE] | Playbooks plugin migrations.go pattern compliance | `agents-disabled/mattermost/migration/playbooks-migration-reviewer.md` — **DISABLED, not loaded** |
 
 ### Mattermost Infrastructure
 
@@ -124,6 +125,7 @@ The Parallel Groups routing table for `/review-code` lives in the **global** reg
 |-------|-------|---------|------|
 | `go-test-writer` | [CODE] | Write/fix MM Go tests (`*_test.go`) | `mattermost/testing/go-test-writer.md` |
 | `ts-test-writer` | [CODE] | Write/review MM TypeScript/Jest unit tests | `mattermost/testing/ts-test-writer.md` |
+| `mutation-test-reviewer` | [CODE] | Test assertion strength via mutation analysis — would tests fail if the code were wrong? Static mutant audit by default; gremlins TOOL mode for non-DB Go packages | `mattermost/testing/mutation-test-reviewer.md` |
 
 ### Top-Level (Outside `mattermost/` subdirectory)
 

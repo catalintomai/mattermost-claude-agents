@@ -2,6 +2,7 @@
 name: go-test-writer
 description: Go test specialist for Mattermost. Use after implementing features to write comprehensive Go tests (*_test.go) and fix failing Go tests. For TypeScript/Jest tests use ts-test-writer.
 model: sonnet
+effort: medium
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -117,6 +118,36 @@ require.NoError(t, err)
 assert.Equal(t, expected, actual)
 ```
 
+### Guard Every Dereference the Assertion Above Does Not Prove (Medium)
+
+`assert.Error(t, err)` records a failure and keeps going, so the next line's `err.Error()` runs on a nil error and panics — taking down the whole package run with a stack trace instead of a named test failure. The same trap applies to a result field read after a non-`require` nil check, and to any dereference inside an `EventuallyWithT`/retry callback, where the polled value is nil on the early attempts by design.
+
+```go
+// BAD — assert does not stop the test; err is nil here and this panics
+assert.Error(t, err)
+require.Contains(t, err.Error(), "invalid")
+
+// BAD — inside a retry callback the value is nil until the condition holds
+require.EventuallyWithT(t, func(c *assert.CollectT) {
+    post, _ := th.App.GetSinglePost(c, postID, false)
+    assert.Equal(c, "hello", post.Message)   // nil deref on the first tick
+}, 5*time.Second, 100*time.Millisecond)
+
+// GOOD — require halts before the dereference; the callback guards first
+require.Error(t, err)
+require.Contains(t, err.Error(), "invalid")
+
+require.EventuallyWithT(t, func(c *assert.CollectT) {
+    post, appErr := th.App.GetSinglePost(c, postID, false)
+    if !assert.Nil(c, appErr) || !assert.NotNil(c, post) {
+        return
+    }
+    assert.Equal(c, "hello", post.Message)
+}, 5*time.Second, 100*time.Millisecond)
+```
+
+**Detection**: after writing each test, scan for every `.Field`, `.Method()`, or index on a value returned alongside an error, and confirm the immediately preceding assertion was `require.*` (not `assert.*`) and actually establishes non-nil. Inside `EventuallyWithT`, `Eventually`, and goroutine callbacks, return early on the guard rather than relying on it to stop execution. Also flag polling on a value the setup may never produce (an empty token from a failed extraction) — assert the extraction succeeded before entering the poll. Validated by MM PR review: PR #35327 `integration_action_test.go` (`assert.Error` then `err.Error()` panics), #36992 `app/post_metadata_test.go` (nil deref inside the `EventuallyWithT` callback), #36215 `server/channels/api4/user_test.go` (polls `GetByToken("")` when extraction fails).
+
 ### Store Layer Tests
 
 ```go
@@ -139,6 +170,28 @@ func testSomeStoreSave(t *testing.T, rctx request.CTX, ss store.Store) {
 }
 ```
 
+## Mutation Resilience (Assertion Strength)
+
+A test that executes code without constraining it is coverage theater. Before finishing each test, mentally mutate the code under test and confirm at least one assertion fails:
+
+| If the code... | ...a test must fail. Weak version that would NOT fail |
+|---|---|
+| Flipped a boundary (`>=` → `>`) | No test at the exact boundary value |
+| Inverted a conditional / dropped a validation guard | Only happy-path tests; no negative-path test asserting rejection |
+| Skipped the `Save`/event/cache-invalidation call | `require.NoError` only; nothing re-reads state to assert the side effect happened |
+| Returned the wrong value or wrong sibling constant (permission, status code) | `require.NotNil(t, result)` / `require.Error(t, err)` without asserting WHICH value/error |
+
+Rules of thumb:
+- Every `require.Error` on a path with multiple failure modes asserts the specific error (ID, status code, or `ErrorIs`) — not just "some error".
+- Every mutating call is followed by a read-back assertion on persisted state, not only on the return value.
+- Every boundary named in the code (`MaxX`, limits, pagination sizes) gets a test AT the boundary and one PAST it.
+- Never assert against a field's default value — set the field to a non-default before asserting, or `SetDefaults()` produces the same result with your assignment deleted (PR #35374 `config/client_test.go`).
+- `require.NotNil` on a result before dereferencing any of its fields; otherwise an invalid case that returns `nil` panics at `appErr.Id` and hides the regression it was meant to catch (PR #37458 `member_invite_test.go`).
+- In parallel tests, filter shared-store query results to the rows this test created — never index positionally into a store-wide result, which returns every other test's rows too (PR #37458 `api4/team_test.go`).
+- A subtest reusing `th.BasicUser` inherits the state earlier subtests left on it; create a fresh user when asserting a count or quota boundary (PR #35478 `app/recap_test.go`).
+
+`mutation-test-reviewer` audits this after the fact; write tests that already pass its audit.
+
 ## Mock-Implementation Alignment Check
 
 > **CRITICAL**: Read `~/.claude/agents/_shared/test-alignment-rules.md` — verify mocks match actual implementation before writing tests.
@@ -156,6 +209,7 @@ Before submitting tests:
 - [ ] Concurrency/HA scenarios covered where applicable (shared state, concurrent writes, multi-node)
 - [ ] Permission checks tested (if applicable)
 - [ ] No skipped tests
+- [ ] **Mutation resilience**: for each test, at least one assertion would fail under an obvious mutant (flipped boundary, dropped side-effect call, wrong constant) — see Mutation Resilience section
 - [ ] No mock data that hides real issues
 - [ ] Tests pass: `go test` / `npm run test`
 - [ ] Follows existing patterns in codebase

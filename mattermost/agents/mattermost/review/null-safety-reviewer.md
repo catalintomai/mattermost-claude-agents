@@ -1,7 +1,8 @@
 ---
 name: null-safety-reviewer
 description: Reviews code for null/nil safety issues in Go and TypeScript. Catches potential null pointer dereferences and improper null handling. Use when reviewing code for nil pointer dereferences, missing null checks, or incorrect nullish coalescing.
-model: haiku
+model: sonnet
+effort: high
 tools: Read, Write, Grep, Glob
 ---
 
@@ -160,6 +161,31 @@ func Process(r io.Reader) error {
 }
 ```
 
+### 7. Required Constructor Dependencies (MUST_FIX)
+
+A constructor (`New`, `NewXxx`) that accepts a required dependency as a pointer or interface and stores it on the struct without a nil guard will defer the panic to the first method call — often far from the construction site, making the root cause hard to diagnose. Required dependencies should be rejected at construction time with a clear message.
+
+```go
+// WRONG: nil store is accepted silently; first s.store.X() call panics
+func New(s *store.Store, log Logger) *Service {
+    return &Service{store: s, log: log}
+}
+
+// CORRECT: panic immediately at the call site with a clear message
+func New(s *store.Store, log Logger) *Service {
+    if s == nil {
+        panic("app.New: store must not be nil")
+    }
+    return &Service{store: s, log: log}
+}
+```
+
+**When to flag**: A struct field is used unconditionally in one or more methods (no nil check on the field before use), AND the constructor accepts that field as a parameter without a nil guard.
+
+**When NOT to flag**: Optional dependencies that are intentionally nil in some configurations (e.g. a logger that falls back to a no-op, a metrics client absent in tests). Look for a nil check or fallback assignment in the constructor — if one exists, the dependency is intentionally optional and should not be flagged.
+
+**Panic vs error**: Passing a nil required dependency is a programmer error, not a runtime condition. A panic with a clear message is idiomatic Go for this case. Returning an error is also acceptable but changes the constructor signature.
+
 ---
 
 ## TypeScript Null Safety Patterns
@@ -313,6 +339,55 @@ const handleEvent = (msg: WebSocketMessage) => {
 ```
 
 ---
+
+## Unchecked Type Assertion or Cast
+
+The highest-frequency null-safety class in the MM PR corpus (10 sightings), because the failure is not a
+nil dereference but a *silent zero*. A single-value Go type assertion panics; a `map[string]any` field
+asserted to a concrete type without the comma-ok form silently yields the zero value; a TypeScript
+`as`-cast on a `JSON.parse` result or an API payload asserts a shape nothing verified, and the first
+property access on a missing branch throws.
+
+```go
+// BAD: `mechanism` is absent or a different type on some rows — this silently stores 0
+mech := fields["mechanism"].(int64)
+
+// GOOD: comma-ok, with the absent case handled explicitly
+mech, ok := fields["mechanism"].(int64)
+if !ok {
+    return errors.New("audit record missing numeric mechanism")
+}
+```
+
+```ts
+// BAD: the WS payload is untrusted; the cast asserts a shape nothing checked
+const field = JSON.parse(msg.data.field) as SessionAttributeField;
+
+// GOOD: parse, then validate before forwarding
+const parsed = JSON.parse(msg.data.field);
+if (!isSessionAttributeField(parsed)) {
+    return;
+}
+```
+
+**Detection**: grep changed lines for single-value `.(Type)` assertions, `as ` casts, and non-null
+assertions (`!`). For each, name where the value came from — a `map[string]any`, a `JSON.parse`, a
+plugin RPC boundary, an `any`-typed prop. A cast on a value the same function just constructed is fine;
+a cast on a value that crossed a process, network, or storage boundary is the finding.
+
+**Severity**: MUST_FIX when the assertion can panic or when a silent zero is persisted or used in an
+authorization decision; SHOULD_FIX otherwise. Do not flag an assertion that is structurally unreachable
+— if the only producer of the value constructs it with that concrete type in the same package, say so
+and drop the finding.
+
+**Validated by MM PR review**: T175 — PR #37021 + #37051 `audit/targets/delivery_db.go` — a `mechanism`
+assertion silently yields 0. Also PR #37392 `websocket_actions.ts` (`JSON.parse` result forwarded as
+`SessionAttributeField`) and PR #36231 (`patchPropertyValues` unsafe cast). PR #36414
+`public/plugin/supervisor.go` was REJECTED as structurally unreachable — check reachability first.
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] `findIndex`/`indexOf`/`IndexOf` result consumed as a valid index without checking for `-1` (T317, PR #31173)
 
 ## PR Review Patterns
 

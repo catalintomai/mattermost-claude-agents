@@ -1,6 +1,6 @@
 # Web Research Sourcing Discipline
 
-Shared rules for agents that mine the public web — `competitive-product-analyst`, `external-claims-auditor`, `feature-usage-researcher`, `product-trend-researcher`, `voice-of-customer-researcher`. Composes with `grounding-rules.md`; this file is the web-sourcing specifics.
+Shared rules for agents that mine the public web — `competitive-product-analyst`, `external-claims-auditor`, `feature-usage-researcher`, `product-trend-researcher`, `voice-of-customer-researcher`. (Of these, only `external-claims-auditor` currently exists as a file; the other four are planned and must not be delegated to until written.) Composes with `grounding-rules.md`; this file is the web-sourcing specifics.
 
 ## Capability vs sentiment — two different source classes
 
