@@ -2,6 +2,7 @@
 name: app-reviewer
 description: App layer code reviewer for Mattermost. Ensures app layer code follows patterns and doesn't bypass layer boundaries. Use when reviewing code changes that touch server/channels/app/ or app layer business logic.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -244,6 +245,67 @@ See `validation-reviewer` for full validation patterns and detection commands. K
 - String parameters used without `strings.TrimSpace` check
 - Multiple related IDs accepted without verifying relationships
 - Struct fields passed to Store without required field checks
+
+### 5. Forked Path Omits a Canonical Side Effect (HIGH — validated by MM PR review)
+
+A new variant of an existing operation — a bulk version, a retry path, a local-mode handler, a fast path added by an early return — that performs the primary write but skips a side effect the original always emits: the plugin hook, the WebSocket broadcast, a metadata hydration step, an error-classification wrapper, a fan-out to related entities.
+
+```go
+// BAD: the retry branch returns before the attachment work the normal path does
+if existing != nil {
+    return existing, nil
+}
+post, err := a.createSyncPost(...)
+a.attachToPost(post); a.upsertAttachment(post)
+
+// GOOD: converge the branches so the side effects run once, on every path
+post, err := a.getOrCreateSyncPost(...)
+if err != nil { return nil, err }
+a.attachToPost(post); a.upsertAttachment(post)
+```
+
+**Detection**: whenever the diff adds a second way to do something the codebase already does, open the original and list its post-write calls in order — hooks, `Publish`, cache invalidation, metrics, hydration helpers. Then check the new path emits each one or has a stated reason not to. The same applies to a new early return inserted into an existing function: everything below it is now skipped for that branch. Passthrough or wrapper methods are a recurring carrier — a delegating method that forgets the shared error check silently degrades every caller. Flag as `app:FORKED_SIDE_EFFECT`.
+
+**Reference**: PR #36486 `app/shared_channel.go` — the early return skips `AttachToPost`/`UpsertAttachment` on retry; PR #36510 `sqlstore/sqlx_wrapper.go` — passthrough methods skip `checkErr`, weakening offline detection; PR #36352 `api4/user_local.go` — ToS fields not hydrated unlike sibling handlers (accepted); PR #36903 `access_control.go:1951` — team fan-out missing on create/update/activate (accepted).
+
+### 6. Guard or Hook Fires on the No-Op Path (HIGH — validated by MM PR review)
+
+A side effect that runs even when the operation changed nothing: an already-a-member add that still dispatches the join event, a preset re-applied to its current value that clears derived state, a record written before the enqueue that may reject it. The result is a phantom event or a destructive reset triggered by a request that should have been inert.
+
+```go
+// BAD: the hook fires even when the fast path found nothing to do
+if member != nil {
+    a.invokeJoinHooks(member)   // no-op add, real event
+    return member, nil
+}
+
+// GOOD: return the fast path before the side effect
+if member != nil {
+    return member, nil
+}
+```
+
+**Detection**: find every early-return "already satisfied" branch in the diff and check what runs before it. Then take the reverse view — for each new hook, event publish, or state write, ask what happens when the input equals the current value. Guards that record state before the operation that can fail (a record written before an enqueue, a counter bumped before a validation) belong after it. Flag as `app:NOOP_SIDE_EFFECT` — MUST_FIX when the side effect is destructive, SHOULD_FIX for a spurious event.
+
+**Reference**: PR #37261 `app/guarded_hooks.go` (accepted); `app/platform/web_hub.go` — record written before enqueue (accepted); PR #36878 `classification_markings.tsx` — re-applying the current preset clears levels.
+
+### 7. Async or Best-Effort Work Not Isolated from Panics (HIGH — validated by MM PR review)
+
+A raw `go func` that bypasses `Srv().Go`, a detached goroutine with no `recover`, or a best-effort step run inline ahead of the mandatory work it precedes. A panic in any of them takes down more than the optional work: the bare goroutine crashes the server, and the inline step aborts the batch write that was supposed to follow it.
+
+```go
+// BAD: raw goroutine in a file that already routes async work through the wrapper
+go a.sendNotifications(userID)
+
+// GOOD: use the framework wrapper, which carries panic recovery and shutdown tracking
+a.Srv().Go(func() {
+    a.sendNotifications(userID)
+})
+```
+
+**Detection**: grep the diff for `go func` and `go a.`/`go s.`. For each, check whether the surrounding file routes other async work through `Srv().Go` — an inconsistency within one file is the strongest signal. A goroutine that genuinely cannot use the wrapper needs its own `defer recover`. Separately, for best-effort calls (notifications, telemetry, cache warming) placed inside a loop or before a required write, confirm a panic there cannot skip the required work. Flag as `app:UNGUARDED_ASYNC`.
+
+**Reference**: PR #36409 `app/session.go` — three raw goroutines in a file that already routes session work through `a.Srv().Go`; PR #37349 `jobs/cleanup_expired_access_tokens/worker.go` — `notifyExpired` runs inline in the batch loop, so its panic skips `DeleteByIds`; PR #36856 `docextractor.go:123` — detached extraction goroutine with no panic guard.
 
 ## What App Layer SHOULD Do
 

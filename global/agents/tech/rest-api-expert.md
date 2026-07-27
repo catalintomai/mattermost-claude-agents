@@ -2,6 +2,7 @@
 name: rest-api-expert
 description: Designs and implements RESTful APIs — resource modeling, HTTP method selection, status code mapping, pagination, error response formats, versioning strategies, and OpenAPI documentation. Use when building a new API, extending existing endpoints, or debugging HTTP contract issues. For Mattermost projects, prefer api-design-reviewer (code-level) and api-reviewer (layer boundaries); use this agent for cross-project API design principles.
 model: sonnet
+effort: medium
 tools: Write, Read, Edit, Bash, Grep, Glob
 ---
 
@@ -132,6 +133,44 @@ GET /teams/{teamId}/channels?type=O&sort=display_name&direction=asc
 GET /users/{userId}/channels?team_id=t123  // Get user's channels in team
 GET /channels/{channelId}/posts?since=1609459200000  // Posts since timestamp
 ```
+
+## Consuming a List API: Ordering and Default Filters
+
+When calling someone else's list endpoint — a platform API, the GitHub API, a search route — the caller
+inherits defaults it never asked for. The corpus shape (5 sightings): code takes the first page and
+assumes it is the whole set, or reads the first row and assumes an ordering the endpoint does not
+promise, or accepts a default filter that hides exactly the rows it needs.
+
+Three questions before consuming any list response:
+1. **Is it paginated?** A single call returns one page. If the caller needs completeness (a lookup by
+   name, a dedupe, a count), it must loop until the page is short or the cursor is empty.
+2. **What does it filter by default?** GitHub's milestone and issue endpoints default to `state=open`;
+   MM list routes commonly exclude deleted rows. A lookup that must see closed or archived rows has to
+   say so explicitly.
+3. **What ordering is guaranteed?** Unless the endpoint documents an ordering, none is guaranteed. Do
+   not read `results[0]` as "the first" or "the most recent" — sort explicitly, or ask the endpoint for
+   the specific row.
+
+```js
+// BAD: one page, default state=open — a closed milestone with the same title is invisible,
+// and a second page of open ones is never seen, so the lookup silently creates a duplicate.
+const {data} = await octokit.issues.listMilestones({owner, repo});
+const found = data.find((m) => m.title === title);
+```
+```js
+// GOOD: explicit state, paginated to exhaustion
+const all = await octokit.paginate(octokit.issues.listMilestones, {owner, repo, state: 'all'});
+const found = all.find((m) => m.title === title);
+```
+
+Severity: MUST_FIX when the truncated or misordered read causes a duplicate write or a wrong decision;
+SHOULD_FIX when it only risks a stale display. State which of the three assumptions is violated and
+where the endpoint's documented behavior says otherwise.
+
+**Validated by MM PR review**: T157 — PR #36282, milestone lookup defaults to `state=open` and reads one page,
+producing duplicates (ACCEPTED). Also PR #37224 `docs-impact-review.yml` (`listComments` unpaginated)
+and PR #36983 `feature_flag_monthly_audit.py` (`git log` order gives the most-recent, not the first,
+enable date).
 
 ## Quality Checklist
 

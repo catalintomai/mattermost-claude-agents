@@ -2,6 +2,7 @@
 name: db-call-reviewer
 description: Reviews code for unnecessary database calls, N+1 queries, and batching opportunities. Use when reviewing DB access patterns in App and Store layers.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -315,6 +316,28 @@ func (a *App) GetPageCached(rctx request.CTX, pageID string) (*model.Post, error
 }
 ```
 
+## Pattern 7: New Primary-Storage Read on an Existing Hot Path (Validated by MM PR review)
+
+Patterns 2 and 6 catch a *repeat* read within one request. This one catches the *first* read: a diff that adds an uncached DB call to a path that already runs on every user action. One extra query is invisible in review and enormous in aggregate, and it is worst when the entity type is deliberately excluded from the by-id cache, so every call reaches primary storage.
+
+```go
+// BAD: viewChannel runs on every channel switch for every user;
+// GetChannelOfType always hits the DB because spaces are cache-excluded
+func viewChannel(c *Context, w http.ResponseWriter, r *http.Request) {
+    ch, appErr := c.App.GetChannelOfType(c.AppContext, c.Params.ChannelId, model.ChannelTypeSpace)
+    ...
+}
+
+// GOOD: reuse a channel already loaded on this path, gate the lookup behind a
+// cheap precondition, or make the read cacheable before adding it
+```
+
+**Hot paths in MM** (a new read here needs justification, not just correctness): `viewChannel` / channel switch, post create and post edit, WebSocket connect and reconnect, `getChannelsForTeamForUser`, session and permission resolution, and any handler called per rendered item.
+
+**Detection**: For each store or App-layer read added by the diff, (1) walk up to the entry point and ask whether it runs per user action or per rendered item rather than per admin operation; (2) check whether the entity is cached — grep the localcache layer for the store method (`grep -rn "<Method>" server/channels/store/localcachelayer/`), and treat an explicit cache exclusion for the entity type as an aggravating factor, not a neutral one. If both hold, flag as `db-call:HOT_PATH_READ` and state the request multiplier (per switch, per post, per connection). Do not flag reads on admin, migration, or job paths.
+
+**Reference**: mattermost/mattermost PR #37321, `server/channels/api4/channel.go:31-48`: "`GetChannelOfType` always hits the DB, and spaces are excluded from the by-id cache, so this adds an uncached primary read on the `viewChannel` path" (accepted, fixed in d246dcf).
+
 ## Detection Checklist
 
 When reviewing code, look for these red flags:
@@ -338,7 +361,7 @@ When reviewing code, look for these red flags:
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `db-call:N_PLUS_ONE`, `db-call:REDUNDANT_FETCH`, `db-call:MISSING_BATCH`
+**Domain tags**: `db-call:N_PLUS_ONE`, `db-call:REDUNDANT_FETCH`, `db-call:MISSING_BATCH`, `db-call:OVER_FETCH_LIST_FOR_ONE`, `db-call:HOT_PATH_READ`
 
 **Domain-specific sections** (after canonical sections):
 - Estimated Impact: query count before/after fix and % reduction

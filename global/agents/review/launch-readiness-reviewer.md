@@ -2,6 +2,7 @@
 name: launch-readiness-reviewer
 description: Reviews production readiness against a checklist covering rollback plans, monitoring/alerting, feature flag gating, staged rollout thresholds, secret handling, and runbook completeness. Use immediately before shipping a feature to production — not for regular PR review. Triggered explicitly by `/launch-readiness` or when a PR is labelled `ready-to-ship`.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 

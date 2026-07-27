@@ -2,6 +2,7 @@
 name: cypress-test-reviewer
 description: Reviews Cypress E2E tests (*_spec.js, *.cy.ts) for selector stability, wait patterns, DOM detachment anti-patterns, and flakiness. Use when a diff adds or modifies Cypress test files. Run before project-level Cypress agents. Distinct from playwright-test-reviewer which covers Playwright only.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -254,41 +255,61 @@ FLAG: index-based selectors like `.eq(3)` without a comment explaining why the i
 
 ---
 
+## 13. Chained Assertion Arguments Are Silently Ignored
+
+`should()` takes one chainer plus that chainer's own arguments. A second chainer name passed as an argument is consumed as an argument to the first and never runs, so the text is never validated and the test passes against the wrong label.
+
+```js
+// WRONG — 'contain' and 'Text' are arguments to 'be.visible'; the text is never asserted
+cy.get('#displayButton').should('be.visible', 'contain', 'Display');
+
+// CORRECT — one chainer per should()
+cy.get('#displayButton').should('be.visible');
+cy.get('#displayButton').should('contain', 'Display');
+```
+
+Validated by MM PR review — PR #36830 `settings_view_spec.js`: "Split visibility and text assertions so labels are actually validated."
+
+FLAG any `should()` whose argument list contains a second chainer name (`'contain'`, `'have.text'`, `'exist'`, `'have.class'`, …) after the first.
+
+---
+
 ## Anti-Pattern Summary
 
 | Severity | Pattern | Source |
 |----------|---------|--------|
-| **CRITICAL** | `.clear().type()` on auto-saving input | retry-ability + codebase observation |
-| **CRITICAL** | `cy.wait(N)` > 500 with no alias | best-practices, wait docs |
-| **CRITICAL** | Chaining actions without re-querying | retry-ability |
-| **CRITICAL** | Asserting DOM after mutation without `cy.wait('@alias')` | network-requests |
-| **HIGH** | Accessing cy-chain variable outside `cy.then()` | best-practices, variables-and-aliases |
-| **HIGH** | Unsafe chaining after `.within()` | within() docs |
-| **HIGH** | Aliases created in `before()` instead of `beforeEach()` | variables-and-aliases |
-| **HIGH** | `{ force: true }` without explanation | interacting-with-elements |
-| **HIGH** | `getBy*` instead of `findBy*` | Testing Library docs |
-| **HIGH** | `.then()` before an assertion that needs retrying | retry-ability |
-| **HIGH** | Arrow function test with `this.*` alias access | variables-and-aliases |
-| **HIGH** | CSS styling-class selectors | best-practices |
-| **MEDIUM** | Index-based selectors (`.eq(N)`) without explanation | best-practices |
-| **LOW** | `cy.wait(N)` ≤ 500 with no comment | best-practices (exception for animation) |
+| **MUST_FIX** | `.clear().type()` on auto-saving input | retry-ability + codebase observation |
+| **MUST_FIX** | `cy.wait(N)` > 500 with no alias | best-practices, wait docs |
+| **MUST_FIX** | Chaining actions without re-querying | retry-ability |
+| **MUST_FIX** | Asserting DOM after mutation without `cy.wait('@alias')` | network-requests |
+| **MUST_FIX** | Second chainer passed as an argument to `should()` (never runs) | MM PR #36830 |
+| **SHOULD_FIX** | Accessing cy-chain variable outside `cy.then()` | best-practices, variables-and-aliases |
+| **SHOULD_FIX** | Unsafe chaining after `.within()` | within() docs |
+| **SHOULD_FIX** | Aliases created in `before()` instead of `beforeEach()` | variables-and-aliases |
+| **SHOULD_FIX** | `{ force: true }` without explanation | interacting-with-elements |
+| **SHOULD_FIX** | `getBy*` instead of `findBy*` | Testing Library docs |
+| **SHOULD_FIX** | `.then()` before an assertion that needs retrying | retry-ability |
+| **SHOULD_FIX** | Arrow function test with `this.*` alias access | variables-and-aliases |
+| **SHOULD_FIX** | CSS styling-class selectors | best-practices |
+| **CONSIDER** | Index-based selectors (`.eq(N)`) without explanation | best-practices |
+| **CONSIDER** | `cy.wait(N)` ≤ 500 with no comment | best-practices (exception for animation) |
 
 ---
 
-> **Canonical format**: `~/.claude/agents/_shared/finding-format.md` — use `MUST_FIX` / `SHOULD_FIX` / `PASS`.
+> **Canonical format**: `~/.claude/agents/_shared/finding-format.md` — use `MUST_FIX` / `SHOULD_FIX` / `CONSIDER` / `PASS`.
 
 ## Review Output Format
 
 Emit findings using the structure in `~/.claude/agents/_shared/finding-format.md`. Prefix every finding with `[agent:cypress-test-reviewer]`.
 
-Apply the 80/20 rule (`~/.claude/agents/_shared/eighty-twenty-rule.md`): map CRITICAL severity to `MUST_FIX` only when the test will produce a false positive (passes when broken) or is guaranteed to be flaky (cannot reliably operate). HIGH severity maps to `SHOULD_FIX`.
+Apply the 80/20 rule (`~/.claude/agents/_shared/eighty-twenty-rule.md`): emit `MUST_FIX` only when the test will produce a false positive (passes when broken) or is guaranteed to be flaky (cannot reliably operate). Use `SHOULD_FIX` for significant anti-patterns that reduce reliability, and `CONSIDER` for style and maintainability issues.
 
 ```markdown
 ## Cypress Patterns Review: {filename}
 
 ### Summary
 - Violations found: X
-- Severity breakdown: MUST_FIX / SHOULD_FIX / PASS
+- Severity breakdown: MUST_FIX / SHOULD_FIX / CONSIDER / PASS
 
 ### Findings
 

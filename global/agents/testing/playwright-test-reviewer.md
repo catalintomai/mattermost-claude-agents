@@ -2,6 +2,7 @@
 name: playwright-test-reviewer
 description: Reviews Playwright E2E tests (*.spec.ts) for selector stability, wait/locator patterns, page-object usage, and anti-patterns (hard sleeps, brittle CSS selectors, leaky fixtures). Use when a diff adds or modifies *.spec.ts under e2e-tests/ or tests/e2e/. For Cypress tests use cypress-test-reviewer; for unit/integration test strategy and mock-abuse detection, use test-engineer.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -294,30 +295,197 @@ Not mandatory, but recommended for tests > ~10 actions long.
 
 ---
 
+### 20. `force: true` Bypasses Actionability
+
+Official behaviour (playwright.dev/docs/actionability): actions wait for the element to be visible, stable, enabled, and receiving pointer events. `force: true` skips every one of those checks — so a test written to lock in a CSS or pointer-event fix keeps passing after the fix is reverted and the bug returns.
+
+```typescript
+// FLAG — the click lands regardless of whether the element is really clickable
+await backdrop.click({force: true});
+
+// CORRECT — let actionability assert the element is genuinely usable
+await expect(backdrop).toBeVisible();
+await backdrop.click();
+```
+
+FLAG any `{force: true}` (on `click`, `fill`, `check`, `hover`, `dragTo`, …) without an inline comment justifying it. This mirrors `cypress-test-reviewer` §6.
+
+**Reference**: PR #37430 (yashveersinghh) on `mobile_rhs_focus.spec.ts`: "Using `force: true` bypasses Playwright's actionability checks… this test will silently pass even if the CSS fix is removed and the bug regresses." (accepted)
+
+---
+
+### 21. Test Must Exercise the Mechanism the Fix Changed
+
+A regression test that reaches the same end state through a DIFFERENT code path proves nothing about the fix. Dismissing a modal with `keyboard.press('Escape')` verifies the keydown handler; it does not verify that pointer events route to the backdrop layer, which is what a CSS `pointer-events` fix changes.
+
+```typescript
+// FLAG — fix changed backdrop pointer-event routing; test never uses the pointer
+await page.keyboard.press('Escape');
+await expect(modal).toBeHidden();
+
+// CORRECT — drive the same input the fix affects
+await page.locator('.modal-backdrop').click();
+await expect(modal).toBeHidden();
+```
+
+**Detection**: read the production diff alongside the test diff. Name the mechanism the fix alters (CSS property, event listener, z-index/layering, focus trap, network retry). Then check that the test's action goes through that mechanism. If the assertion passes via an unrelated path — keyboard instead of pointer, a direct store dispatch instead of the UI, an API call instead of the rendered control — flag it: the test is not a regression test. Applies equally when a review comment causes an author to SWAP the interaction to make a flaky test green.
+
+**Reference**: PR #37430 (outside-diff): "changing the dismissal action to `page.keyboard.press('Escape')` tests keyboard navigation, not pointer event routing on the backdrop layer." (accepted)
+
+---
+
+### 22. Negative-Path Tests Must Assert the Specific Error
+
+A negative scenario that only asserts "something failed" is satisfied by a transport error, an expired session, or a typo'd URL — none of which is the validation or authorization behaviour under test. Assert the status code AND the error identity.
+
+```typescript
+// FLAG — any failure satisfies this, including a 401 from a broken fixture
+try {
+    await adminClient.createResourceAttribute(payload);
+    throw new Error('expected failure');
+} catch (e) {
+    expect(e).toBeTruthy();
+}
+
+// CORRECT — pin the status and the specific error
+await expect(adminClient.createResourceAttribute(payload)).rejects.toMatchObject({
+    status_code: 400,
+    id: 'api.resource_attributes.invalid_type.app_error',
+});
+```
+
+FLAG a broad `catch`/`rejects.toThrow()` with no status code or error id in any test whose title describes a validation, permission, or rejection scenario.
+
+**Reference**: PR #37529 on the abac `resource_attributes` specs: "Assert the specific validation or authorization error in negative API tests." Broad catches let unrelated transport/auth failures satisfy the scenario.
+
+---
+
+### 23. Wait On the Signal That Proves the Work Landed
+
+The most frequent E2E defect in the corpus. Section 5 bans the fixed sleep; this rule covers the subtler forms — the test waits on a real signal, but the wrong one. An HTTP 200 is not "the store applied it". `networkidle` is not "the UI settled". A negative assertion that runs immediately is satisfied by a UI that has not rendered yet. An upload promise awaited AFTER the send has already raced.
+
+```typescript
+// FLAG — asserts on the response, then reads a UI the save has not reached
+await page.getByRole('button', {name: 'Save'}).click();
+expect(await settingsRow.textContent()).toBe('Enabled');
+// FLAG — negative assertion with no settle window; passes before the row renders
+await expect(page.getByText('Policy applied')).toBeHidden();
+// FLAG — the upload promise is created after the action that consumes it
+await postCreate.sendMessage();
+await uploadPromise;
+
+// CORRECT — wait on the observable the code guarantees, and let it auto-retry
+const uploadPromise = page.waitForResponse(/\/api\/v4\/files/);
+await fileInput.setInputFiles(path);
+await uploadPromise;
+await expect(settingsRow).toHaveText('Enabled');
+```
+
+FLAG: `expect(await locator.textContent())` or any read taken immediately after a mutating action; `waitForLoadState('networkidle')`; a `toBeHidden`/`not.toBeVisible` on an element that was never first asserted visible; a promise awaited after its triggering action; an `AssertNotCalled`/negative mock assertion placed before the call under test; and a `waitFor` whose callback re-runs the action rather than only re-reading state.
+
+**Validated by MM PR review**: #36213 `autotranslation_permissions.spec.ts` (read immediately after Save — accepted), #36740 `access_control_test.go:4660` (`AssertNotCalled` before the call under test — accepted), #37338 `concurrent_config_save.spec.ts` (HTTP response is not the store applied — accepted), #36340 (click before the step transition — accepted), #36373 and #36560 (upload promise awaited after `sendMessage()`), #36350 `team_policy_editor.test.tsx` (negative assertion with no settle window), #37454 `post_create.ts` (`waitUntilFilePreviewContains` compares counts, not filenames), #37460 `login.ts` (`isVisible()` snapshot).
+
+---
+
+### 24. Locators Must Be Scoped to the Component Under Test
+
+Section 4 sets selector priority and section 13 covers `.nth()`; the corpus defect they miss is a locator with the RIGHT query type resolved against the WHOLE page. `page.getByText('Delete')` inside a modal test matches the modal, the sidebar, and the post menu — strict mode fails intermittently, or the test silently drives a different mounted instance. Page objects that build getters off `page` instead of their own `container` reintroduce this everywhere they are used.
+
+```typescript
+// FLAG — searches the entire page, not the menu the test opened
+await page.locator('.menu-item').filter({hasText: 'Delete'}).click();
+// FLAG — page object getter bypasses its own container
+get deleteButton() { return this.page.getByRole('button', {name: 'Delete'}); }
+
+// CORRECT — every getter hangs off the component's own root
+get deleteButton() { return this.container.getByRole('button', {name: 'Delete'}); }
+await menu.deleteButton.click();
+```
+
+FLAG: any `filter({hasText})`/`getByText`/`getByRole` rooted at `page` inside a test or page object that has a narrower container available; BEM/structural class chains where a test id or role exists; and an exact `getByText` where the suite's own convention is a row locator plus `.filter({hasText})`.
+
+**Validated by MM PR review**: #37460, #37457, #37456 (page objects using exact `getByText`/regex instead of the suite's row + `filter({hasText})` convention), #37328 `channel_header_menu.ts` (getters bypass `container`), #37362 `session_attributes.ts` (page-scoped trigger), #36560 `demo_root_modal_post_dropdown.spec.ts` (`.filter({hasText})` searches the whole page, not the menu).
+
+---
+
+### 25. Never Snapshot a Locator's State Into a Plain `expect`
+
+`expect(await locator.isVisible())` resolves ONCE and throws away Playwright's auto-retry — the whole point of a web-first assertion. A `{timeout}` passed to `isVisible()`/`isDisabled()` is ignored, which makes the call look bounded while it is not. The same trap applies to an eagerly-evaluated assertion message and to Cypress-style `Cypress.$` branching, which likewise skips retry semantics.
+
+```typescript
+// FLAG — one-shot read; the timeout argument does nothing
+expect(await row.isVisible({timeout: 5000})).toBe(true);
+expect(await row.getAttribute('aria-checked')).toBe('true');
+
+// CORRECT — auto-retrying matchers
+await expect(row).toBeVisible({timeout: pw.duration.four_sec});
+await expect(row).toHaveAttribute('aria-checked', 'true');
+```
+
+FLAG: `expect(await ...isVisible|isHidden|isEnabled|isDisabled|isChecked|textContent|getAttribute|innerText())`, any `{timeout}` passed to a boolean state getter, and an assertion message argument that calls a function eagerly.
+
+**Validated by MM PR review**: #37411 `lib/src/ui/pages/channels.ts` (`isVisible({timeout})` ignores the timeout), #37460 `browse_channels_modal.ts` (`expect(await row.getAttribute(...))` instead of `toHaveAttribute`), #36922 cypress `support/ui/file_preview.js` (`Cypress.$` branching skips retry semantics).
+
+---
+
+### 26. E2E Must Not Depend on a Public Internet Endpoint
+
+A spec that asserts a live third-party site loads fails on every offline runner, every rate-limited CI window, and every time the remote page changes. The dependency is on someone else's uptime, not on the product.
+
+```typescript
+// FLAG — the assertion is on google.com's availability
+await expect(page.getByRole('img', {name: 'https://google.com/logo.png'})).toBeVisible();
+
+// CORRECT — serve the asset from the test's own fixture or route handler
+await page.route('**/logo.png', (route) => route.fulfill({path: fixturePath}));
+```
+
+FLAG: any external hostname in a locator, URL assertion, OpenGraph/embed fixture, or markdown fixture in an E2E spec. Require a local fixture, a `page.route()` stub, or the project's own static server.
+
+**Validated by MM PR review**: #37454 `inline_markdown_images.spec.ts` (live `google.com` reachability assertion — accepted; a BBC OpenGraph URL in the same review).
+
+---
+
+## Corpus checklist (single-sighting patterns)
+
+Single corpus sightings — not yet frequent enough for a full rule, but check for them.
+
+- [ ] Live locator list iterated by index — `nth(i)` in a loop over a list that re-queries and mutates as the loop acts on it (T259)
+- [ ] Test timeout smaller than its own waits — declared `test.setTimeout`/`{timeout}` budget less than the sum of the waits the test performs (T302)
+
+---
+
 ## Anti-Pattern Summary
 
 | Severity | Pattern | Issue | Source |
 |----------|---------|-------|--------|
-| **CRITICAL** | `page.waitForTimeout(N)` without animation-settle comment, or any value > 500ms | "Never wait for timeout in production. Tests that wait for time are inherently flaky." | playwright.dev waitForTimeout |
-| **CRITICAL** | Missing `toBeVisible()` after `goto()` | Race condition | MM convention |
-| **CRITICAL** | `waitForResponse` promise created AFTER the triggering action | Race — response may have already fired | playwright.dev/docs/network |
-| **HIGH** | CSS class selectors for interactions | "CSS and XPath are not recommended as the DOM can often change leading to non resilient tests" | playwright.dev/docs/locators |
-| **HIGH** | `page.$()` / `page.$$()` / `page.$eval()` / `page.$$eval()` | Officially **discouraged**; no auto-wait, no strict mode | playwright.dev/docs/api/class-frame |
-| **HIGH** | `.first()` / `.last()` / `.nth()` without justifying comment | Defeats strict mode; "not recommended… Playwright may click on an element you did not intend" | playwright.dev/docs/locators |
-| **HIGH** | Magic timeout numbers | Use `pw.duration.*` | MM convention |
-| **HIGH** | Missing `// #` and `// *` prefixes | Violates MM convention | MM convention |
-| **MEDIUM** | Chained CSS selectors instead of `locator.filter({hasText, has})` | `.filter()` is the official narrowing API | playwright.dev/docs/locators |
-| **MEDIUM** | `page.waitForURL()` where `expect(page).toHaveURL()` would do | Assertion is auto-retrying and produces better failures | playwright.dev/docs/test-assertions |
-| **MEDIUM** | `Date.now()` / `Math.random()` for IDs | Use `pw.random.id()` | MM convention |
-| **MEDIUM** | Inline selectors instead of page objects | Maintainability | MM convention |
-| **MEDIUM** | Route handlers registered without later `page.unroute()` | Leaked routes pollute later tests | playwright.dev/docs/network |
-| **LOW** | Missing `test.step()` grouping in long tests (> 10 actions) | Reduces report/trace readability | playwright.dev/docs/api/class-test |
-| **LOW** | Missing `@objective` documentation | Reduces clarity | MM convention |
-| **LOW** | Test title doesn't start with verb | Convention violation | MM convention |
+| **MUST_FIX** | `page.waitForTimeout(N)` without animation-settle comment, or any value > 500ms | "Never wait for timeout in production. Tests that wait for time are inherently flaky." | playwright.dev waitForTimeout |
+| **MUST_FIX** | Missing `toBeVisible()` after `goto()` | Race condition | MM convention |
+| **MUST_FIX** | `waitForResponse` promise created AFTER the triggering action | Race — response may have already fired | playwright.dev/docs/network |
+| **MUST_FIX** | Test action bypasses the mechanism the fix changed | A passing test that goes through a different path is not a regression test | Section 21 |
+| **MUST_FIX** | Wait bound to the wrong signal — response instead of applied state, `networkidle`, negative assertion with no settle window, promise awaited after its trigger | The test passes before the behaviour it asserts has happened | Section 23 |
+| **MUST_FIX** | `expect(await locator.isVisible()/getAttribute())`, or `{timeout}` on a boolean state getter | One-shot read discards auto-retry; the timeout argument is ignored | Section 25 |
+| **SHOULD_FIX** | Locator rooted at `page` where a container or page-object root exists | Matches sibling mounted instances; strict-mode flake | Section 24 |
+| **SHOULD_FIX** | External hostname in a spec locator, URL assertion, or embed fixture | Test depends on third-party uptime, fails offline and rate-limited | Section 26 |
+| **SHOULD_FIX** | `{force: true}` without a justifying comment | Bypasses actionability; test passes even after the fix regresses | playwright.dev/docs/actionability |
+| **SHOULD_FIX** | Negative-path test with a broad catch and no status/error id | Any transport or auth failure satisfies the scenario | Section 22 |
+| **SHOULD_FIX** | CSS class selectors for interactions | "CSS and XPath are not recommended as the DOM can often change leading to non resilient tests" | playwright.dev/docs/locators |
+| **SHOULD_FIX** | `page.$()` / `page.$$()` / `page.$eval()` / `page.$$eval()` | Officially **discouraged**; no auto-wait, no strict mode | playwright.dev/docs/api/class-frame |
+| **SHOULD_FIX** | `.first()` / `.last()` / `.nth()` without justifying comment | Defeats strict mode; "not recommended… Playwright may click on an element you did not intend" | playwright.dev/docs/locators |
+| **SHOULD_FIX** | Magic timeout numbers | Use `pw.duration.*` | MM convention |
+| **SHOULD_FIX** | Missing `// #` and `// *` prefixes | Violates MM convention | MM convention |
+| **CONSIDER** | Chained CSS selectors instead of `locator.filter({hasText, has})` | `.filter()` is the official narrowing API | playwright.dev/docs/locators |
+| **CONSIDER** | `page.waitForURL()` where `expect(page).toHaveURL()` would do | Assertion is auto-retrying and produces better failures | playwright.dev/docs/test-assertions |
+| **CONSIDER** | `Date.now()` / `Math.random()` for IDs | Use `pw.random.id()` | MM convention |
+| **CONSIDER** | Inline selectors instead of page objects | Maintainability | MM convention |
+| **CONSIDER** | Route handlers registered without later `page.unroute()` | Leaked routes pollute later tests | playwright.dev/docs/network |
+| **CONSIDER** | Missing `test.step()` grouping in long tests (> 10 actions) | Reduces report/trace readability | playwright.dev/docs/api/class-test |
+| **CONSIDER** | Missing `@objective` documentation | Reduces clarity | MM convention |
+| **CONSIDER** | Test title doesn't start with verb | Convention violation | MM convention |
 
 ---
 
-> **Canonical format**: `~/.claude/agents/_shared/finding-format.md` — use `MUST_FIX` / `SHOULD_FIX` / `PASS` with `Status: PASS | FAIL`.
+> **Canonical format**: `~/.claude/agents/_shared/finding-format.md` — use `MUST_FIX` / `SHOULD_FIX` / `CONSIDER` / `PASS` with `Status: PASS | FAIL`.
 
 ## Review Output Format
 
@@ -326,11 +494,11 @@ Not mandatory, but recommended for tests > ~10 actions long.
 
 ### Summary
 - Violations found: X
-- Severity: CRITICAL/HIGH/MEDIUM/LOW
+- Severity: MUST_FIX/SHOULD_FIX/CONSIDER/PASS
 
 ### Findings
 
-#### CRITICAL: Fixed timeout of {N}ms
+#### MUST_FIX: Fixed timeout of {N}ms
 - **Line {N}**: `await page.waitForTimeout(2000);`
 - **Fix**: Use `await pw.waitUntil()` or explicit element wait
 

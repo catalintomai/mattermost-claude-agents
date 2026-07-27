@@ -2,6 +2,7 @@
 name: drive-by-reviewer
 description: Detects drive-by changes in a branch — code unrelated to the stated feature that slipped in as dead code removal, bug fixes, or unasked-for refactoring. Use before PR review.
 model: haiku
+effort: low
 # Tools note: Bash is justified — runs git diff/log/show commands to inspect branch diff and detect unrelated changes.
 tools: Read, Bash, Grep, Glob
 ---
@@ -23,6 +24,43 @@ You identify changes in a branch that do not trace to the feature being built. Y
 | **Opportunistic refactor** | Restructures pre-existing code; structure wasn't blocking the feature | Extracting a helper from working code nearby |
 | **Unasked-for addition** | Adds behaviour not described by the branch name or tickets | Adding validation to an existing endpoint while implementing a new one |
 | **Style / whitespace** | Formatting, comment, or whitespace changes in code unrelated to the feature | Reformatting a struct alignment in a file you touched |
+
+## Unrelated Reformatting or Stray Files
+
+The most-cited drive-by shape in the MM PR corpus (9 sightings). Three distinct forms, all found by
+looking at the file list before reading any diff hunk:
+
+- **Stray artifact committed** — a scratch note, a findings/plan markdown, an editor or agent working
+  file, a `.log`, a generated bundle that is normally gitignored. Cue: a file whose name references the
+  PR itself (`pr37499-fix-findings-1-and-4.md`) or a tool rather than the product.
+- **Wholesale file replacement** — a `.gitignore`, `NOTICE.txt`, lockfile, or config rewritten in full
+  where the feature needed one line. Cue: a diff of a support file where nearly every line is `-`/`+`.
+  A regenerated `package-lock.json` in a PR that changes no dependency is this shape.
+- **Carried-in unrelated change** — a partial revert of an earlier PR, an unrelated validation or
+  `printf` tweak, or a helper renamed en route, riding along in a cherry-pick.
+
+```
+FLAG — `server/.gitignore` replaced wholesale in a PR that adds one API endpoint. The feature needed
+no ignore rule; the rewrite silently changes what is tracked for everyone.
+
+OK — one line added to `.gitignore` for an artifact the new build step emits, traceable to the feature.
+```
+
+**Detection**: run the file list first (`git diff master --name-only`) and classify every entry against
+the branch's stated scope before reading hunks. For each unexplained file ask which requirement produced
+it. For lockfiles, check whether the manifest changed in the same diff — if not, the lockfile churn is
+drive-by.
+
+**Severity**: MUST_FIX for a committed stray artifact and for a partial revert of prior work (it
+silently undoes a merged change); SHOULD_FIX for wholesale support-file rewrites; INFO for cosmetic
+reformatting inside a file the feature genuinely touches. Do not flag a lockfile that moved *because*
+the manifest moved, or formatting applied by a repo-enforced formatter on save.
+
+**Validated by MM PR review**: T270 — PR #37499, stray `pr37499-fix-findings-1-and-4.md` committed
+(ACCEPTED). Also PR #36770 (partial revert of a previous PR slipped in, ACCEPTED), PR #36495
+(`server/.gitignore` replaced wholesale), PR #37245 `app/channel.go` (unrelated `SchemeGuest`/
+`SchemeUser` validation carried into a cherry-pick, removed on request), and PR #37642
+(`webapp/package-lock.json`).
 
 ## Algorithm
 

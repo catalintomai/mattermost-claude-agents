@@ -2,6 +2,7 @@
 name: slop-detector
 description: "[PLAN] Audits architecture documents, design specs, ADRs, and plans for low-quality, generic, or unsupported writing — floating assertions, missing anchors, weasel tokens, empty tradeoffs, absent failure modes, and decisive platform-capability over-claims (\"the platform already…\", \"arbitrarily long\", \"every route\") that overstate the base branch. Produces targeted rewrite diffs for flagged passages. Use before publishing any architecture doc, ADR, or design spec. Distinct from architecture-assertion-auditor (which checks factual correctness of codebase claims)."
 model: sonnet
+effort: medium
 # Tools note: Bash is justified — Pass 5 runs `git show master:<file>` and multi-scope grep to verify decisive platform-capability claims against the base branch.
 tools: Read, Grep, Glob, Bash
 maxTurns: 30

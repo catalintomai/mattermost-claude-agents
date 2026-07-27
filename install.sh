@@ -73,13 +73,15 @@ install_project() {
 }
 
 if [[ "$SCOPE" == "global" || "$SCOPE" == "all" ]]; then
-  copy_dir "$REPO_DIR/global/agents" "$GLOBAL_DIR/agents" "Global agents"
-  copy_dir "$REPO_DIR/global/skills" "$GLOBAL_DIR/skills" "Global skills"
-  copy_dir "$REPO_DIR/global/docs"   "$GLOBAL_DIR/docs"   "Global docs"
+  copy_dir "$REPO_DIR/global/agents"          "$GLOBAL_DIR/agents"          "Global agents"
+  copy_dir "$REPO_DIR/global/agents-disabled" "$GLOBAL_DIR/agents-disabled" "Global agents (disabled)"
+  copy_dir "$REPO_DIR/global/skills"          "$GLOBAL_DIR/skills"          "Global skills"
+  copy_dir "$REPO_DIR/global/docs"            "$GLOBAL_DIR/docs"            "Global docs"
 fi
 
 if [[ "$SCOPE" == "mattermost" || "$SCOPE" == "all" ]]; then
-  copy_dir "$REPO_DIR/mattermost/agents" "$MM_DIR/agents" "Mattermost-suite agents"
+  copy_dir "$REPO_DIR/mattermost/agents"          "$MM_DIR/agents"          "Mattermost-suite agents"
+  copy_dir "$REPO_DIR/mattermost/agents-disabled" "$MM_DIR/agents-disabled" "Mattermost-suite agents (disabled)"
 fi
 
 if [[ "$SCOPE" == "project" ]]; then

@@ -2,6 +2,7 @@
 name: config-expert
 description: Mattermost configuration expert. Use when adding, modifying, or reviewing server settings, feature flags, environment variables, config.json, and plugin settings management.
 model: sonnet
+effort: medium
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -79,6 +80,47 @@ a.srv.AddConfigListener(func(old, new *model.Config) {
 ## Plugin Configuration
 
 Plugin settings defined in `plugin.json` `settings_schema`. Read via `p.API.LoadPluginConfiguration(&cfg)`. Handle changes in `OnConfigurationChange()` with proper locking (`configurationLock`).
+
+## Initialization Order Wrong for a Captured Dependency
+
+A component reads a config value, feature flag, or license state once at construction and holds the
+snapshot for its lifetime, while the value it captured is set — or changed — after that point. The
+component then runs forever on a stale answer, and toggling the setting appears to do nothing.
+
+Three recurring shapes:
+- A store, pool, or worker gated on a flag read during `Store()`/`NewServer()` startup, before config
+  listeners are registered or before the flag's real value is loaded.
+- Test or fixture setup that mutates config *after* the `Setup(...)` that already built the server from
+  it, so the change never reaches the component under test.
+- A closure capturing `*cfg.Section.Field` by value where the surrounding code assumes it re-reads.
+
+```go
+// BAD: the pool is sized from the flag value at startup; a later config change is never observed
+func New(cfg *model.Config) *Store {
+    if !cfg.FeatureFlags.NewDelivery { return nil }
+```
+```go
+// GOOD: read through the config accessor at use time, or re-register on change
+func (s *Store) enabled() bool {
+    return s.cfgFn().FeatureFlags.NewDelivery
+}
+```
+
+**Detection**: for every config/flag read the diff adds, ask when it executes relative to (a) config
+load, (b) `SetDefaults`, (c) listener registration, and (d) the first use of the value. A read inside a
+constructor whose result is stored in a field is the cue. Severity: SHOULD_FIX; MUST_FIX when the stale
+snapshot disables a kill switch or leaves a subsystem running after it was turned off. A deliberate
+startup-only setting (one documented as requiring restart) is not a finding — say which it is.
+
+**Validated by MM PR review**: T239 — PR #37253 `store/sqlstore/store.go` — pool gated on a startup flag
+snapshot (rejected as intended-by-design; state the restart contract when dismissing). Also PR #36934
+`api4/user_test.go` (`SessionAttributes` set after `Setup(...)`, so the server never sees it).
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] Config validation wired at startup only, so a later change bypasses it (T88, PR #34206)
+- [ ] Config key loses its namespace when flattened, colliding with a same-named key from another section (T101, PR #36025)
+- [ ] Unconditional override (hardcoded `true`) beats the persisted disable state, removing the operator kill switch (T286, PR #37034)
 
 ## Anti-Slop Guidance (Do NOT Flag)
 

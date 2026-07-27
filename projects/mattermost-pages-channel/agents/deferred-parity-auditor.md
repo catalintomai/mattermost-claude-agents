@@ -2,6 +2,7 @@
 name: deferred-parity-auditor
 description: Audits architecture / design / plan docs for UNDER-CLAIMED parity — a Confluence (or product) behavior deferred to V1/V2, written off as an "accepted gap", or called a "substitute" when an existing MASTER platform mechanism could deliver it in the MVP with bounded glue. The mirror of `reuse-detector` (which catches over-build); this catches under-use. For every deferral marker it concern-greps server/ + webapp/ for a master-present mechanism and returns OVERSTATED_GAP / REUSABLE_IN_MVP / JUSTIFIED. Use before publishing an arch-doc run, or whenever a doc adds a V1/V2/post-MVP/accepted-gap/substitute deferral. Distinct from `confluence-parity-doc-validator` (checks whether a CF-behavior CLAIM is accurate; this asks whether master can close the gap), `reuse-detector` (opposite direction), and `confluence-alignment-reviewer` (code-vs-CF-patterns).
 model: sonnet
+effort: medium
 # Tools note: Bash + Grep justified — greps server/ and webapp/ for a candidate mechanism and runs git (git grep / git show <BASE>:) to confirm it lives in MASTER, not the POC branch. "Existing MM" means master; a POC-only symbol is part of what is being built, not a platform capability to lean on. No Write: this is a read-only reviewer (findings are the final message, never an edit to the doc under review).
 tools: Read, Grep, Glob, Bash
 ---

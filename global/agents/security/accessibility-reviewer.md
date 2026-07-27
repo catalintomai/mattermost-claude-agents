@@ -2,6 +2,7 @@
 name: accessibility-reviewer
 description: Accessibility expert ensuring digital products are usable by everyone. Use for WCAG compliance, screen reader testing, keyboard navigation, and inclusive design. Use when reviewing UI components, forms, modals, or navigation for WCAG 2.1 AA compliance and screen reader support.
 model: sonnet
+effort: medium
 # Tools note: Bash is used for running automated accessibility scanning tools (axe-core CLI, Lighthouse, WAVE) against pages and components.
 tools: Read, Write, Bash, Grep, Glob
 ---
@@ -237,6 +238,120 @@ These patterns were extracted by AI analysis of PR review comments from mattermo
 - **Why**: Accessibility attributes ensure usability for assistive technologies
 - **Detection**: Custom interactive components without `role`, `aria-label`, or `aria-*` attributes
 - **MM context**: Use MM's `GenericModal`, `Menu`, `WithTooltip`, `A11yController` components which handle a11y
+
+### label_in_name (WCAG 2.5.3 — validated by MM PR review)
+- **Rule**: When an element has visible text, its accessible name must CONTAIN that visible text. An `aria-label` that says something different overrides the visible text rather than supplementing it.
+- **Why**: Voice-control users speak what they see ("click Discoverable description") and the command fails when the accessible name is different text. Screen-reader users hear the override instead of — or in addition to — the visible label, so a nearby heading gets announced twice and the actual text is never read.
+- **Detection**: For every `aria-label` (and `aria-labelledby` target) added or changed in the diff, locate the element's rendered text — its own children, or the control it labels via `htmlFor`. If the visible text is non-empty and the accessible name does not contain it, flag. The high-yield signal is two sibling identifiers from the same copy pair (`fooTitle` / `fooDescription`) where the label uses one and the body renders the other.
+- **Example violation**:
+  ```tsx
+  // WRONG — visible text is the description, accessible name is the title
+  <label aria-label={discoverableTitle}>{discoverableDescription}</label>
+
+  // CORRECT — no aria-label; the visible text IS the accessible name
+  <label>{discoverableDescription}</label>
+  ```
+- **Fix**: Remove the `aria-label` and let the visible text be the name, or extend it so the visible string is a substring of the accessible name.
+- **Reference**: PR #37078 (abhijit-singh) on `channel_settings_info_tab.tsx`: "The visible text is `{discoverableDescription}`, but `aria-label` is `discoverableTitle`" — the same copy-paste mismatch was accepted twice in the one PR (also `new_channel_modal.tsx`), so check every sibling instance once you find one.
+
+### interactive_control_from_the_wrong_element (validated by MM PR review, T220)
+- **Rule**: Every interactive control must be built from the element whose native semantics match its behavior. `keyboard_accessibility` above covers the bare `<div onClick>`; this rule covers the four remaining shapes, all of which pass a naive "has a role/tabIndex" check.
+- **Detection**: (1) `role='button'` + `tabIndex={0}` with **no** `onKeyDown`/`onKeyUp` — the role promises Enter/Space that nothing implements; (2) `<a>` used as a button (no `href`, or an `href` whose click handler calls `preventDefault`) — no Space activation, no correct role; (3) `<label>` carrying display text it does not label, or a `<label>` with no `htmlFor`/wrapped control; (4) a `<button>` inside a form with no `type` attribute, which defaults to `type="submit"` and submits on Enter from any field.
+- **Example violation**:
+  ```tsx
+  // WRONG — role without the behavior it promises
+  <span role='button' tabIndex={0} onClick={openMenu}>{label}</span>
+
+  // WRONG — label used as display text, bound to nothing
+  <label>{channelPurpose}</label>
+
+  // CORRECT
+  <button type='button' onClick={openMenu}>{label}</button>
+  <span>{channelPurpose}</span>
+  ```
+- **Not a finding**: a `<button>` outside any `<form>` with no `type` (nothing to submit); an `<a href>` that genuinely navigates; MM's `Menu`/`GenericModal` trigger props.
+- **Severity**: `MUST_FIX` for (1) and (2) — the control is unreachable by keyboard. `SHOULD_FIX` for (3) and (4).
+- **Reference**: PR #36490 `channel_settings_configuration_tab.tsx` (`<label>` as display text), `new_channel_modal.tsx` (labels not bound to controls), `color_input.tsx` (clickable `<span>`); PR #36952 and #31173 (`role='button'` + `tabIndex` with no key handler); PR #36605 (error-state icon loses button semantics); PR #36922 (download link attributes).
+
+### state_conveyed_visually_only (validated by MM PR review, T222)
+- **Rule**: Any state a sighted user reads from pixels — validity, selection, active/pressed, urgency, copied-vs-not, loading — must also exist in the accessible layer, and it must stay in sync when it changes.
+- **Detection**: for each state variable the diff adds or renders, ask what a screen reader receives. Four recurring gaps: an invalid field styled red with no `aria-invalid` and no `aria-describedby` pointing at the message; a validation or async error rendered into no live region (`role="alert"` / `aria-live`); a toggle or tab whose active state is a CSS class with no `aria-pressed`/`aria-selected`/`aria-current`; and an accessible name that is **static** while the visual label changes (a copy button that becomes "Copied!" visually but keeps `aria-label="Copy"`). An error *fallback* render that drops the labels the normal render supplies is the same defect.
+- **Example violation**:
+  ```tsx
+  // WRONG — state is class-only, and the name never updates
+  <button className={copied ? 'copied' : ''} aria-label='Copy'>
+      {copied ? <CheckIcon/> : <CopyIcon/>}
+  </button>
+
+  // CORRECT
+  <button aria-label={copied ? 'Copied' : 'Copy'}>
+      {copied ? <CheckIcon/> : <CopyIcon/>}
+  </button>
+  ```
+- **Also in scope**: a shipped image or diagram with a placeholder `alt="image"`, and a page or dialog rendered with no accessible title at all.
+- **Severity**: `MUST_FIX` when the state is an error or a required-field validity; `SHOULD_FIX` otherwise.
+- **Reference**: PR #36595 (invalid Name state visual-only, no `aria-invalid`); PR #31173 (copy button label not synced with copied state); PR #37260 `app_bar_plugin_component.tsx` (labels lost in the error fallback); PR #37511 (validation error with no live region); PR #37362 `platform_icons.tsx` (active state); PR #37433 (architecture diagrams all `alt="image"`).
+
+### dom_id_keyed_only_by_the_data_id (validated by MM PR review, T214)
+- **Rule**: A DOM `id` must be unique per rendered instance, not per entity. `aria-labelledby`, `aria-describedby`, `htmlFor`, and `aria-controls` all resolve to the *first* matching id, so a duplicate silently points assistive technology at the wrong node.
+- **Detection**: any `id=` on a component that can render more than once — a list row, a menu per row, a header shown in two panes, a tab counter reused across tabs. Two shapes: a **constant** id string inside a repeated component, and an id built only from the entity id (`id={`row-${user.id}`}`), which collides when the same entity appears in two panes at once. Prefix with the instance/pane scope, or derive from `useId()`.
+- **Example violation**:
+  ```tsx
+  // WRONG — one id per entity, but the same entity renders in both panes
+  <span id={`tab-counter-badge`}>{count}</span>
+
+  // CORRECT
+  <span id={`${tabId}-counter-badge`}>{count}</span>
+  ```
+- **Severity**: `SHOULD_FIX`; `MUST_FIX` when the duplicated id is the target of an `aria-labelledby`/`htmlFor` on a form control.
+- **Reference**: PR #37315 `header_footer_route/header.tsx` (duplicate `header-logo-link`) and `drafts_and_schedule_posts_tabs.tsx` (`tab-counter-badge`) — both accepted; PR #36518 `board_attributes_dot_menu.tsx` + `board_attributes_type_menu.tsx` (constant menu `id` duplicated per row); PR #31173 `image_gallery.tsx` (static `imageCountId`).
+
+### container_handler_fires_on_descendant_events (validated by MM PR review, T108)
+- **Rule**: A key or pointer handler on a container fires for events that bubbled up from its interactive descendants. A row-level Enter/Space handler therefore double-activates when the user activates a button inside the row, and a container `dragleave`/`mouseleave` fires every time the pointer crosses an internal element boundary.
+- **Detection**: a handler on a wrapper element (row, card, drop zone) whose subtree contains buttons, links, inputs, or nested spans. Check that the handler either scopes itself (`if (e.target !== e.currentTarget) return;` for leave-type events, `e.currentTarget.contains(...)` for drag) or that the descendants call `stopPropagation`. For drag/leave specifically, an exact `e.target === e.currentTarget` test is the fix for *leave* events but the wrong fix for key events, where the correct test is "did this originate on an interactive descendant".
+- **Example violation**:
+  ```tsx
+  // WRONG — Enter on the inner delete button also triggers row selection
+  <div onKeyDown={(e) => isKeyPressed(e, KeyCodes.ENTER) && selectRow()}>
+      <button onClick={remove}>…</button>
+  </div>
+
+  // CORRECT
+  <div onKeyDown={(e) => {
+      if (e.target !== e.currentTarget) {
+          return;
+      }
+      if (isKeyPressed(e, KeyCodes.ENTER)) {
+          selectRow();
+      }
+  }}>
+  ```
+- **Not a finding**: intentional event delegation where the container inspects `e.target` to dispatch per-child, and containers whose subtree has no interactive or nested elements.
+- **Severity**: `SHOULD_FIX`.
+- **Reference**: PR #36472 `picker_row.tsx` (row handler catches descendant Enter/Space — accepted); PR #37569 `plugin_management.tsx` (`dragleave` fires between nested spans — accepted); PR #36518 `admin_console/list_table/list_table.tsx` (drag-handle click bubbles to row `onClick`). PR #33401 `thread_item.tsx` was **rejected** for proposing an exact `e.target` check that then misses legitimate descendant events — pick the scoping test that matches the event kind.
+
+### affordance_unavailable_to_keyboard_or_touch (validated by MM PR review, T221)
+- **Rule**: An affordance revealed only by hover, or a tooltip suppressed in exactly the state the user needs it, does not exist for keyboard and touch users.
+- **Detection**: CSS where the only rule making a control visible or interactive is `:hover` on an ancestor, with no `:focus-within` / `:focus-visible` companion; a control that is only reachable after a `mouseenter`; a `disabled` element wrapped in a tooltip (a native `disabled` element fires no pointer events, so the tooltip explaining *why* it is disabled never shows); and a popover opened from the keyboard whose content never receives focus.
+- **Example violation**:
+  ```scss
+  // WRONG — the utility buttons are unreachable without a pointer
+  .post__utility-buttons { opacity: 0; }
+  .post:hover .post__utility-buttons { opacity: 1; }
+
+  // CORRECT
+  .post:hover .post__utility-buttons,
+  .post:focus-within .post__utility-buttons { opacity: 1; }
+  ```
+- **Severity**: `MUST_FIX` when the hidden affordance is the only path to an action; `SHOULD_FIX` for a disabled-state tooltip or a missing focus move.
+- **Reference**: PR #31173 `_post.scss` (utility buttons revealed on `:hover` only — accepted); PR #35935 (disabled button hides its tooltip).
+
+## Corpus checklist (single-sighting patterns)
+
+Patterns seen once or twice in MM PR review. Check them, but weight a hit as a candidate, not a rule.
+
+- [ ] A11y scan or ARIA snapshot scoped to a container that excludes portaled DOM, so the modal/menu under test is never scanned (T85)
+- [ ] `autoFocus` on the destructive action in a confirm dialog (Delete/Leave), so Enter immediately confirms it (T318)
 
 ## Output Format
 

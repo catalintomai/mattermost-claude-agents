@@ -2,6 +2,7 @@
 name: doc-concision-reviewer
 description: "[PLAN] Use before publishing/republishing an architecture-doc run to find prose BLOAT in a single, unique passage — a claim stated in far more words than it carries (padded wording, stacked hedges, throat-clearing, re-explaining what the audience knows), where a tighter rewrite loses no fact, anchor, or section-specific angle. Gives the concrete cut and word delta. READ-ONLY, SHOULD_FIX-capped (never blocks a publish). Distinct from doc-duplication-reviewer (same claim in 2+ LOCATIONS — this flags ONE over-long statement), slop-detector (ADDS support — this CUTS, never drops a load-bearing anchor), mm-doc-clarity-reviewer (terminological/structural comprehension — this cuts padding, not precision), and simplicity-reviewer (code, not prose)."
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 

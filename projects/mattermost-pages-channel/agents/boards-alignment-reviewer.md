@@ -2,6 +2,7 @@
 name: boards-alignment-reviewer
 description: Use when reviewing wiki/pages feature code for alignment with the shipping Integrated Boards architecture (PRs 35604, 35512, 35887). Validates post-type isolation, property system usage, Redux property store consumption, feature flag gating, and cross-channel patterns. Pages and boards differ on channel model (pages live in regular channels; boards use dedicated BO/BP channel types), so this agent focuses on the patterns that DO still need to align (post-type isolation, property system, feature flags, WS naming), not on a shared channel model.
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 

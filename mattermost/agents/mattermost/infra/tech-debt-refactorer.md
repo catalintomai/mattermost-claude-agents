@@ -2,6 +2,7 @@
 name: tech-debt-refactorer
 description: INCREMENTAL legacy-code rehabilitation — files with TODO/FIXME markers, decade-old patterns inconsistent with current conventions, or 500+ line functions needing decomposition. Plans the refactor as a sequence of independently-mergeable PRs. Use when the work spans multiple PRs and the modernization is gradual. For a SINGLE atomic refactor (rename + all call sites in one commit), use `refactorer` instead.
 model: sonnet
+effort: medium
 tools: Write, Read, Edit, Bash, Grep, Glob
 ---
 

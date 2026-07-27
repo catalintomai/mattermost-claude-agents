@@ -2,6 +2,7 @@
 name: external-claims-auditor
 description: Verifies claims about external products (Confluence, Notion, SharePoint, etc.) in architecture docs and plans by searching official vendor documentation. Catches hallucinated vendor behavior, fabricated deprecation reasons, and unsourced industry trend assertions. Use when a plan or design doc references external product behavior, competitor architecture, or industry trends to justify a design choice. Also runs in BUILD mode to construct a verified single-product capability inventory from vendor docs, and in STANDARDS mode to map a regulatory regime or accessibility standard (GDPR, HIPAA, FedRAMP, ITAR, SEC 17a-4/FINRA, SOC 2, Section 508/EN 301 549) to the product capabilities it gates, anchored to the standard's primary-source text — see the Modes section.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob, WebSearch, WebFetch
 ---
 

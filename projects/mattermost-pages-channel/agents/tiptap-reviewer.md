@@ -2,6 +2,7 @@
 name: tiptap-reviewer
 description: Use when reviewing TipTap editor changes in the Frontend parallel group. Covers extensions and Suggestion plugin implementations for memory leaks, keyboard traps, accessibility, and React integration correctness.
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 

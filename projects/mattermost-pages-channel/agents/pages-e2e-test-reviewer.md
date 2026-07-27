@@ -2,6 +2,7 @@
 name: pages-e2e-test-reviewer
 description: Use when reviewing pages E2E test changes. Enforces test_helpers.ts adoption; run AFTER playwright-test-reviewer for project-specific helper alignment.
 model: haiku
+effort: low
 tools: Read, Grep, Glob
 ---
 

@@ -2,6 +2,7 @@
 name: structural-health-reviewer
 description: Reviews codebase structure for accumulated fragility — shotgun surgery, tangled dependencies, god types, orphaned indirection, and responsibility scatter. Use after refactoring rounds, before major features, or when routine changes require touching many unrelated files. Works on any language.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 

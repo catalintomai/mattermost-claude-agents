@@ -2,6 +2,7 @@
 name: store-reviewer
 description: Store layer code reviewer for Mattermost. Ensures store code follows established patterns for database operations. Use when reviewing code changes that touch server/channels/store/ or database query logic.
 model: sonnet
+effort: medium
 # Tools note: Bash is justified — this agent runs grep commands to verify store method cleanup across
 # interface, mocks, retrylayer, and timerlayer after method removal (see "Removing Store Methods" section).
 tools: Read, Write, Grep, Glob, Bash
@@ -298,6 +299,31 @@ query := s.getQueryBuilder().Select("*").From("Posts").
 query := "SELECT * FROM Posts WHERE ChannelId = ?"  // Missing page filter!
 ```
 
+### 12. No Explicit `db:` Tags on Model Structs (CRITICAL)
+
+Mattermost models rely on sqlx's **default mapper** (which lowercases Go field names) to map struct fields to PostgreSQL columns. PostgreSQL returns column names in lowercase regardless of how they were defined in DDL.
+
+**Never** add explicit `db:"ColName"` tags — sqlx uses the tag value as-is for matching, so `db:"SourceId"` won't match the lowercase `sourceid` returned by PostgreSQL. This causes silent query failures.
+
+```go
+// WRONG: Explicit db tags cause sqlx mapping failures with PostgreSQL
+type MyModel struct {
+    SourceID string `json:"source_id" db:"SourceId"`  // BREAKS: "SourceId" ≠ "sourceid"
+}
+
+// CORRECT: No db tags — sqlx lowercases SourceID → sourceid → matches column
+type MyModel struct {
+    SourceID string `json:"source_id"`
+}
+
+// ALSO CORRECT: db:"-" to exclude a field from mapping
+type MyModel struct {
+    Computed string `db:"-"`
+}
+```
+
+**Only exception**: `db:"-"` to explicitly exclude a field from database mapping.
+
 ### 13. Pagination at the SQL Level (NOT the App Layer)
 
 Store list methods that return collections must accept `page, perPage int` (or `offset, limit int`) and apply them via squirrel `.Limit().Offset()` before executing the query. The app layer must **never** paginate by slicing a store result.
@@ -392,30 +418,97 @@ grep -r "MethodName" server/
 13. **UNION via sq.Expr with builder args** - `sq.Expr("(?) UNION (?)", builder1, builder2)` produces independent `$1,$2...` sequences per builder; PostgreSQL rejects the combined query with a parameter count mismatch. Use EXISTS subqueries in a single builder, or write raw SQL with a flat params slice. See `db-reference.md` § "UNION Queries".
 14. **App-layer pagination (slicing a store result)** - Store list methods must accept `page/perPage` and apply `.Limit().Offset()` in SQL. A store method with no limit parameter and a hardcoded safety cap is not paginated. App layer slicing (`order[offset:end]`) is always wrong.
 
-### 12. No Explicit `db:` Tags on Model Structs (CRITICAL)
+### 14. Capped or Filtered Page Treated as the Whole Set (High — validated by MM PR review)
 
-Mattermost models rely on sqlx's **default mapper** (which lowercases Go field names) to map struct fields to PostgreSQL columns. PostgreSQL returns column names in lowercase regardless of how they were defined in DDL.
-
-**Never** add explicit `db:"ColName"` tags — sqlx uses the tag value as-is for matching, so `db:"SourceId"` won't match the lowercase `sourceid` returned by PostgreSQL. This causes silent query failures.
+A query with a `LIMIT`, a fixed batch cap, or a post-query filter whose result is then used for a decision about the entire set: a total count, an "all done" return, an ownership check, or a membership test. The cap makes the answer silently wrong once the real set exceeds it, and the failure mode is a success return, not an error.
 
 ```go
-// WRONG: Explicit db tags cause sqlx mapping failures with PostgreSQL
-type MyModel struct {
-    SourceID string `json:"source_id" db:"SourceId"`  // BREAKS: "SourceId" ≠ "sourceid"
-}
+// BAD: 1,000-row cap, then reports success as if every session was revoked
+sessions, err := s.GetSessionsForUser(userID, 1000)
+...
+return nil
 
-// CORRECT: No db tags — sqlx lowercases SourceID → sourceid → matches column
-type MyModel struct {
-    SourceID string `json:"source_id"`
-}
-
-// ALSO CORRECT: db:"-" to exclude a field from mapping
-type MyModel struct {
-    Computed string `db:"-"`
+// GOOD: loop the cursor until the page comes back short of the limit
+for {
+    batch, err := s.GetSessionsForUser(userID, model.SessionBatchSize, offset)
+    if err != nil { return err }
+    ...
+    if len(batch) < model.SessionBatchSize { break }
+    offset += len(batch)
 }
 ```
 
-**Only exception**: `db:"-"` to explicitly exclude a field from database mapping.
+**Detection**: for every `LIMIT`/`PerPage`/numeric cap added in the diff, trace the result to its consumer. If the consumer computes a total, returns success, decides authorization, or reports "not found", the cap is a correctness bug and not a performance knob. A post-query filter applied after the `LIMIT` corrupts the total the same way — the count reflects survivors on one page. Flag as `store:CAPPED_SET` — MUST_FIX when the decision is authorization or completion.
+
+**Reference**: PR #37030 `session.go:703` — the 1,000-batch cap returns success (accepted); PR #36881 `integration_action.go` — a 256-ID scan cap skips the ownership check; PR #35934 — field lookup scans only page 0 (accepted); PR #35353 `app/team_access_control.go` — post-DB filtering makes `total` reflect only this page's survivors.
+
+### 15. Soft-Deleted Rows Mishandled (High — validated by MM PR review)
+
+A new query, join, or count that omits the `DeleteAt = 0` predicate its siblings carry, or a mutating path that accepts a row the corresponding read path filters out. Section 10 gives the pattern; this is the review cue for where it goes wrong — asymmetry between paths, not an isolated missing clause.
+
+```go
+// BAD: the wipe target query returns expired rows the read path already excludes
+query := s.getQueryBuilder().Select("Id").From("Sessions").Where(sq.Eq{"UserId": userID})
+
+// GOOD: match the sibling read path's predicate
+query := s.getQueryBuilder().Select("Id").From("Sessions").
+    Where(sq.Eq{"UserId": userID}).
+    Where(sq.Gt{"ExpiresAt": model.GetMillis()})
+```
+
+**Detection**: for each new query on a soft-deleting table, grep the file's other queries on the same table and diff the `WHERE` clauses — a missing `DeleteAt`/`ExpiresAt` predicate that every sibling has is the finding. Then check the other direction: if a mutating handler now accepts an id, confirm the read path would not 404 it. Joins and `COUNT` are the usual carriers, since the deleted-row filter is easy to apply to the driving table only. Flag as `store:SOFT_DELETE_LEAK`.
+
+**Reference**: PR #31173 — archived files enter the gallery path (accepted); PR #35752 — archived images in the pan path; PR #36945 `sqlstore/session_store.go` — expired sessions returned as wipe targets, push sent to an already-revoked session (accepted).
+
+### 16. Result Ordering Assumed but Not Guaranteed (High — validated by MM PR review)
+
+A caller indexes into query results positionally, zips them against the requested ids, or presents them as ordered — while the query has no `ORDER BY`. Postgres returns rows in whatever order the plan produces, so this passes in test and reorders in production once the plan changes.
+
+```go
+// BAD: files zipped positionally against post.FileIds
+infos, err := s.FileInfo().GetByIds(post.FileIds)
+for i, id := range post.FileIds { m[id] = infos[i] }
+
+// GOOD: key by id, or give the query a deterministic ORDER BY
+for _, info := range infos { m[info.Id] = info }
+```
+
+**Detection**: for every `GetBy*Ids`/multi-row getter in the diff, check whether the caller uses the index or the row's own key. If it uses the index, the store method needs an explicit `ORDER BY` — and the mapping should be keyed anyway, since a missing row shifts every later index. Separately, flag any new store method whose consumer or test asserts an order the SQL does not state. Flag as `store:UNORDERED_RESULT`.
+
+**Reference**: PR #36339 `app/post.go` — `GetByIds` is not order-preserving versus `FileIds` (accepted); PR #36836 `sqlstore/property_field_store.go` — `GetForGroup` has no `ORDER BY`; PR #36180 — multiselect order lost through a map.
+
+### 17. Non-Unique Cursor or Watermark Mishandled (High — validated by MM PR review)
+
+Keyset pagination or an incremental sync whose cursor column is not unique. Rows sharing a timestamp straddle the page boundary: a strict `>` skips the ties, a non-strict `>=` reprocesses them forever, and a `DESC` sort with no tie-breaker orders the tied rows differently on each page fetch.
+
+```go
+// BAD: CreateAt is not unique — ties are dropped or duplicated across pages
+Where(sq.Gt{"CreateAt": cursor}).OrderBy("CreateAt DESC")
+
+// GOOD: tie-break on the primary key and carry both halves in the cursor
+Where(sq.Or{
+    sq.Gt{"CreateAt": cursor.CreateAt},
+    sq.And{sq.Eq{"CreateAt": cursor.CreateAt}, sq.Gt{"Id": cursor.ID}},
+}).OrderBy("CreateAt DESC, Id DESC")
+```
+
+**Detection**: for every cursor, watermark, or `since` parameter in the diff, ask whether its column has a unique index. If not, the query needs a tie-breaker in both the `ORDER BY` and the comparison. For sync watermarks specifically, check the comparison operator against how the watermark is advanced: `>` with a watermark set to the last row's timestamp drops every tied row. Also confirm the loop can advance — a page-0 fetch whose offset never increments spins. Flag as `store:NONUNIQUE_CURSOR`.
+
+**Reference**: PR #36539 `channel_join_request_store.go` — `CreateAt DESC` with no tie-breaker (accepted); PR #36782 `property_field_store.go` — `since` must be `>=` to catch tied `UpdateAt` (accepted); PR #36580 — a page-0 loop that never advances.
+
+## Corpus checklist (single-sighting patterns)
+
+Seen once or twice in the MM PR corpus — check when the diff shape matches, but do not treat as a recurring rule.
+
+- [ ] Post-filter changes result cardinality — an exact-ID getter with `SELECT DISTINCT` or a post-query filter silently returns fewer rows than requested, breaking batch and count callers (T202, PR #37030)
+- [ ] Terminal-state write inserts instead of transitioning — each failure creates a new row rather than updating the existing one (T235, PR #36166)
+- [ ] Upsert conflict target narrower than the constraint — `ON CONFLICT (a, b)` against a `UNIQUE(a, b, c)` index, which fails at runtime (T319, PRs #37053/#36956)
+- [ ] Generated or decorator store layer not regenerated — a new interface method missing from the retry/timer wrapper, so calls bypass it via embedding; or the generated file hand-edited (T320, PRs #37068/#37019)
+- [ ] Windowed query lacks the boundary row for a delta — `LIMIT n` where the oldest row needs its predecessor to diff (T126, PR unrecorded)
+- [ ] Raw SQL string interpolation — a parameter concatenated into the query text rather than bound (T180, PR #35639)
+- [ ] Context cancelled before its resource is consumed — `defer cancel()` on a call that returns live rows, so iteration fails with `context canceled` (T279, PR #36521)
+- [ ] Offset pagination over a self-mutating result set — processed rows leave the filter, shifting later rows below the offset and skipping them (T294, PR #37301)
+- [ ] LIKE pattern unescaped — a user term interpolated into `%…%` without escaping literal `%`/`_` (T299, PR #37387)
 
 ## What Store Should NOT Do
 
@@ -424,6 +517,10 @@ type MyModel struct {
 - **NO AppError creation** - Return plain errors
 - **NO caching** - That's app layer
 - **NO WebSocket events** - That's app layer
+
+## Anti-Slop (Do NOT Flag)
+
+- **Do not flag a missing compound index without a ROI check.** Before recommending an index, answer: (1) how many rows does the existing narrowest index leave after its scan? (2) how often does the query run? (3) how many writes hit this table per unit time? For a **live-state table** — one with a single current row per entity (e.g., one draft per `(UserId, PageId)`, deleted on publish/discard) — the per-key row count is bounded by the number of concurrent users (typically 1–10). After the existing narrow index scan, filtering those rows in memory is essentially free. The write overhead of maintaining a compound index (paid on every INSERT/UPDATE) far outweighs the read gain. Do not flag this as SHOULD_FIX. Only recommend a new index when: (a) the existing index leaves hundreds or more rows to filter in memory, AND (b) the query runs frequently without a rate limiter, AND (c) the write frequency is not unusually high. Canonical non-example: `DOCS_Draft.GetPageActiveEditors` with `idx_docs_draft_pageid(PageId)` is sufficient — the existing index narrows to O(concurrent_editors) rows and the broadcast is rate-limited to once per 30 s per page.
 
 ## Output Format
 

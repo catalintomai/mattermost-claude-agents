@@ -3,6 +3,7 @@ name: react-frontend-expert
 description: React/TypeScript frontend specialist for Mattermost webapp. Use when writing or reviewing React/TypeScript components in components, Redux state, actions, selectors, and styling.
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
+effort: medium
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
@@ -91,6 +92,70 @@ case UserTypes.LOGOUT_SUCCESS:
 | `i18n_string_externalization` | All UI strings via React Intl |
 | `component_accessibility` | Interactive elements need ARIA attributes |
 | `error_boundary_usage` | Error-prone components wrapped in error boundaries |
+
+### Inline literals passed to memoized children (validated by MM PR review)
+
+An arrow function or object literal written inline in JSX (`onClick={() => f(id)}`, `title={{id, defaultMessage}}`) is a new reference every render, so a `React.memo` child re-renders regardless. Hoist to `useCallback` / `useMemo`, or a module constant when static. Reference: PR #37331 (larkox) on `plugin_metadata_panel.tsx` — "One new function on every render. Better to use `useCallback`. Similar for the title of WithTooltip (a new object on every render)."
+
+### Async failures must reach the user (validated by MM PR review)
+
+A `catch` that only clears a `saving` flag and calls `console.log` is a silent no-op from the user's side — worse when the modal already closed on the optimistic path. Surface an error state, keep the modal open, or dispatch a toast. Reference: PR #35741 `channel_invite_modal.tsx:488` and PR #37082 `quick_switch_modal.tsx` (pvev) — "this catch only clears `saving` and logs to console. The confirm modal is already closed by then, so the user just sees a silent no-op." Accepted.
+
+### Root-relative link breaks on subpath deployments (validated by MM PR review, T110)
+
+MM can be served from a subpath (`https://host/mattermost`). Any URL the webapp builds with a leading `/` — a plugin icon, a redirect target, an `href` in an email template — resolves against the domain root and 404s on those installs. The same defect appears when a team or channel prefix is composed from a value that can be `undefined`: the segment silently drops out and the link points somewhere else.
+
+Detection cue: a string literal starting with `/` (or a template literal whose first segment is `/`) assigned to `src`, `href`, `history.push`, or `window.location`, in a file that does not already route it through the site-URL/base-path helper. Also flag a bare-domain `href` with no scheme (`href="mattermost.com"`), which browsers treat as a relative path.
+
+```tsx
+// WRONG — skips the subpath, 404 on /mattermost installs
+<img src={`/plugins/${pluginId}/public/icon.svg`}/>
+
+// CORRECT — composed from the configured base path
+<img src={`${getSiteURL()}/plugins/${pluginId}/public/icon.svg`}/>
+```
+
+Not a finding: a path handed to a router that is already mounted under `basename`, or an API path passed to `Client4`, which prepends the configured URL itself.
+
+Severity `SHOULD_FIX`; `MUST_FIX` when the broken link is the only path to the action (a blocking page, an email CTA).
+
+**Validated by MM PR review**: PR #35591 `channel_settings_modal.tsx` (`/plugins/...` icon URL skips the base path — accepted). PR #35382 `web/static.go` + `web/unsupported_browser.go` (empty subpath yields a relative `static/...`). PR #37410 `product_menu.tsx` (team prefix dropped when `currentTeam` is undefined — accepted). PR #36011 `invite_body.html` (`href="mattermost.com"`).
+
+### Shared global mutated by N owners with no reference counting (validated by MM PR review, T87)
+
+A module-level singleton — a focus stack, a registry map, a factory list — written with `=` by more than one caller. The last writer wins and every earlier registration is silently dropped; on the teardown side, one owner's cleanup resets state another owner still depends on. This is the non-React sibling of a stale closure: nothing warns, and the symptom appears only when two features are active at once.
+
+Detection cue: an assignment to a module-scope `let`/exported object from inside a component effect, a hook, or an init function that can run more than once. Ask "what happens when a second caller does this while the first is still mounted?"
+
+```ts
+// WRONG — second registrant clobbers the first
+mlog.ValidationFactories = [myFactory];
+
+// CORRECT — additive registration, removal keyed by owner
+mlog.ValidationFactories.push(myFactory);
+```
+
+Severity `SHOULD_FIX`; `MUST_FIX` when the clobbered state is focus management or a security/validation registry.
+
+**Validated by MM PR review**: PR #35990 `webapp/channels/src/utils/popouts/focus.ts` (accepted via the human thread). PR #36937 `audit/targets/delivery_db.go` (assigning `mlog.ValidationFactories` clobbers prior registrations).
+
+### Team-scoped lookup from a DM/GM-empty field (validated by MM PR review, T96)
+
+`Channel.TeamId` is the empty string for DMs and GMs. Any code that feeds it straight into a team-scoped lookup or permission check — `getTeam(state, channel.team_id)`, `GetTeam(channel.TeamId)`, a team-scoped selector — returns nothing for exactly those channels, so the feature dies silently in DMs while working everywhere else. Same shape for any field that is conditionally empty by channel type.
+
+Detection cue: `team_id` / `TeamId` read off a channel and passed to a lookup, with no `isDirectChannel`/`isGroupChannel` branch and no fallback to the current team.
+
+```ts
+// WRONG — empty team id in a DM
+const team = getTeam(state, channel.team_id);
+
+// CORRECT — fall back to the active team for DM/GM
+const team = getTeam(state, channel.team_id || getCurrentTeamId(state));
+```
+
+Severity `SHOULD_FIX`; `MUST_FIX` when the lookup gates a permission check, because an empty team id can fail open or closed unpredictably.
+
+**Validated by MM PR review**: PR #36950 `app/post.go` (edit path `GetTeam(channel.TeamId)` fails for DM/GM). PR #36782 `property_field_store.go` (accepted).
 
 > For detailed checks per pattern, see: `component-reviewer`, `race-condition-reviewer`, `redux-expert`, `accessibility-reviewer`, `i18n-reviewer`.
 

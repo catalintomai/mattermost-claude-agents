@@ -2,6 +2,7 @@
 name: playwright-test-writer
 description: Writes and fixes Playwright E2E tests. Use when writing new Playwright E2E tests or fixing broken E2E tests for any project. For Cypress tests, adapt patterns from cypress-test-reviewer manually.
 model: sonnet
+effort: medium
 tools: Write, Read, Edit, Bash, Grep, Glob
 ---
 

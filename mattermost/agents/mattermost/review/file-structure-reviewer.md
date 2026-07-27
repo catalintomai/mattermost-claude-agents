@@ -2,6 +2,7 @@
 name: file-structure-reviewer
 description: Ensures new/moved files align with Mattermost codebase conventions and structure. Use when new files are created or files are moved/renamed to verify correct placement.
 model: haiku
+effort: low
 # Tools note: Bash is justified — this agent uses git diff to identify new/changed files and find commands
 # to cross-reference file placement against existing structure (see Review Process section).
 tools: Read, Write, Grep, Glob, Bash
@@ -166,6 +167,40 @@ src/components/
 
 - Test files: `{feature}.spec.ts`
 - Group by feature: `channels/pages/pages_*.spec.ts`
+
+## New File Never Registered in Its Aggregator
+
+The highest-frequency file-structure defect in the MM PR corpus (3 sightings, all silent). A file is
+added in the right directory with the right name, and nothing imports it — so it ships as dead weight
+and the feature it implements never appears. Nothing fails: no compile error, no test failure, no lint
+warning. Every repo has aggregator files that must list their members explicitly:
+
+| New file | Aggregator that must name it |
+|---|---|
+| `sass/**/_thing.scss` | the sibling `_module.scss` that `@import`s the partial |
+| `components/**/thing.tsx` | the directory `index.ts` barrel's named exports |
+| instruction/agent docs (`AGENTS.md`, `CLAUDE.md`) | the root doc that `@`-imports them |
+| a migration `.up.sql`/`.down.sql` | its numbered sequence and the down counterpart |
+| a new test spec in a curated suite | the suite manifest or shard list |
+
+**Detection**: for every file the diff ADDS, grep the repo for its basename. Zero hits outside the file
+itself is the finding. Then check the aggregator alongside it — if a sibling file of the same kind is
+listed there and the new one is not, that is the proof, not an inference.
+
+**Severity**: MUST_FIX when the unregistered file is the feature (styles never emitted, component not
+exported, migration not in sequence); SHOULD_FIX for docs and optional fixtures. Do not flag a file
+that is intentionally standalone — an entry point, a script invoked by path, or a file the build globs
+by directory rather than by an explicit list. Confirm which of the two the build does before flagging.
+
+**Validated by MM PR review**: T275 — PR #36360 `webapp/channels/src/sass-rtl/components/_module.scss` —
+`_dnd-pickers-dropdown-menu.scss` added but not imported, so those styles are never emitted. Also
+PR #36548 `lib/src/ui/components/index.ts` (`DirectChannelsModal` absent from named exports) and
+PR #36549 + #36559 `.cursor/cursor.md` (`@server/AGENTS.md` not imported).
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] Symbol placed outside its scope's file or directory — a type defined in an unrelated file, or a single-use hook under a shared `common/hooks` path (T322, PR #37021)
+- [ ] Same binary fixture asset copied into a second E2E tree instead of shared (T118)
 
 ## Review Process
 

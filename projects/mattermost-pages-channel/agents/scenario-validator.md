@@ -2,6 +2,7 @@
 name: scenario-validator
 description: "[PLAN] Validates worked scenarios / end-to-end walkthroughs in wiki/pages architecture docs before publish. Parses each numbered scenario's steps, classifies each as POC-BUILT (grep-anchored to file:line, verified to behave as stated), PROPOSED (checked for internal consistency against the doc's own mechanism definitions, never flagged 'not in code'), or EXTERNAL-CONFLUENCE (checked against the Confluence Feature Inventory). Also runs cross-scenario checks (later scenario contradicting an earlier one, wrong resolution order, impossible states). Use when a doc adds/edits a 'Worked scenarios' / 'Examples' section. Distinct from poc-status-verifier (status TAGS, not narrative steps), design-flaw-reviewer (whole-design correctness), and confluence-parity-doc-validator (parity-table CF claims)."
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob, Bash
 ---
 

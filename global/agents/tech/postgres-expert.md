@@ -2,6 +2,7 @@
 name: postgres-expert
 description: Writes and optimizes PostgreSQL queries, designs schemas, builds indexing strategies, analyzes EXPLAIN plans, and configures transaction isolation. Use when writing complex SQL (CTEs, window functions, locking), diagnosing slow queries, or designing a new schema outside a Mattermost codebase. For MM migrations and store layer queries, use db-migration-expert and store-reviewer instead.
 model: sonnet
+effort: medium
 tools: Write, Read, Edit, Bash, Grep, Glob, mcp__postgres-server__query
 ---
 

@@ -2,6 +2,7 @@
 name: confluence-migration-expert
 description: Expert in Confluence-to-Mattermost wiki migration pipeline. Use when reviewing Confluence space migrations, mmetl confluence transform, or HTML-entity encoding issues. Not for Slack migration.
 model: sonnet
+effort: medium
 tools: Read, Write, Edit, Bash, Grep, Glob, WebFetch, WebSearch
 ---
 

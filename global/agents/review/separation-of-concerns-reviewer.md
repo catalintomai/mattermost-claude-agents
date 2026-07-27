@@ -2,6 +2,7 @@
 name: separation-of-concerns-reviewer
 description: Reviews architecture documents and designs for conflation of independent concerns — catching backend/frontend conflation, feature/implementation conflation, and false "X requires Y" couplings. Use when a design claims a choice in one dimension forces a specific choice in another, or when a plan bundles orthogonal decisions into a single architecture selection.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 

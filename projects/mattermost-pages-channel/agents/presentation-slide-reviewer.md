@@ -2,6 +2,7 @@
 name: presentation-slide-reviewer
 description: "[PLAN] Use before publishing a wiki/pages presentation slide (`plans/architecture/<run>/presentation/*.md`) to flag SENTENCE-LEVEL terseness — prose where slide notation (`=`, comma, dash) says it shorter: a definitional copula or \"analogue of\" that should be `=`, an enumeration \"and\" that should be a comma/dash, an un-telegraphic article, a multi-sentence bullet, filler nouns/intensifiers, a placement-metaphor verb (rides/sits in), a tautological `=`. Quotes each line + gives the terse rewrite. READ-ONLY, SHOULD_FIX-capped (never blocks a publish); the review counterpart to `presentation-slide-builder`. Distinct from `mm-doc-voice-reviewer` (voice gates) and `doc-concision-reviewer` (arch-doc prose where depth is PREFERRED — slides want the opposite)."
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 

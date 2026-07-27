@@ -2,6 +2,7 @@
 name: convergence-reviewer
 description: Detects semantic thrashing across multi-round swarm review convergence by tracking finding state (OPEN/FIXED/DISMISSED/RE-RAISED) and classifying reversals as justified, unjustified, or indeterminate. Use after each review round in a multi-round swarm to determine whether to continue iterating or halt (THRASHING verdict). Not for single-round reviews.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly. Match findings semantically based on evidence in the round synthesis files — do not infer reversal intent.

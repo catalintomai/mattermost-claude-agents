@@ -3,6 +3,7 @@ name: db-migration-expert
 description: Database migration specialist. Use when adding, modifying, or deleting migrations. Handles migration file creation, deletion, rollback planning, and schema changes.
 tools: Read, Write, Edit, Bash, Grep, Glob, mcp__postgres-server__query
 model: sonnet
+effort: medium
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
@@ -157,6 +158,42 @@ DROP INDEX CONCURRENTLY IF EXISTS idx_old_index;
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_old_index ON tablename(column);
 ```
 
+### CONCURRENTLY Retry-Safety (runner-dependent)
+
+A `CREATE INDEX CONCURRENTLY` that fails partway leaves an **INVALID** index behind: the index exists in `pg_class` but is never used by the planner. On the next attempt `IF NOT EXISTS` sees the name already taken and silently skips it, so the index stays permanently invalid and the migration reports success.
+
+This only matters when the runner **retries individual statements**. Before flagging, determine how the project's runner executes the file:
+
+- Whole file submitted as one `ExecContext` (morph, the Mattermost server runner): a re-run replays the entire file, and the finding does **not** apply — a `DROP INDEX IF EXISTS` prelude would not execute independently either.
+- Statement-at-a-time replay or an operator manually re-running a single statement: pair the create with an explicit reset so the retry rebuilds the index.
+
+```sql
+-- NNNNNN_add_<table>_<column>_index.up.sql (statement-replaying runners only)
+-- morph:nontransactional
+DROP INDEX CONCURRENTLY IF EXISTS idx_tablename_column;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tablename_column ON tablename(column);
+```
+
+**Detection**: For each migration containing `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, grep the project's migration runner for how the file is executed (`grep -rn "ExecContext\|morph\|golang-migrate" server/channels/db/`). If the whole file is one `ExecContext`, emit nothing. Otherwise flag as `migrate:CONCURRENT_INDEX_RETRY` at SHOULD_FIX with the runner evidence quoted.
+
+**Reference**: mattermost-plugin-docs PR #3, `server/store/migrations/000004_*.up.sql`: "Make this concurrent index migration retry-safe" — `CREATE INDEX CONCURRENTLY IF NOT EXISTS` "can skip a failed, invalid index on retry". Finding **rejected** on that PR because morph runs the file as a single `ExecContext`, so the proposed prelude never executes independently.
+
+## Embedded Migration Paths Use `path.Join`, Not `filepath.Join`
+
+Migration files loaded through `embed.FS` are addressed by slash-separated virtual paths regardless of host OS. `filepath.Join` emits `\` separators on Windows, so the lookup fails at runtime on that platform only — it passes every Linux/macOS CI run.
+
+```go
+// ❌ WRONG — OS-specific separator against a virtual FS
+assetsPath := filepath.Join("migrations", driverName)
+
+// ✅ CORRECT — embed.FS is always slash-separated
+assetsPath := path.Join("migrations", driverName)
+```
+
+**Detection**: Grep the diff for `filepath.Join` in any file that also declares or consumes an `embed.FS` (`grep -ln "embed.FS\|go:embed" <changed .go files>`). Every `filepath.Join` whose result is passed to `fs.ReadFile`, `fs.Sub`, `iofs.New`, or a migration source constructor is a finding: `migrate:EMBED_PATH_SEPARATOR`. Real filesystem paths in the same file are fine — only virtual-FS lookups are affected.
+
+**Reference**: mattermost-plugin-docs PR #1, `server/store/store.go`: "Use `path.Join` for embedded migration paths" — "`embed.FS` requires slash-separated paths, so `filepath.Join` can fail on Windows" (accepted).
+
 ## DDL + Bulk DML in One Migration (Critical — validated by MM PR review data)
 
 When a single migration file mixes a DDL statement (e.g., `ALTER TABLE ... ADD COLUMN`) with a bulk DML statement (e.g., `UPDATE`, large `INSERT ... SELECT`), the DDL's broad short-lived lock is **held for the entire duration of the DML**, blocking writes to the whole table.
@@ -181,6 +218,37 @@ UPDATE Channels SET ArchiveReason = 'unknown' WHERE DeleteAt > 0 AND ArchiveReas
 **Detection**: For every migration file in the diff, parse the contents. If it contains BOTH an `ALTER TABLE`/`CREATE TABLE`/`DROP TABLE` AND any of `UPDATE`/`INSERT ... SELECT`/`DELETE FROM ... WHERE`, flag as `migrate:DDL_DML_MIX`.
 
 **Reference**: PR #35497 (agarciamontoro): "Let's split this into two migrations. Otherwise, the lock from the `ALTER TABLE`, which is very short-lived but broad, is held until the UPDATE finishes (whose lock is long-lived but very narrow). If we split the migration in two, we get the best of both worlds."
+
+## Backfill Correctness (High — validated by MM PR review)
+
+A backfill is a one-shot, unreviewable write against production data: it runs once, nobody diffs the result, and a wrong row is indistinguishable from a right one afterwards. Four recurring defects, none of which the DDL/DML lock check above catches:
+
+```sql
+-- ❌ Join can match MORE THAN ONE row — the assignment is then arbitrary
+UPDATE Roles r SET SchemeId = s.Id FROM Schemes s
+WHERE s.DefaultChannelUserRole = r.Name OR s.DefaultTeamUserRole = r.Name;
+-- same r.Name can appear in several scheme rows; Postgres picks one non-deterministically
+
+-- ❌ Rewritten value can EXCEED the column, or COLLIDE with an existing row
+UPDATE PropertyFields SET Name = 'cpa_' || Name;   -- no length check, no uniqueness check
+
+-- ❌ Down-migration restores a DEFAULT the up-migration never had, or orders DDL
+--    so a later statement is a no-op against the already-dropped column
+ALTER TABLE ChannelMembers ADD COLUMN AutoTranslation BOOLEAN DEFAULT false;  -- was nullable before
+```
+
+**Detection**: For each backfill statement in the diff — (1) if it is an `UPDATE ... FROM` / correlated subquery, confirm the join key is unique on the source side (a unique index or `DISTINCT ON`/aggregate), otherwise the assignment is arbitrary; (2) if it derives a new string value (concat, prefix, rename), check the result against the target column's `VARCHAR(N)` and against any unique constraint — an id-shaped value written into `VARCHAR(26)` is the recurring case; (3) read the `.down.sql` as a real rollback: does it restore the *prior* nullability/default, and is each statement still meaningful given the ones before it? (4) if the write path can also produce rows before the backfill runs, add `WHERE <col> IS NULL` so a re-run is idempotent. Flag as `migrate:BACKFILL_CORRECTNESS`.
+
+**Validated by MM PR review** — PR #35497 `000156_add_schemeid_to_roles.up.sql` (`UPDATE ... FROM` with OR joins can assign an arbitrary `schemes.id`); PR #37253 `public/model/user_post_delivery.go` (plugin id exceeds `VARCHAR(26)` — ACCEPTED); PR #36180 `000170_migrate_cpa_to_protected_attributes.up.sql` (rename collides with an existing group); PR #37496 `000205_drop_channelmembers_autotranslation_column.down.sql` (`DEFAULT false` on rollback).
+
+## Corpus checklist (single-sighting patterns)
+
+Seen once or twice across the MM PR corpus. No full rule yet — check them, report only with concrete evidence in the diff.
+
+- [ ] Constraint added without `NOT VALID` — the validating scan blocks concurrent writes to the whole table (T198, PR #35799 `000160_add_scheduled_post_recurrence.up.sql`)
+- [ ] Migration inert until an unscheduled follow-up — DDL whose effect needs a separate `ANALYZE`, backfill, or maintenance step nobody has scheduled (T280, PR #36506 `000174_set_posts_statistics_targets.up.sql`)
+- [ ] New table added under `migrations/postgres` only while the write path also runs on the other engine (T309, PR #35952 `000168_create_post_read_status.up.sql`)
+- [ ] Canonicalization with no backfill — a new normalization rule applied on write only, so existing rows keep the old form and stop resolving (T312, PR #34903 `public/model/emoji.go`, mixed-case emoji names)
 
 ## Data Type Conventions
 
@@ -294,11 +362,13 @@ When deleting a migration (e.g., removing a table that was never merged):
 ## Anti-Slop Guidance (Do NOT Flag)
 
 - **Do not flag** `CREATE INDEX CONCURRENTLY` migrations that lack `-- morph:nontransactional` as incomplete — the directive and the `CONCURRENTLY` keyword must always appear together; if both are present, the migration is correct regardless of surrounding context.
+- **Do not flag** `CREATE INDEX CONCURRENTLY IF NOT EXISTS` as retry-unsafe when the project's runner submits the whole migration file as a single `ExecContext` — that is how morph (and the Mattermost server runner) executes migrations, so a `DROP INDEX IF EXISTS` prelude would never run on its own. Verify the runner before emitting `migrate:CONCURRENT_INDEX_RETRY`; absent that evidence the finding is noise.
 - **Do not flag** feature-branch migrations whose numbers are higher than master's highest as "out of sequence" — branch migrations intentionally start above master's ceiling to avoid merge conflicts; flag only actual gaps within the branch's own sequence.
 - **Do not flag** `ADD COLUMN IF NOT EXISTS` for columns with a `NOT NULL DEFAULT` on a large table as unsafe — Postgres 11+ adds columns with defaults instantly via a catalog change without rewriting rows; the risk note applies only to `NOT NULL` columns without a default.
 - **Do not flag** the absence of a down migration on a feature branch as a blocker — down migrations are best practice but not a CI requirement; flag as SHOULD_FIX, never MUST_FIX, unless the project's own CI explicitly enforces it.
 - **Do not flag** a migration that adds an index on a new (empty) table for not using `CONCURRENTLY` — `CONCURRENTLY` is required to avoid locking existing data; on a freshly created table there is no data to lock, making `CONCURRENTLY` harmless but unnecessary.
 - **Do not flag** `VARCHAR(26)` primary key columns as needing to be `UUID` type — Mattermost uses 26-character alphanumeric IDs (`model.NewId()`) throughout; `VARCHAR(26)` is the correct and intentional convention.
+- **Do not recommend a compound index without a ROI check.** Before flagging a missing index, answer: (1) how many rows does the *existing* narrowest index leave after its scan? (2) how often does the query run? (3) how many writes hit this table per unit time? If the existing index reduces the working set to a small, bounded number of rows (e.g., a live-state table with one current row per active user-entity pair, so O(concurrent_users) ≈ 1–10), filtering those rows in memory is essentially free. Weigh that against write amplification: every INSERT/UPDATE to the table must also maintain the new index. When write frequency >> read benefit, the index has negative ROI and should not be flagged. Canonical example: `DOCS_Draft` is a live-state table keyed `(UserId, PageId)`, one row per active editor, deleted on publish/discard. `GetPageActiveEditors` is rate-limited to once per 30 s per page. `idx_docs_draft_pageid(PageId)` narrows to O(concurrent_editors) rows; a compound `(PageId, SpaceId, LastActiveAt DESC)` saves nanoseconds of in-memory filtering at the cost of an index write on every autosave. Net ROI is negative — do not flag.
 
 ## Do NOT
 

@@ -1,7 +1,8 @@
 ---
 name: ha-reviewer
 description: "Reviews code for HA correctness in Mattermost multi-node deployments — replica lag, cache invalidation, and WebSocket broadcasts. Use when reviewing store code that writes then reads."
-model: haiku
+model: sonnet
+effort: high
 tools: Read, Write, Grep, Glob
 ---
 
@@ -326,6 +327,32 @@ func (s *SqlDraftStore) GetPageDraft(pageId, userId string) (*model.PageContent,
     if err := s.GetMaster().QueryRow(queryString, args...).Scan(...)  // FIXED!
 ```
 
+## Replica Reads on Enforcement Gates (CRITICAL — validated by MM PR #37529)
+
+The read-after-write rules above cover staleness *within one flow*. This is a different failure: a read whose result **decides whether a restriction applies**. There is no preceding write in the same request to anchor it, so the read looks like an ordinary lookup — but replica lag here is not cosmetic staleness, it is an enforcement hole. The lagging replica reports "no policy governs this resource", the gate concludes "unrestricted", and the resource is created or joined outside the policy that was supposed to cover it. Nothing later re-checks.
+
+```go
+// VULNERABLE: the gate asks "is there a parent policy for this channel?" on a replica.
+// A policy created moments earlier has not replicated yet → channel created ungoverned.
+parents, err := s.Store().AccessControlPolicy().SearchPolicies(rctx, opts)  // GetReplica()
+if len(parents) == 0 {
+    return nil  // no policy → allow, unrestricted
+}
+
+// CORRECT: pin enforcement-gate reads to master, or document why lag is acceptable
+// and what re-converges the state afterwards.
+```
+
+**Detection**: for every `GetReplica()` read added or called in the diff, ask what the caller does with the result. If an empty/absent result causes the caller to **skip a check, allow an operation, or widen access** — policy/ACL lookups, membership checks before create/join, license or scheme lookups gating a restriction — it is an enforcement gate. Grep the store method's callers and look for `len(x) == 0`, `if policy == nil`, or `errors.As(err, &nfErr)` branches that fall through to the permissive path:
+
+```bash
+grep -rn "SearchPolicies\|GetPolicy\|GetMember\|IsUserAllowed" server/channels/app/ | grep -v _test.go
+```
+
+Flag as `ha:STALE_ENFORCEMENT_READ` (MUST_FIX) unless the code pins master or carries a comment explaining why the lag window is acceptable and what converges the state.
+
+**Reference**: MM PR #37529, `server/channels/app/access_control.go:1632-1642` — CodeRabbit: "Use a consistent read for this enforcement gate. `SearchPolicies` reads `GetReplica()`; replica lag lets channel creation see no parent." Accepted; `allChannelsParents` was pinned to master.
+
 ## Common HA Issues to Check
 
 1. **Missing RequestContextWithMaster** - Read after write without master context
@@ -354,7 +381,7 @@ func (s *SqlDraftStore) GetPageDraft(pageId, userId string) (*model.PageContent,
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `ha:STALE_READ`, `ha:MISSING_INVALIDATION`, `ha:MISSING_BROADCAST`
+**Domain tags**: `ha:STALE_READ`, `ha:STALE_ENFORCEMENT_READ`, `ha:MISSING_INVALIDATION`, `ha:MISSING_BROADCAST`
 
 **Domain-specific sections** (after canonical sections):
 - HA Checklist: 6 items (master read-after-write, no sqlstore import, cache invalidation, WebSocket broadcast, optimistic locking, permission freshness)

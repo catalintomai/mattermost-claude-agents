@@ -2,6 +2,7 @@
 name: ux-design-auditor
 description: Reviews UX designs and feature plans against Nielsen's 10 usability heuristics, six user persona profiles (new user, power user, admin, mobile, accessibility, security-conscious), and HEART framework success metrics. Use before implementation of any user-facing feature to validate design quality, persona coverage, and metric readiness. For edge case UX (empty states, error messages, loading states), use ux-edge-case-reviewer instead.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob, WebSearch, WebFetch
 ---
 

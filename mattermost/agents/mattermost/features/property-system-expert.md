@@ -2,6 +2,7 @@
 name: property-system-expert
 description: Expert in Mattermost PropertyGroupStore/PropertyFieldStore/PropertyValueStore interfaces. Use when implementing code that reads/writes PropertyFields or PropertyValues (CPA, Boards, Access Control).
 model: sonnet
+effort: medium
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 

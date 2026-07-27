@@ -2,6 +2,7 @@
 name: test-coverage-reviewer
 description: Reviews code changes to ensure new functionality has corresponding tests. Checks for missing test files and untested code paths. Use when reviewing whether new or modified code has adequate test coverage.
 model: haiku
+effort: low
 # Tools note: Bash is justified — this agent uses git diff to identify new functions and ls to verify
 # test file existence (see Review Process and Test File Discovery sections).
 tools: Read, Write, Grep, Glob, Bash
@@ -461,3 +462,221 @@ t.Run("should delete file attachments when post is flagged", func(t *testing.T) 
 ```
 
 Reference: PR #34416 (isacikgoz): "Case name is 'should handle post with file attachments' but I don't see any assertions if the files are deleted or not."
+
+### 5. Register cleanup BEFORE the first fallible operation; close pooled resources (High)
+
+Rule 1 above is the timestamp-specific case of a general rule: cleanup must be registered as soon as the resource exists, not after the work that might fail. A `t.Cleanup` placed after a migration, a seed, or a multi-step setup never runs when that step returns early — and the schema, rows, or connections leak into every later test in the run. The same applies to pooled resources: a test DB pool opened in a helper must be closed in cleanup, or the run exhausts connections as the package grows.
+
+```go
+// BAD — migration failure returns before cleanup is registered; the schema leaks
+schema := createSchema(t, db)
+require.NoError(t, runMigrations(db, schema))
+t.Cleanup(func() { dropSchema(db, schema) })
+
+// GOOD — the schema is disposable from the instant it exists
+schema := createSchema(t, db)
+t.Cleanup(func() { dropSchema(db, schema) })
+require.NoError(t, runMigrations(db, schema))
+
+// GOOD — pooled resources are closed too, not just the logical entity
+pool := openSchemaPool(t, dsn, schema)
+t.Cleanup(func() { pool.Close() })
+```
+
+**Detection**: for every `t.Cleanup`/`defer` in the diff, check what appears between the resource's creation and the cleanup registration. If any statement in that gap can fail or `t.Fatal` (a `require.*`, a migration, a seed, a network call), flag it. Separately, for every pool/connection/server/file handle opened in a test helper, verify a `Close` runs in cleanup. Reference: mattermost-plugin-docs PR #1 — `store_test.go` "Register schema cleanup before migration work can fail" and `testutil/testdb.go` "Close the schema-scoped DB pool during test cleanup" (both accepted).
+
+### 6. Fallback branches need a fixture that reaches them (Medium)
+
+When code renders or computes through a fallback (`display_name || name`, `?? defaultValue`, an `else` on a presence check), fixtures that always populate the primary field leave the fallback dead. The test suite passes with the fallback deleted, so it is not covered — this holds for E2E seed data as much as unit fixtures.
+
+```typescript
+// BAD — both seeded rows set display_name, so `|| name` is never exercised
+await adminClient.createAttribute({name: 'clearance', display_name: 'Clearance'});
+await adminClient.createAttribute({name: 'region', display_name: 'Region'});
+
+// GOOD — one row omits display_name so the internal-name fallback renders
+await adminClient.createAttribute({name: 'clearance', display_name: 'Clearance'});
+await adminClient.createAttribute({name: 'region'});
+```
+
+**Detection**: grep the changed production code for `||`, `??`, and ternaries that select between two data fields. For each, inspect the fixtures/seed data in the accompanying tests: if every fixture sets the left-hand field, flag as missing fallback coverage and name the field to leave empty. Reference: PR #37608 (JulienTant) on `global_attributes.spec.ts:281-296`: "Cover the internal-name fallback path." Both seeded rows set `display_name`, so the fallback is never exercised.
+
+### 7. Vacuous tests: would this test fail if the bug came back? (High)
+
+A test shipped with a fix must distinguish fixed from broken. Every shape below passed CI while proving nothing.
+
+| Shape | Why it proves nothing | Reference |
+|---|---|---|
+| Sets a field to its own default before asserting | "`UseSecureChannelURLs` defaults to `false`, so `SetDefaults()` … will produce the same value regardless of the explicit assignment" | PR #35374 `config/client_test.go:165` (fixed) |
+| Discards both the response and the error | "this subtest ignores both the response and error, so it can still pass if the handler panics" | PR #35718 `api4/team_test.go:246` |
+| Dereferences a possibly-nil result with no preceding `require.NotNil` | "An invalid case returning `nil` currently panics at `appErr.Id`, obscuring the validation regression" | PR #37458 `member_invite_test.go:143` (fixed) |
+| Fixtures cannot distinguish the new behavior from the old | "the supplied tests only use ASCII, so they would also pass with the old byte-counting code" | PRs #37563 / #37564 (byte→rune length fix) |
+| Behavior change ships with no targeted regression case | "This logic change is correct, but it needs explicit regression coverage for queries like `\"umbrella with rain drops\"`" | PR #37085 `emoji_picker/utils/index.ts` |
+| Parallel subtest indexes into a globally-shared query result | "`GetAllByType` returns every resend-invitation job, but this parallel test inspects index zero" | PR #37458 `api4/team_test.go:4331` (fixed) |
+| Sequential subtest asserts a guard the prior step's leftover state also trips | forbidden fires "purely because the caller is updating someone else's hook — not specifically because they're attempting to reassign ownership" | PR #36113 `api4/webhook_test.go:1545` |
+| Subtest shares a mutated fixture user, so a boundary assertion passes non-strictly | "This subtest shares `th.BasicUser` with earlier subtests, so pre-existing pending recaps can make the assertion pass" | PR #35478 `app/recap_test.go` (fixed d38f46d) |
+| Permission-denied test inverts when CI runs as root | "if tests run as root (e.g., in some Docker-based CI environments), this will succeed instead" | PR #35037 `support_packet_test.go:358` |
+| New subtest omits an assertion every sibling subtest in the file makes | "The two new failure subtests … omit this check, breaking consistency with the established pattern in this file" | PRs #35037 / #37310 (fixed ffaff0c) |
+
+**Detection**: for every test added or modified in the diff, ask whether it would still pass with the diff's production change reverted, then check the mechanical shapes — note that rows 5 (behavior change with no regression case), 7 (ambiguous guard), and 10 (sibling assertion omitted) each have a full rule below (8, 9, and this row's detection clause (g)); use the rules for those, not just the row — (a) compare each field the test assigns against that struct's `SetDefaults`/zero value; an assignment equal to the default makes the assertion vacuous; (b) flag calls whose response and error both go to `_` or are not bound at all; (c) flag any `result.Field` access not preceded by `require.NotNil(t, result)`; (d) when the fix moves an encoding, unit, or locale boundary (byte→rune, `%` vs px, offset vs `Z`), confirm at least one fixture crosses it; (e) in any `t.Parallel()` subtest or one reusing `th.BasicUser`, flag a store query result indexed positionally (`[0]`) instead of filtered to rows the test created, and flag a boundary/count assertion over state earlier subtests mutate; (f) flag filesystem permission-denied assertions with no root guard; (g) diff the new subtest's assertions against its siblings in the same file and flag any check every sibling makes. Tag `test:VACUOUS_ASSERTION`.
+
+### 8. Every behavior change needs a case that pins the NEW behavior (High)
+
+The single most common test-coverage finding in the corpus. A diff that changes a condition, a branch, a returned value, or a rendered variant, and touches no test, has no proof it works and no guard against the next refactor undoing it. This extends rule 7's table row from "does the added test distinguish fixed from broken?" to "is there an added test AT ALL for the branch this diff introduced?" — the row assumes a test exists; this rule assumes nothing.
+
+```go
+// Production diff adds a second branch:
++ if opts.ReadFromMaster {
++     return s.readFromMaster(ctx, id)
++ }
+
+// BAD — the existing test only exercises the replica path, so the new branch never runs
+func TestGetFileInfo(t *testing.T) { ... existing replica assertions unchanged ... }
+
+// GOOD — a case per branch, each asserting the branch-specific outcome
+t.Run("reads from master when ReadFromMaster is set", func(t *testing.T) {
+    info, err := ss.FileInfo().Get(rctx, id, model.GetOpts{ReadFromMaster: true})
+    require.NoError(t, err)
+    require.Equal(t, masterOnlyValue, info.Path)  // fails if the branch is dropped
+})
+```
+
+**Detection**: enumerate every production change in the diff that alters control flow or an output — a new/changed `if`, `switch case`, ternary, early return, default value, permission constant, rendered variant, or field written. For each, grep the diff's test files for a case that reaches it: the new condition's true AND false side, the new option's set AND unset state, the new render branch. Flag any with no reaching case, naming the exact input that reaches it. A test file untouched by a diff that changes behavior is itself the finding. Tag `test:NO_REGRESSION_CASE`. Reference: 19 accepted instances in one corpus chunk alone — PR #36339 `file_info_layer_test.go` (no `readFromMaster` cache-bypass case), #36316 `api4/group_test.go` (no `SchemeAdmin` true→false re-link case), #37260 `app_bar.test.tsx` (`iconUrl` branch uncovered), #37145 `api4/scheduled_post_test.go` (empty→non-empty attachment path untested), #35604 `app/post_test.go` (`GetPostsForView` lacks coverage), #37035 `filestore/s3store.go` (`copyObject` branches untested).
+
+### 9. A rejection assertion must be unreachable by any other cause (High)
+
+A negative test asserting "this is forbidden / 400 / disabled" proves the guard under test only if no OTHER condition in the request would produce the same outcome. Rule 7's row covers the leftover-state case; the broader defect is a fixture that fails an EARLIER check — routing, license, permission, a missing precondition — so the assertion passes with the new guard deleted.
+
+```go
+// BAD — "any_target" is rejected by the router before the 400 validation under test runs
+resp, err := client.CreateProperty(ctx, "any_target", payload)
+CheckBadRequestStatus(t, resp)  // actually a 404 at routing in disguise
+
+// GOOD — a target that routes successfully, so only the validation can reject it
+resp, err := client.CreateProperty(ctx, model.PropertyTargetChannel, invalidPayload)
+CheckBadRequestStatus(t, resp)
+require.Equal(t, "api.property.invalid_value.app_error", resp.Error.Id)  // pins WHICH rejection
+```
+
+**Detection**: for every negative assertion added in the diff (`CheckForbiddenStatus`, `CheckBadRequestStatus`, `require.Error`, `toBeDisabled`, `rejects`), list every condition on the path that could produce it — route resolution, license/feature flag, permission check, an earlier validation, a `nil` fixture id from `model.NewId()`, and state left by a prior sequential subtest. If more than one is unsatisfied by the fixture, flag it and name the one to satisfy; require the error id or status be asserted, not just the failure. Tag `test:AMBIGUOUS_GUARD`. Reference: PR #35808 `properties_test.go` (`"any_target"` 404s at routing, not the 400 under test — accepted), #36371 `api4/job_test.go` (denied by the pre-existing permission check, never reaches the new gate), #36061 `team_settings_membership_policies.spec.ts` (tab hidden by a missing license, not by the flag — fixed), #35451 `app/limits_test.go` (Entry-SKU test passes because guests are disabled), #37052 `app/plugin_hooks_test.go` (negative hook test false-passes — accepted).
+
+### 10. Assertions must not depend on a value the test does not control (High)
+
+Wall-clock reads, unfrozen dates, encoder output, and coarse timestamps all vary between runs. A test pinned to one of them is a scheduled flake, and reviewers reject it on sight.
+
+```go
+// BAD — two independent GetMillis() reads; a tick between them fails the equality
+start := model.GetMillis()
+job := runJob()
+require.Equal(t, start, job.StartAt)
+
+// BAD — asserts the operation was faster than the configured delay
+require.Less(t, elapsed, delay)
+
+// GOOD — assert the relation the code guarantees, over a window the test owns
+before := model.GetMillis()
+job := runJob()
+require.GreaterOrEqual(t, job.StartAt, before)
+require.LessOrEqual(t, job.StartAt, model.GetMillis())
+```
+
+**Detection**: flag any assertion whose expected side reads `time.Now`/`model.GetMillis`/`Date.now` outside the test's own frozen clock, any strict `Equal` on a millisecond timestamp, any latency or duration comparison, any DST- or timezone-dependent arithmetic, and any golden-bytes comparison against a map-ordering-dependent encoder. Require either a frozen clock (`jest.useFakeTimers`, an injected clock) or an inequality window bounded by values the test captured. Tag `test:NONDETERMINISTIC_ASSERTION`. Reference: PR #37301 `extract_content/worker_test.go` (two independent `GetMillis()` reads), #36592 `remote_cluster_test.go` (`< delay` latency assertion — accepted), #36484 (`Date.now() - 60s` on a status cutoff — accepted), #36707 (date tests not clock-frozen — accepted), #36429 `storetest/channel_member_history_store.go` (`baseTime := model.GetMillis()` bleeds across near-now windows).
+
+### 11. Disabling coverage requires a tracked unblock condition (High)
+
+A `t.Skip`, `test.skip`, `test.fixme`, or deleted test case removes the only guard on a behavior. Without a named defect and an owner, nothing ever re-enables it, and a skip whose CONDITION is broader than its stated reason silently drops coverage on healthy configurations too.
+
+```typescript
+// BAD — no defect, no owner; and the reason does not match the breadth
+test.fixme('applies the attribute policy', async ({pw}) => { ... });
+test.skip('flaky', ...);
+
+// GOOD — the skip names the blocker and is scoped to exactly the affected config
+test.skip(testInfo.project.name === 'ipad', 'MM-58210: RHS drag handle unsupported on iPad');
+```
+
+**Detection**: for every skip/fixme/`t.Skip`/removed test in the diff, require (a) a defect reference or a concrete unblock condition in the message and (b) a condition no broader than that reason — a skip gated on `EngineAll` for a Bleve-only limitation, or a missing UI tab used as the skip predicate, over-skips. Also flag a test DELETED with no replacement, and a swallowed setup error that turns a scenario into a silent no-op. Tag `test:COVERAGE_DISABLED`. Reference: PR #36376 `user_attributes.spec.ts` (bulk `test.fixme`, no tracked defect), #36492 `autotranslation.spec.ts` (8 ranges disabled, no owner), #36568 `api4/post_test.go` (skip reason just `"flaky"`), #37360 `searchtest/file_info_layer.go` (`EngineAll` skip broader than the rationale), #37602 `ai_recap_settings_test.go` (`TestRecapLimitSettingsValidation` removed with no replacement), #36472 `channel_perm_rules_v0_4.spec.ts` (missing tab used as the skip condition — accepted), #36642 `delete_behaviors.spec.ts` (swallowed team-assignment error skips the scenario).
+
+### 12. A test case that duplicates a sibling adds no signal (Low)
+
+Two cases with the same inputs and the same assertions cost runtime and review attention while covering one path. The same applies to a duplicate mock registration in a generated-layer test: the second registration exercises nothing new.
+
+```typescript
+// BAD — the second case differs only in title
+it('renders the scheme name', () => { ...assertions... });
+it('displays the scheme name', () => { ...identical assertions... });
+
+// GOOD — one case per distinct behavior; the second varies an input that changes the outcome
+it('renders the scheme name', () => { ... });
+it('renders the fallback when the scheme has no name', () => { ... });
+```
+
+**Detection**: within each test file in the diff, compare added cases pairwise against their siblings — same setup, same call, same assertions with only the title differing means one is redundant. Also flag a mock or store entry registered twice in the same table. Conversely, when a diff MIGRATES a test to a new form, check the old variant's distinct input survived; a migration that drops the variant it replaced is a coverage loss, not a duplicate. Tag `test:DUPLICATE_CASE`. Reference: PR #37158 `permission_system_scheme_settings.test.tsx` ("do we really need two tests?"), #35952 `retrylayer_test.go` (duplicate `Recap` mock registration).
+
+### 13. Tests must assert the current contract, not the one being replaced (High)
+
+When production behavior changes, an untouched assertion is now wrong — it either fails, or worse, passes because it encodes a bug as the expected outcome. The dangerous form is a test that codifies a KNOWN defect: asserting Cancel produces the Confirm outcome makes the bug permanent.
+
+```typescript
+// BAD — codifies the bug the fix is meant to remove
+await cancelButton.click();
+await expect(page.getByText('Changes saved')).toBeVisible();  // Cancel should discard
+
+// GOOD — assert the contract the code now guarantees
+await cancelButton.click();
+await expect(page.getByText('Changes saved')).toBeHidden();
+await expect(field).toHaveValue(originalValue);
+```
+
+**Detection**: for every production behavior change in the diff (rendered element, display name, status code, exclusion rule, default), grep for tests asserting the OLD value and flag any left unchanged — including snapshots. Separately, read each added negative/cancel/deny assertion against the documented contract and the production code: if the assertion matches what the code does today but contradicts what it should do, or contradicts a documented platform sentinel or exclusion, flag it as codifying a defect rather than testing it. Tag `test:STALE_CONTRACT`. Reference: PR #34663 (snapshot expects `<h2>`, code renders `<span>`), #36363 (label assertion vs new display names — accepted), #36560 `demo_root_modal_menus.spec.ts` (Cancel asserted to produce the Confirm outcome, codifying a known bug), #37604 `revoke_non_compliant_tokens.spec.ts` (expectation contradicts the server's bot-token exclusion).
+
+### 14. Do not couple assertions to full user-facing wording or unscoped page text (Medium)
+
+An assertion on a whole sentence, an exact error string, or a bare count breaks on every copy edit and translation, and an unscoped text query matches any occurrence anywhere in the tree — including a sibling component the test is not about.
+
+```typescript
+// BAD — matches '3 channels' anywhere on the page; breaks if the copy changes
+expect(screen.getByText('3 channels')).toBeVisible();
+expect(rows.length).toBeLessThan(25);  // pins a page-size constant as prose
+
+// GOOD — scope to the element, assert the stable part
+const summary = screen.getByRole('status', {name: /channel count/i});
+expect(summary).toHaveTextContent(/\b3\b/);
+```
+
+```go
+// BAD — asserts the exact permission error sentence
+require.Equal(t, "You do not have the appropriate permissions.", resp.Error.Message)
+
+// GOOD — assert the stable identity
+require.Equal(t, "api.context.permissions.app_error", resp.Error.Id)
+```
+
+**Detection**: flag `getByText`/`toHaveText`/`Equal` on a full sentence or a translated string; require the error `Id`/status code in Go and TS API assertions, and a scoped `within(...)`/role query plus a substring or regex for rendered copy. Tag `test:WORDING_COUPLED`. Reference: PR #36903 `policies.test.tsx:331` (`getByText('3 channels')` unscoped global text — accepted), #36227 `post_test.go` (asserts exact permission error text), #37259 `scheduled_post_list/index.test.tsx` (`toBeLessThan(25)`).
+
+### 15. The adjacent degenerate input shape needs its own case (Medium)
+
+`nil` and `""` are different values through a pointer parameter; `nil` and `[]string{}` produce different SQL (`IN ()` is a syntax error); `'null'` and `'{}'` take different `JSON.parse` paths; an omitted field and an empty field serialize differently. A case for one shape does not cover the other, and the untested one is usually where the panic lives.
+
+```go
+// BAD — only the empty-string shape is covered, but the parameter is *string
+t.Run("empty auth data", func(t *testing.T) {
+    _, err := ss.User().GetByAuth(rctx, model.NewPointer(""), service)
+    require.Error(t, err)
+})
+
+// GOOD — the nil pointer is a distinct path through the same signature
+t.Run("nil auth data", func(t *testing.T) {
+    _, err := ss.User().GetByAuth(rctx, nil, service)
+    require.Error(t, err)
+})
+```
+
+**Detection**: for each parameter or field the diff newly validates or consumes, name its degenerate pair from the type — pointer → `nil` vs pointed-to zero; slice/array → `nil` vs empty; JSON string → `'null'` vs `'{}'` vs `'[]'`; optional request field → omitted vs present-and-empty. Grep the accompanying tests for both; flag the missing shape by name. Tag `test:DEGENERATE_INPUT_GAP`. Reference: PR #36352 `storetest/user_store.go` ("validates empty-string auth, but not `nil` auth pointer. Since `GetByAuth` accepts `*string`, adding a nil case guards against regressions"), #36429 `channel_member_history_store.go` (`[]string{}` vs `nil` → `IN ()`), #36504 `content_flagging.test.ts` (`'{}'`/`'null'`), #36552 `client4.test.ts` (omitted `comment`), #36250 `property_value_test.go` (system `TargetType` with empty `TargetID`).
+
+## Corpus checklist (single-sighting patterns)
+
+Single corpus sightings — not yet frequent enough for a full rule, but check for them.
+
+- [ ] Unit test hidden behind an integration build tag — the tag keeps a Docker-free test out of standard CI (T133, PR #35643)
+- [ ] Only the first element asserted (`.first()`, `[0]`) for a claim the fix makes about every row (T289, PR #36642)

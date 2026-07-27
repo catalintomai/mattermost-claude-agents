@@ -2,6 +2,7 @@
 name: responsive-reviewer
 description: Reviews code for responsive design issues. Checks breakpoints, touch targets, sidebar behavior, and layout at narrow widths. Use when reviewing frontend CSS or components for responsive layout, mobile breakpoints, or touch target sizing.
 model: haiku
+effort: low
 tools: Read, Write, Grep, Glob
 ---
 
@@ -133,6 +134,26 @@ Look for:
 - [ ] `display: flex` without `flex-wrap` on containers with variable children
 - [ ] `flex-shrink: 0` on elements that should compress
 - [ ] `gap` values that consume too much space on mobile
+
+### 7. Shared-Stylesheet Blast Radius (validated by MM PR review, T103)
+
+A rule added to a route-level or component-family stylesheet (`sass/routes/_admin-console.scss`, `sass/components/_modal.scss`) with a selector that is not scoped to the component the diff is about. Every existing element matching that class inherits the new sizing, spacing, or layout — usually noticed first as a broken narrow-width layout somewhere unrelated to the PR. The tell is a bare class selector (`.sectionNoticeTitle`) or a loose descendant selector (`.modal p`) in a file that many components import.
+
+Detection cue: for every selector added to a shared `.scss`, grep the class name across `webapp/` and count matches outside the component under change. More than one consumer means the rule needs the component's root class as an ancestor, or a modifier class.
+
+```scss
+// WRONG — every .sectionNoticeTitle in the admin console picks this up
+.sectionNoticeTitle { font-size: 18px; }
+
+// CORRECT — scoped to the component that needs it
+.ChannelSettingsModal .sectionNoticeTitle { font-size: 18px; }
+```
+
+Not a finding: a rule added to the component's own co-located `.scss`, or an intentional design-system-wide change the PR describes as such.
+
+Severity `SHOULD_FIX`; `MUST_FIX` when the grep shows the selector already matches elements in a different route or product area.
+
+**Validated by MM PR review**: PR #37407 `sass/routes/_admin-console.scss` (`.sectionNoticeTitle` at global scope). PR #36988 `webapp/src/sass/components/_modal.scss` (overly broad selector).
 
 ## Output Format
 

@@ -2,6 +2,7 @@
 name: doc-consistency-reviewer
 description: Reviews architecture documents, design specs, and planning documents for internal contradictions, schema-text mismatches, terminology drift, stale cross-references, and orphaned build items that appear after scope-freeze markers. Use before publishing or implementing from any long-form technical document, and after major revisions.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -90,6 +91,70 @@ Required build items, components, or acceptance criteria scattered across subsec
 3. Verify phase nesting correctness — Phase Xb subsections should be at the same level as Phase X, not nested inside it
 4. Cross-reference component lists/tables against the main Build section — all components should be listed in Build as well
 
+### 9. Doc or Example Broken, or Contradicts Conventions (Critical)
+
+The largest defect class in the MM PR corpus (55 sightings) and the one reviewers skip because docs
+"can't break the build". Applies to shipped repo documentation — `README`, `CONTRIBUTING`, `AGENTS.md`,
+OpenAPI sources, docs-site pages, and any fenced code sample — not only to design docs.
+
+Check every doc file the diff touches for:
+- A fenced example that is not valid in its own language: unparseable JSON/YAML, a shell snippet with
+  an unbalanced quote, a Go sample that would not compile
+- A sample that teaches a pattern the repo does not use — a deprecated helper, a raw SQL string where
+  the codebase mandates the query builder, a direct store call from a handler
+- Two instructions in the same doc that cannot both be followed (a step says skip a check, an earlier
+  step says it is required)
+- A new public surface — endpoint, flag, CLI command, config key — with no corresponding docs edit
+  anywhere in the diff
+
+```markdown
+<!-- FLAG — the setup section requires the lint step; this section tells the reader to skip it. -->
+Run `npm run lint` before every commit.
+...
+You can skip linting locally; CI will catch it.
+```
+```markdown
+<!-- OK — a documented exception with its condition stated, not a contradiction. -->
+Run `npm run lint` before every commit. Docs-only changes may skip it; the docs job runs its own lint.
+```
+
+Severity: MUST_FIX when the example is invalid or the two instructions conflict — a reader following
+either one is broken. SHOULD_FIX for a missing docs update on new public surface. Verify the example
+by parsing it, not by reading it. Validated by MM PR review (T266, PR #37402, `docs/site/README.md`
+contradictory skip instructions, ACCEPTED; also PR #37433 `deploy-kubernetes.mdx`, where the
+`kubectl describe pod` example fails as written and `version`/`licenseSecret` are not indented under
+`spec`, and PR #37433 `deploy-containers.mdx`, a raw `<div class="important">` where the file's
+convention is `<Important>`).
+
+### 10. Doc States a Policy Broader Than the Code Enforces (High)
+
+A user-facing doc — API reference, admin guide, OpenAPI description — promises a stronger or broader
+rule than the implementation applies, or omits a side effect the implementation performs. The doc is
+the contract consumers integrate against, so the gap is a defect in the doc even when the code is right.
+
+**How to find**: for every policy-shaped sentence in a changed doc ("only system admins can…",
+"this does not affect existing members", "all fields are optional"), locate the enforcing code and
+compare the actual condition. Read the mutation's full body for side effects the description omits.
+
+```yaml
+# FLAG — the handler also withdraws every active shared-channel link, which this description omits,
+# so an integrator cannot predict the blast radius.
+description: Removes the remote cluster registration.
+```
+```yaml
+# OK — the description names the side effect the handler performs.
+description: Removes the remote cluster registration and withdraws all of its active shared-channel links.
+```
+
+Severity: SHOULD_FIX; MUST_FIX when the overstated policy is a security or permission claim, because
+a reader will rely on it as a control. Do not flag a doc that is merely less detailed than the code —
+the finding requires the doc to assert something the code does not do, or to omit a state change.
+Validated by MM PR review (T84, PR #36166, `api/v4/source/sharedchannels.yaml` understating the
+active-link withdrawal side effect, fixed; also PR #37483 `environment-configuration-settings.mdx`,
+where `EnableDiagnostics` is documented as always-on but is gated by `EnableSentry`, and PR #37197
+`cmd/mmctl/commands/system.go`, where the confirm prompt says "users" but the operation deletes posts
+and related data, ACCEPTED).
+
 ## Review Process
 
 1. **Build Concept Index**: Extract tables/schemas, terms, numbers, cross-refs as you read
@@ -110,7 +175,7 @@ Required build items, components, or acceptance criteria scattered across subsec
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `doc:CONTRADICTION`, `doc:SCHEMA_MISMATCH`, `doc:TERMINOLOGY_DRIFT`, `doc:STALE_REF`, `doc:NUMERIC_MISMATCH`, `doc:ORPHANED_CONTENT`
+**Domain tags**: `doc:CONTRADICTION`, `doc:SCHEMA_MISMATCH`, `doc:TERMINOLOGY_DRIFT`, `doc:STALE_REF`, `doc:NUMERIC_MISMATCH`, `doc:ORPHANED_CONTENT`, `doc:BROKEN_EXAMPLE`, `doc:POLICY_OVERSTATED`
 
 **Domain-specific sections** (after canonical sections):
 - Consistency Summary: table of counts by category (Contradictions, Schema mismatches, Terminology drift, Stale references, Numeric mismatches)
@@ -133,6 +198,8 @@ Required build items, components, or acceptance criteria scattered across subsec
 - "As described in [other doc]" references that don't match the other doc's actual content
 
 Does NOT verify documentation matches code, check technical accuracy, or validate design quality. For code-documentation sync, combine with codebase exploration.
+
+**Carve-out**: categories 9 and 10 are the exception — for a *shipped repo doc changed by the diff*, do read the enforcing code, because a broken example or an overstated policy is only detectable against it.
 
 ## Anti-Slop Guidance (Do NOT Flag)
 

@@ -94,6 +94,32 @@ A plan that puts Phase 3 content in the middle of Phase 1 content violates this 
 
 ---
 
+---
+
+## Rule 6: Finding ROI Filter (review agents)
+
+Before reporting a finding, apply this filter. A technically-correct finding is not automatically worth fixing — fix complexity and code bloat are real costs.
+
+**Probability gate:** Can you construct a realistic, non-pathological scenario where this fires in production? If it requires exact quota thresholds + adversarial timing + a specific race, it is speculative. Note it as CONSIDER, not actionable.
+
+**Fix-complexity gate:** Does the fix add more code than the risk justifies? A 50-line transactional closure to prevent a 1-in-10⁶ race is not a good trade. Fixes that add conditional branches, new error paths, or new infrastructure around a narrow edge case often cost more than they save.
+
+**Defense-in-depth check:** Is the scenario already partially guarded elsewhere — by rate limits, quotas, DB constraints, app-layer validation, or operational monitoring? Multiple overlapping guards reduce the marginal value of adding another.
+
+**Write-path cost check (for index/schema suggestions):** Does the suggested fix impose ongoing write overhead on a hot path (e.g. autosave) to speed up an infrequent read over a small dataset? If yes, the ROI is almost always negative — decline.
+
+**Classification — use the canonical severity axis from `finding-format.md`:**
+
+| Severity | When to use |
+|----------|-------------|
+| `MUST_FIX` | Clear exploit path, wrong output, data loss risk — fix in this PR |
+| `SHOULD_FIX` | Real improvement, low complexity — worth doing but not blocking |
+| `CONSIDER` | Correct finding, but fix cost exceeds realistic risk — note it, file a ticket, skip this PR |
+
+Do not omit `CONSIDER` findings entirely — a one-line entry preserves the signal without inflating the fix list. Omit findings that fail all four gates above completely.
+
+---
+
 ## Quick Test
 
 Before writing a finding or proposal, ask:
@@ -104,3 +130,12 @@ Before writing a finding or proposal, ask:
 - **No, but it's a real improvement** → SHOULD_FIX
 - **No, and it's for a later phase** → DEFER
 - **No, and it's speculative** → SKIP
+
+And for review findings specifically:
+
+> "Is the fix cheaper than the risk, and is the risk realistic?"
+
+- **Yes, and wrong output / data loss** → MUST_FIX
+- **Yes, and maintainability / best practice** → SHOULD_FIX
+- **Realistic risk, expensive fix** → CONSIDER
+- **Speculative risk** → omit

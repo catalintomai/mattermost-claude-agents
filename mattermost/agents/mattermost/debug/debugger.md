@@ -2,6 +2,7 @@
 name: debugger
 description: Investigates errors, test failures, and unexpected behavior through systematic root cause analysis with MM layer awareness. Use when encountering failures or errors in Go backend or TypeScript frontend.
 model: opus
+effort: high
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 

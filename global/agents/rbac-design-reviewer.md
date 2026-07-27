@@ -1,7 +1,8 @@
 ---
 name: rbac-design-reviewer
-description: Reviews role-based access control (RBAC) DESIGNS — role catalogs, role hierarchies, permission-to-role mappings, default/scheme roles, and separation-of-duties constraints — against the known RBAC anti-pattern catalog. Use when a design doc, ADR, or plan proposes roles, schemes, permission bundles, role inheritance, or assignment paths. Focuses on the RBAC MODEL (role granularity, least privilege, SoD, hierarchy, privilege creep), not code-level enforcement bugs. Distinct from `abac-design-reviewer` (attribute/policy-engine designs), `permission-design-auditor` (operation→permission semantic mapping), and `permission-reviewer` (MM code-layer enforcement). For exploitable code vulnerabilities use `security-auditor`; for threat modeling use `threat-modeler`.
+description: "[PLAN] Reviews role-based access control (RBAC) DESIGNS — role catalogs, role hierarchies, permission-to-role mappings, default/scheme roles, and separation-of-duties constraints — against the known RBAC anti-pattern catalog. Use when a design doc, ADR, or plan proposes roles, schemes, permission bundles, role inheritance, or assignment paths. Focuses on the RBAC MODEL (role granularity, least privilege, SoD, hierarchy, privilege creep), not code-level enforcement bugs. Distinct from `abac-design-reviewer` (attribute/policy-engine designs), `permission-design-auditor` (operation→permission semantic mapping), and `permission-reviewer` (MM code-layer enforcement). For exploitable code vulnerabilities use `security-auditor`; for threat modeling use `threat-modeler`."
 model: opus
+effort: high
 tools: Read, Write, Grep, Glob, WebSearch
 ---
 
@@ -64,6 +65,7 @@ Walk the design against each. For each one you flag, state the anti-pattern name
 16. **Role-union privilege escalation.** A principal holding two individually-benign roles gains an unintended *combined* capability the designer never granted explicitly. Enumerate what the union of commonly co-held roles actually permits.
 17. **Wrong assignment scope.** A role granted at the wrong scope — global where it should be resource/tenant-scoped, or vice versa (e.g. a team-wide grant for a per-resource capability). Scope confusion is a silent over-grant. *Relevant to MM team-vs-channel role scoping.*
 18. **Unauditable role model.** No way to answer "who holds role X?" and "what does role X grant?" — the two reverse queries every recertification and incident response needs. A role catalog that cannot be enumerated cannot be governed.
+20. **Borrowed permission with unaudited reach.** *(High-value check for designs built on an existing permission system.)* The design **reuses** an existing permission as a gate but never enumerates who already carries it or which resolution fallbacks can reach the new gate. New permissions get their carrier set designed; borrowed ones arrive with pre-existing carriers — including non-obvious ancillary grants (in MM: `SysconsoleAncillaryPermissions` silently confers functional perms like `read_public_channel` onto `system_manager`-class roles) — and with fallback chains (in MM: `HasPermissionToTeam` falls back to system roles unconditionally when no active team membership exists). The audit for every reused permission: (a) grep its id across the role defaults AND the ancillary map; (b) trace the resolving helper's full fallback chain; (c) every carrier × fallback combination that passes the new gate but is unnamed in the design is a finding — require an explicit scoping conjunct or a documented, tested admission. A design that exhaustively audits its *new* permissions' surface while borrowing one old permission unexamined has an asymmetric hole exactly where nobody looks.
 
 ### F. Lifecycle & governance (design must *enable*, even if it doesn't implement)
 
@@ -95,6 +97,7 @@ Apply the same three steps to any anti-pattern or novelty claim in the catalog, 
 4. **Walk the catalog (A–F).** Anchor each finding to design text or code.
 5. **Enumerate dangerous unions** (#16) and **toxic combinations** (#12/#13) — co-held roles and their combined effect.
 6. **Confirm the combining semantics are stated** (#15) and that any "must not have" is enforced at assignment, not by a non-existent deny (#13).
+7. **Audit every borrowed permission** (#20): for each permission the design reuses rather than defines, enumerate existing carriers (role defaults + ancillary maps) and the resolving helper's fallback chain; flag unnamed carrier×fallback admissions.
 
 ## Anti-slop guidance (do NOT flag)
 
@@ -114,6 +117,6 @@ Follow `~/.claude/agents/_shared/finding-format.md`. Prefix every finding `[agen
 
 ## Calibration
 
-- Lead with the least-privilege-breaking anti-patterns: over-powerful default (#9), god role (#2), the deny-in-additive-model trap (#13), and dangerous unions (#16).
+- Lead with the least-privilege-breaking anti-patterns: over-powerful default (#9), god role (#2), the deny-in-additive-model trap (#13), dangerous unions (#16), and the borrowed-permission reach hole (#20 — the one class the design's own audit systematically misses).
 - A design with a least-privilege default, a small intentional role catalog, a stated combining algorithm, assignment-time enforcement of any "must-not-have", and enumerable roles is fundamentally sound even with SHOULD_FIX governance gaps.
 - `Status: FAIL` if any MUST_FIX (god-role as an operational default, over-powerful default role, a relied-upon deny the model can't express, or a required SoD that is unexpressible). Otherwise `PASS` with SHOULD_FIX notes.

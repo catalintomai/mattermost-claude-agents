@@ -2,6 +2,7 @@
 name: validation-reviewer
 description: Reviews code for missing input validations. Catches empty strings, whitespace-only inputs, cross-reference mismatches, missing required fields, and boundary violations. Use when reviewing functions that accept user input, IDs, or struct parameters at API or app layer entry points.
 model: haiku
+effort: low
 tools: Read, Write, Grep, Glob
 ---
 
@@ -108,9 +109,11 @@ const handleSubmit = () => {
 
 ## What to Flag
 
-### 0. Cross-Entry-Point Validation Inconsistency (Critical — NEW)
+### 0. Cross-Entry-Point Validation Inconsistency (Critical — validated by MM PR review)
 
 When the same business logic is accessible through multiple entry points, ALL entry points must enforce the same validation rules.
+
+**Validated by MM PR review**: PR #37656 `server/public/model/integration_action.go` — "`checkbox_matrix` processes `e.Default` through `validateMatrixDefaultValue` before any length guard, while other selectable default types call `checkMaxLength`"; mattermost-plugin-docs PR #3 — "`DuplicatePage`'s invalid-input handling drops the max-depth-specific mapping that `CreatePage` has" (accepted). PR #35730 `api4/config.go:543` — `rollbackConfig` applies only `SanitizedConfig` while sibling `updateConfig`/`patchConfig` also apply cloud filtering.
 
 **Entry point categories to check**:
 - API handlers (HTTP endpoints)
@@ -439,6 +442,279 @@ t.Run("should delete file attachments when post is flagged", func(t *testing.T) 
 
 **Detection**: Compare each test name/description against the assertions inside. If the name promises behavior X but no assertion verifies X, flag as `val:TEST_NAME_MISMATCH`. Reference: PR #34416 (isacikgoz), PR #36469 (agarciamontoro).
 
+### 10. Missing Uniqueness Within a Collection (High — validated against MM PR review data)
+
+When a validator walks a user-supplied list of named items — form fields, dialog elements, integration action options, settings entries — it typically checks each element in isolation and never checks the list as a whole. Duplicate keys then pass validation, and whatever consumes the list (a `map[string]…`, a form submission payload, a state object) silently keeps only the last one. The user gets no error and a submitted value disappears.
+
+```go
+// BAD: each element validated, the collection never is
+func validateCollapsible(fields []*Field) error {
+    for _, f := range fields {
+        if f.Name == "" {
+            return errors.New("field name required")
+        }
+    }
+    return nil
+}
+// Two fields named "priority" both validate; the submission map keeps one.
+
+// GOOD: reject duplicates across the collection
+func validateCollapsible(fields []*Field) error {
+    seen := make(map[string]bool, len(fields))
+    for _, f := range fields {
+        if f.Name == "" {
+            return errors.New("field name required")
+        }
+        if seen[f.Name] {
+            return errors.New("duplicate field name: " + f.Name)
+        }
+        seen[f.Name] = true
+    }
+    return nil
+}
+```
+
+**Detection**: for every validator in the diff that takes a slice or array, ask what identifies an element downstream — a `Name`, `Key`, `Id`, or `Type` field. Then check whether the consumer indexes by that identifier (a map assignment, a `Props` key, a form value keyed by name). If it does and the validator has no `seen` set or equivalent, flag as `val:DUPLICATE_KEY`. Uniqueness is only required when collisions are lossy: a list consumed purely in order (rendered items, an audit trail) may legitimately repeat names.
+
+**Reference**: PR #37341 `server/public/model/integration_action.go` — "`validateCollapsible` never checks for duplicate `Name` values… two fields sharing the same `Name` … will silently collide and overwrite each other's value".
+
+### 11. Coercion & Truthiness Data Loss (High — validated against MM PR review data)
+
+A guard or conversion that looks correct destroys real data because the input's type or domain is wider than the check assumes. Six shapes, each MM PR-validated:
+
+**a. `Boolean(stringifiedBool)` — the string `'false'` is truthy.** Admin form state serialized as strings flips every saved toggle.
+
+```typescript
+// BAD
+const enabled = Boolean(stateValue);        // 'false' -> true
+
+// GOOD
+const enabled = stateValue === true || stateValue === 'true';
+```
+
+Reference: PR #36830 `datetime_display_format.ts:296` — "`Boolean(stateValue)` treats `'false'` as `true`. If admin form state is serialized as strings, this will flip the saved toggle state." Accepted.
+
+**b. A missing preference coerced to an explicit value breaks default inheritance.** Writing `'false'` when no preference row exists is not the same as leaving it unset: the admin default and the legacy fallback can no longer apply. Reference: PR #36830 `date_time_display_format_setting/index.ts:25` — "Line 24 forces `showTimestampSeconds` to `'false'` when no explicit preference exists. That breaks default inheritance." Accepted.
+
+**c. A truthiness filter drops legitimate `0` and `false`.** Filtering a details view with `if (value)` hides exactly the fields the user opened the row to inspect. Test presence (`value !== undefined && value !== null`), not truthiness. Reference: PR #35569 `log_row.tsx:232` — "The truthiness check filters out valid values like `0` and `false`, so expanded rows can hide exactly the fields users are trying to inspect."
+
+**d. Unit-blind suffix checks.** `!value.endsWith('%')` treats `10em`, `100vw`, and `auto` as absolute pixel dimensions. Parse the unit explicitly and reject the ones the consumer cannot use. Reference: PR #37168 `svg_preview.ts` — "Line 118 treats `10em`, `100vw`, `auto`, and `0` as usable absolute dimensions because they do not end with `%`."
+
+**e. Non-finite float converted to int without a guard.** `strconv.ParseFloat` accepts `NaN` and `Inf`; converting either to `int` in Go is implementation-defined. Guard with `math.IsNaN` / `math.IsInf` before rounding.
+
+```go
+// BAD
+w, err := strconv.ParseFloat(attr, 64)
+if err != nil { return err }
+width := int(math.Round(w))
+
+// GOOD
+w, err := strconv.ParseFloat(attr, 64)
+if err != nil { return err }
+if math.IsNaN(w) || math.IsInf(w, 0) || w <= 0 { return errInvalidDimension }
+width := int(math.Round(w))
+```
+
+Reference: PR #37168 `imaging/svg.go:120` — "Reject non-finite dimensions before rounding." Accepted.
+
+**f. A present-but-invalid sentinel short-circuits resolution.** A non-empty but zero-area `viewBox` passes the "is it set?" check and blocks the fallback path, leaving the object unfixable. Presence is not validity — validate the parsed content, not the field's existence. Reference: PR #37168 `svg_preview.ts` — "A non-empty but invalid/zero-area `viewBox` still short-circuits here, leaving the SVG unfixable even though it lacks usable sizing." Accepted.
+
+**Detection**: flag `Boolean(x)`, `!!x`, and bare `if (x)` where `x` can hold a stringified boolean, a numeric field, or a preference value (a). For every write of a default into a preference/config store, check whether an absent row previously fell through to a broader default (b). For every `.filter(Boolean)`, `.filter((v) => v)`, or truthy guard over a display collection, check the value domain for `0`/`false`/`''` (c). For every `endsWith`/`includes`/suffix test standing in for unit parsing, enumerate the units the input can carry (d). For every `int(...)` conversion in Go whose source came from `ParseFloat` or arithmetic, require a finiteness guard (e). For every early return keyed on "field is set", check whether a set-but-invalid value should instead fall through (f). Flag as `val:COERCION_DATA_LOSS`.
+
+### 12. Guard Ordered Wrongly Relative to Its Transform (High — validated by MM PR review)
+
+A guard and a transform both exist, but the guard runs against the pre-transform value, so the value the code actually stores or uses was never checked. Common orderings: length checked before `TrimSpace`, a cap applied before dedupe, a `304`/early-return short-circuit placed ahead of the new validation, or the expensive parse run before the size guard.
+
+```go
+// BAD: whitespace becomes '_' AFTER the length guard, so the stored name can exceed the cap
+if len(name) > model.MaxNameLength {
+    return errTooLong
+}
+name = strings.ReplaceAll(strings.TrimSpace(name), " ", "_")
+
+// GOOD: normalize first, then validate what will actually be persisted
+name = strings.ReplaceAll(strings.TrimSpace(name), " ", "_")
+if len(name) > model.MaxNameLength {
+    return errTooLong
+}
+```
+
+**Detection**: for every validation added in the diff, find the transform (trim, replace, dedupe, truncate, decode, cap) applied to the same variable and confirm the guard sits downstream of it. Also check the reverse direction: a size/permission guard placed *after* the expensive work it was meant to bound. Flag as `val:GUARD_ORDER`.
+
+**Reference**: PR #37080 `emoji_picker/utils` — whitespace replaced with `_` before the trim, so the validated value is not the emitted one (accepted). PR #37656 `public/model/integration_action.go` — `checkbox_matrix` runs `validateMatrixDefaultValue` before any length guard while sibling types call `checkMaxLength` first.
+
+### 13. Substring Match Where Exact Match Is Required (High — validated by MM PR review)
+
+`strings.Contains`, `HasPrefix`, `includes`, or a regex without anchors used for an identity decision. The check passes for any string that merely embeds the target, so `Follow` matches `Following` and an allowed domain matches an attacker-registered superstring.
+
+```go
+// BAD: strips at the first "-v" appearing anywhere in the string
+if idx := strings.Index(ua, "-v"); idx != -1 {
+    version = ua[idx+2:]
+}
+
+// GOOD: split on the known separator and compare the field exactly
+parts := strings.Split(ua, "/")
+if len(parts) == 2 && parts[0] == expectedClient {
+    version = parts[1]
+}
+```
+
+**Detection**: for every `Contains`/`HasPrefix`/`HasSuffix`/`includes`/`indexOf` added in the diff, ask whether the compared value is an *identifier* (a domain, a status, a role, a client name, a feature key). If it is, exact equality or a delimiter-aware split is required. Prefix checks over paths must include the trailing separator (`prefix + "/"`) so `/admin` cannot match `/admin-escape`. Substring matching stays correct for genuine free-text search. Flag as `val:SUBSTRING_MATCH`.
+
+**Reference**: PR #36726 `session.go` — strips at the first `-v` anywhere in the value (accepted).
+
+### 14. Precondition Assumed, Never Enforced (High — validated by MM PR review)
+
+A function's correctness depends on a condition the function never checks and the call site cannot see: a helper that requires its argument to end in a dot, a handler that assumes a setup step ran, a test that relies on an ambient default it never sets. It works until an unrelated change removes the assumption.
+
+```go
+// BAD: silently wrong if the caller's prefix lacks the trailing separator
+func keyFor(prefix, id string) string {
+    return prefix + id  // requires prefix to end in "/"
+}
+
+// GOOD: enforce the contract where it is relied on
+func keyFor(prefix, id string) string {
+    if !strings.HasSuffix(prefix, "/") {
+        prefix += "/"
+    }
+    return prefix + id
+}
+```
+
+**Detection**: for every helper or handler added in the diff, list what it reads but does not validate — a format assumption on a string argument, a non-nil field, a config value set elsewhere, a row a prior step was supposed to create. If the assumption is invisible at the call site, either enforce it or document it in the signature. In tests, an assertion that depends on a default the test does not set is the same defect. Flag as `val:UNENFORCED_PRECONDITION`.
+
+**Reference**: PR #36491 `post_test.go` — relies on the ambient `PostPriorityLabels` default rather than setting it, so the assertion silently changes meaning when the default does.
+
+### 15. Validation Checks Presence but Not Content (High — validated by MM PR review)
+
+A length, size, or non-nil check stands in for validating what the container holds. `[""]` passes a `len(list) > 0` guard; a populated map with an unparseable value passes an "is it set?" check. The invalid element then reaches a consumer that cannot reject it.
+
+```go
+// BAD: non-empty list accepted, elements never checked
+if len(req.Values) == 0 {
+    return errRequired
+}
+policy.Values = req.Values  // [""] and ["  "] both stored
+
+// GOOD: validate every element against the domain the consumer needs
+if len(req.Values) == 0 {
+    return errRequired
+}
+for _, v := range req.Values {
+    if strings.TrimSpace(v) == "" || !slices.Contains(model.AllowedValues, v) {
+        return errInvalidValue
+    }
+}
+```
+
+**Detection**: for every presence guard in the diff (`len(x) > 0`, `x != nil`, `if (x)`), find the consumer and ask what it requires of each element — non-blank, enum membership, parseable as a number or a CEL expression. A guard that only counts is not a guard. Flag as `val:PRESENCE_NOT_CONTENT`.
+
+**Reference**: PR #37174 `table_editor.tsx` — the `younger than` value passes the presence check and reaches CEL unvalidated (accepted).
+
+### 16. Inverse Function Pair Normalizes Asymmetrically (Medium — validated by MM PR review)
+
+Encode/decode, serialize/parse, or write/compare pairs where one side trims, lowercases, or canonicalizes and the other does not. Round-tripping is lossy: the value written cannot be read back, or an equality comparison fails against a value the write path accepted.
+
+```go
+// BAD: write lowercases, read does not — lookups miss rows written by this path
+func store(k string) { db.Put(strings.ToLower(k), v) }
+func load(k string) []byte { return db.Get(k) }
+
+// GOOD: one canonicalization helper used by both sides
+func canonical(k string) string { return strings.ToLower(strings.TrimSpace(k)) }
+func store(k string) { db.Put(canonical(k), v) }
+func load(k string) []byte { return db.Get(canonical(k)) }
+```
+
+**Detection**: whenever the diff touches one half of a named pair (`Marshal`/`Unmarshal`, `Encode`/`Decode`, `Mask`/`Unmask`, `Set`/`Get`, `Format`/`Parse`), open the other half and diff the normalization steps. Also flag when a comparison normalizes but the stored value did not. Flag as `val:ASYMMETRIC_NORMALIZATION`.
+
+**Reference**: PR #36517 `access_control_masking.go` — the read path round-trips advanced CEL lossily against what the write path stored (accepted).
+
+### 17. Bounds Check Weaker Than the Later Fixed-Offset Slice (High — validated by MM PR review)
+
+A `len(x) >= N` guard admits sizes that a subsequent fixed-index slice or array access panics on, because the guard's `N` and the largest index used afterwards were chosen independently and then drifted.
+
+```go
+// BAD: guard admits len == 8, the slice needs 12
+if len(buf) < 8 {
+    return errTooShort
+}
+header := buf[4:12]  // panics for len(buf) in [8, 12)
+
+// GOOD: derive the guard from the largest offset actually used
+const headerEnd = 12
+if len(buf) < headerEnd {
+    return errTooShort
+}
+header := buf[4:headerEnd]
+```
+
+**Detection**: for every length/size guard in the diff, collect every index, slice bound, and fixed-width read applied to that value downstream and confirm the guard's threshold is at least the maximum. Watch for a cap expressed in one unit (rows, items) and consumed in another (bytes, a full page). Flag as `val:WEAK_BOUNDS_GUARD`.
+
+**Reference**: PR #36275 `app/channel.go:4302` — the scan cap is exceeded by a full page of results (accepted).
+
+### 18. Attribute-Precedence Ambiguity (Medium — validated by MM PR review)
+
+Resolution over a set that can legitimately contain several qualifying members picks whichever one it encounters first — first recognized role in a role list, first matching attribute, first policy that mentions the subject. The result depends on storage or iteration order, so the same input resolves differently across nodes or after an unrelated write.
+
+```go
+// BAD: whichever recognized role appears first in the slice wins
+for _, r := range cm.Roles {
+    if level, ok := levelForRole[r]; ok {
+        return level
+    }
+}
+
+// GOOD: resolve by an explicit precedence rule, not encounter order
+best := levelNone
+for _, r := range cm.Roles {
+    if level, ok := levelForRole[r]; ok && level > best {
+        best = level
+    }
+}
+return best
+```
+
+**Detection**: for every loop in the diff that returns or assigns on the first match, ask whether two matches are possible for one subject. If they are, the code needs a stated precedence (highest wins, most specific wins, deny wins) rather than an implicit one. Flag as `val:PRECEDENCE_AMBIGUOUS`.
+
+**Reference**: PR #36472 `app/access_control.go` — the first recognized token in `cm.Roles` wins, with no precedence rule (accepted).
+
+### 19. Time Layout Rejects an Equivalent Valid Representation (Medium — validated by MM PR review)
+
+A single `time.Parse` layout, regex, or semver pattern used as the acceptance test for a format that has several valid spellings. RFC3339 `Z` fails a numeric-offset-only layout; a semver pattern rejects surrounding whitespace or a leading `v`; a date pattern rejects a single-digit day.
+
+```go
+// BAD: one layout, so "2026-07-24T10:00:00Z" is rejected
+t, err := time.Parse("2006-01-02T15:04:05-07:00", s)
+
+// GOOD: use the layout that covers the spec, and normalize before matching
+t, err := time.Parse(time.RFC3339, strings.TrimSpace(s))
+```
+
+**Detection**: for every added layout string or format regex, enumerate the representations the spec permits — `Z` vs `±hh:mm`, fractional seconds, a leading `v`, leading/trailing whitespace, case — and confirm each is either accepted or deliberately rejected with a message that says so. Prefer the stdlib constant (`time.RFC3339`) over a hand-written layout. Flag as `val:FORMAT_TOO_NARROW`.
+
+**Reference**: PR #35382 `admin_definition.tsx` — the semver check rejects `" 5.0.0 "` (accepted).
+
+### 20. External Value Accepted Without an Allowlist (High — validated by MM PR review)
+
+A string that arrives from a request body, query param, or plugin manifest and is persisted or dispatched on without being checked against the closed set of values the code actually handles. The field type (`string`) admits everything; the consuming `switch` handles three cases and silently ignores the rest, so a typo becomes a stored row nobody processes.
+
+```go
+// BAD: any string is persisted, the worker only knows "email" and "webhook"
+d.Mechanism = req.Mechanism
+
+// GOOD: reject at the boundary against the same set the consumer switches on
+if !model.IsValidDeliveryMechanism(req.Mechanism) {
+    return model.NewAppError("...", "model.delivery.is_valid.mechanism.app_error", nil, "", http.StatusBadRequest)
+}
+```
+
+**Detection**: for every new externally-supplied string field that is stored or branched on, find its consumer (`switch`, `map` lookup, comparison chain) and confirm a boundary check enumerates the same members. A `default:` that logs and returns is not validation — the bad value is already persisted. Also check the model's `IsValid()`: a field added to the struct but not to `IsValid()` has no allowlist at all. Flag as `val:MISSING_ALLOWLIST`.
+
+**Reference**: PR #36340 `model/content_flagging.go` — `Action` accepted without an allowlist; PRs #36948/#36937 `delivery_db.go` — `mechanism` persisted unvalidated; PR #35517 `api4/report.go:157` — new query param accepts any string.
+
 ## Review Process
 
 ### Step 1: Identify Entry Points
@@ -488,7 +764,7 @@ grep -n "func.*ID.*ID.*\*model.AppError" server/channels/app/*.go
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `val:MISSING_VALIDATION`, `val:MISSING_CROSS_REF`, `val:MISSING_ID_FORMAT`, `val:MISSING_BOUNDS`
+**Domain tags**: `val:MISSING_VALIDATION`, `val:MISSING_CROSS_REF`, `val:MISSING_ID_FORMAT`, `val:MISSING_BOUNDS`, `val:DUPLICATE_KEY`
 
 **Domain-specific sections** (after canonical sections):
 - Validation Coverage: table of Function / Parameters / Validations / Status
@@ -534,6 +810,16 @@ model.NewAppError("Func", "error.id", nil, "", http.StatusForbidden)
 - **Do not flag** API-level request format validation (ID validity, JSON structure, bounds) as "missing" from service layer — service layer assumes the API layer has already validated format. Format validation belongs in API; business logic validation belongs in service.
 - **Do not flag** when the validation check appears in only one place IF that place is a shared validation function that all callers use — as long as all code paths call the validation before the operation, it's secure. Example: if all Create/Update/Import methods call ValidateNewChannelOnlyMode(), that's correct, even if it's only called from one function.
 - **Do not flag** internal mutation operations (e.g., setters, internal helper methods) for missing the same validation as the public API if those mutations are only called from the already-validated public method — trace the call graph before flagging.
+
+## Corpus checklist (single-sighting patterns)
+
+Seen once or twice in the MM PR corpus — check when the diff shape matches, but do not treat as a recurring rule.
+
+- [ ] Batch routed by the first element's discriminant, or validated item-by-item while intra-batch conflicts go unchecked (T194, PR #36340)
+- [ ] CEL or query string built by joining a list that can contain blank elements, yielding malformed output (T231, PR #36472)
+- [ ] Exact-match path filter where prefix match is required, so nested or indexed descendants escape a path-keyed restriction (T127, PR #37174)
+- [ ] Manifest- or config-supplied path consumed with no root containment check (T162, PR #36414)
+- [ ] Aggregate validation returns on the first invalid element instead of collecting every offender (T325, PR #37341)
 
 ## See Also
 

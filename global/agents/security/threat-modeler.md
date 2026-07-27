@@ -2,6 +2,7 @@
 name: threat-modeler
 description: Security architect for threat modeling and security design reviews. Use for identifying vulnerabilities, risk assessments, and security architecture planning. Use when designing or reviewing a new security-sensitive feature, authentication flow, or data access pattern.
 model: opus
+effort: high
 # Tools note: Bash is used for running security scanning commands (openssl, curl for endpoint testing, certificate verification, etc.)
 tools: Read, Write, Bash, Grep, Glob
 ---

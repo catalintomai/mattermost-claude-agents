@@ -2,6 +2,7 @@
 name: agent-collection-validator
 description: "Audits the entire ~/.claude/agents/ collection for registry accuracy, dead cross-references, naming convention violations, scope overlap, and weak delegation descriptions. Use after adding, renaming, or modifying any agent file. Do not use for validating a single agent — use agent-reviewer for that."
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -39,9 +40,24 @@ For every entry in the registry:
 ### 2. Cross-Reference Integrity (MUST_FIX)
 
 For every agent file, grep for "See Also", "see `", "use `", "reference", and agent names:
-- **Dead references**: Agent mentions another agent by name (e.g., `tiptap-reviewer`, `redis-expert`) that doesn't exist on disk → `coll:DEAD_XREF`
+- **Dead references**: Agent mentions another agent by name (e.g., `tiptap-reviewer`, `redis-expert`) that doesn't exist anywhere on disk → `coll:DEAD_XREF`
 - **How to check**: Extract all agent names referenced in the file body. For each, verify a `.md` file with that name exists under `~/.claude/agents/`.
-- **Exceptions**: References to project-level agents (explicitly noted as "project-level" or "see project .claude/agents/") are INFO, not MUST_FIX.
+- **Exceptions**: A reference that resolves to a *project-scoped* agent (exists in a project `.claude/agents/`, not under `~/.claude/agents/`) is NOT a dead reference — but for a global agent it is a scope-inversion; route it to Check 2b, do not silently downgrade to INFO.
+
+### 2b. Scope-Inversion References (SHOULD_FIX)
+
+A **global** agent (file under `~/.claude/agents/`) must not name a **project-scoped** agent. Dependency direction is one-way: project agents may reference global agents (specific builds on general); a global agent referencing a project agent is an inverted dependency — the reference dangles whenever a *different* project is active, and it leaks one project's pipeline into a shared asset.
+
+**How to check**:
+1. Build the global set: basenames of `~/.claude/agents/**/*.md`.
+2. Build the project set: basenames of `*/.claude/agents/**/*.md` across the known project roots (e.g. `mattermost-pages-channel/.claude/agents/`, each plugin repo's `.claude/agents/`) and the monorepo `mattermost/.claude/agents/`.
+3. For every agent name referenced in a **global** agent file: if the name is absent from the global set but present in the project set → `coll:SCOPE_INVERSION`. (Absent from both → `coll:DEAD_XREF`, Check 2.)
+
+**Worked example**: global `mm-doc-clarity-reviewer` said "Run AFTER `mm-doc-voice-reviewer`", but `mm-doc-voice-reviewer` is project-scoped to `mattermost-pages-channel`. From any other project the instruction dangles.
+
+**Fix**: in the global agent, reference the *role/capability* rather than the project agent's name — e.g. "run a voice/terminology pass (whichever the active project provides)" — or name only other global agents. Apply the same fix to the agent's `AGENT_REGISTRY.md` row if the project name leaked there too.
+
+**Exception**: a reference explicitly framed as a role/example ("a voice/terminology pass", "your project's `<x>` reviewer") that names no concrete project agent is compliant — PASS.
 
 ### 3. Content Contamination (MUST_FIX)
 

@@ -2,6 +2,7 @@
 name: api-contract-reviewer
 description: Reviews API DESIGNS and request/response SCHEMA proposals (pre-implementation) for completeness, consistency, breaking changes, and security gaps. Use BEFORE code is written — when a plan or design doc proposes a new endpoint, or a schema change is being negotiated. For a design split across multiple section docs (a doc set), a cross-reference to the owning doc counts as ownership — review the contract across the set, not each doc in isolation. For reviewing already-implemented api4/ handlers, use `api-design-reviewer` (post-code) or `api-reviewer` (MM layer compliance) instead.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 

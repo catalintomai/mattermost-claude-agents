@@ -2,6 +2,7 @@
 name: deprecation-reviewer
 description: Reviews deprecation plans and code removal PRs for missing replacements, missing migration guides, active consumers still referencing removed code, and zombie code with no owner. Use when a plan proposes deprecating a feature or API, or when a diff deletes a substantial existing function, type, or endpoint.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 

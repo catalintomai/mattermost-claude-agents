@@ -2,6 +2,7 @@
 name: ci-failure-reviewer
 description: Reviews CI/CD failures and pipeline issues. Helps diagnose flaky tests, build failures, and pipeline configuration problems. Use when a CI pipeline fails and you need to identify the root cause or distinguish flaky tests from real failures.
 model: sonnet
+effort: medium
 # Tools note: Bash is justified — CI failure diagnosis requires running tests locally (go test -race ./...),
 # checking linting (make golangci-lint), and type checking (npm run check-types) to reproduce failures
 # (see "Useful Commands" section).

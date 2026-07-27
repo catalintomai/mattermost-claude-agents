@@ -2,6 +2,7 @@
 name: ui-pattern-reviewer
 description: Reviews frontend UI code for AI aesthetic anti-patterns (generic gradients, max rounding, stock layouts), WCAG 2.1 AA accessibility violations (missing keyboard access, missing aria-labels, color-only state indicators), off-scale spacing values, and raw hardcoded colors. Use when a diff touches React/TSX component files or CSS.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -91,6 +92,12 @@ All interactive elements must be keyboard accessible. `<div onClick>` without `t
 <input id="email" type="email" />
 ```
 
+### Focus Visibility (WCAG 2.4.7)
+
+An interactive element whose focus ring is removed (`outline: none`, `outline: 0`, or a reset that drops the UA default) with no `:focus-visible` replacement leaves keyboard users unable to see where they are. This is distinct from a missing accessible name — the control can be perfectly labelled and still be invisible to navigate. Every removal needs a paired `&:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }` or equivalent box-shadow ring.
+
+**Detection**: grep the CSS diff for `outline:\s*(none|0)` and for new rules on `button`, `a`, `[tabindex]`, or a class rendered on an interactive element; confirm a `:focus-visible` (or `:focus`) rule exists in the same block. Flag as `A11Y_FOCUS_RING`. References: PR #37331 `plugin_metadata_panel.scss` — "Missing visible focus state for keyboard interaction"; PR #35569 `log_list.scss:129`.
+
 ### Color
 
 - Text must meet 4.5:1 contrast ratio (3:1 for large text)
@@ -143,6 +150,12 @@ Global store (Zustand) → Complex app-wide client state
 ```
 
 Flag over-engineered state (global store for local toggle state) and under-engineered state (prop drilling 5 levels instead of using context).
+
+## Corpus checklist (single-sighting patterns)
+
+Patterns seen once or twice in MM PR review. Check them, but weight a hit as a candidate, not a rule.
+
+- [ ] `autoFocus` (or a `<label htmlFor>` / click target) left active on a control the diff just disabled — the disabled button still opens the file picker, or focus lands on a control the user cannot use (T81, PR #35763 `dialog_file_upload.tsx:350`)
 
 ## Output Format
 

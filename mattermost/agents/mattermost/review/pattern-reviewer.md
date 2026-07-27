@@ -2,6 +2,7 @@
 name: pattern-reviewer
 description: Reviews feature code against UPSTREAM Mattermost patterns. Catches deviations from established conventions in each layer (API, App, Store, Model, Frontend). Use when reviewing feature code for deviations from upstream Mattermost conventions in any layer.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 

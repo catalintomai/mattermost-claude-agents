@@ -2,6 +2,7 @@
 name: refactorer
 description: Performs a SPECIFIC, ATOMIC refactor with clean breaks — renames a symbol everywhere, extracts a function, moves code between MM layers (API→App→Store), or changes an interface signature plus all call sites. Use when the change is well-scoped and must complete in a single atomic step. For incremental, multi-PR modernization of legacy code, use `tech-debt-refactorer` instead.
 model: sonnet
+effort: medium
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 

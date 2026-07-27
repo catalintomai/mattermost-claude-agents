@@ -2,6 +2,7 @@
 name: mm-deprecation-reviewer
 description: Reviews code for MM-specific deprecation patterns. Ensures deprecated code is documented, tracked, and has a removal timeline. Use when MM code marks APIs or functions as deprecated, uses deprecated code, or removes deprecated features.
 model: haiku
+effort: low
 tools: Read, Write, Grep, Glob
 ---
 

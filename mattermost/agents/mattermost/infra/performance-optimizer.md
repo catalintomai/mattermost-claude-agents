@@ -2,6 +2,7 @@
 name: performance-optimizer
 description: Performance optimization expert for profiling and eliminating bottlenecks. Use when optimizing database query optimization, frontend performance, bundle size, and Core Web Vitals.
 model: sonnet
+effort: medium
 tools: Write, Read, Edit, Bash, Grep, Glob, mcp__postgres-server__query
 ---
 

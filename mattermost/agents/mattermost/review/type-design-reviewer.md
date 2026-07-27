@@ -2,6 +2,7 @@
 name: type-design-reviewer
 description: Scores Go structs and TS interfaces on encapsulation and MM model patterns. Use when reviewing type definitions in server/public/model/ or webapp/platform/types/. Not for implementation logic.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -233,11 +234,103 @@ type PageContent =
     | { type: 'published'; content: string };
 ```
 
+### Issue 7: Scalar Field Standing In for Per-Relationship State
+
+A boolean or enum field lives on exactly one row, so it can only express one value. When the entity holding it is shared — one child referenced by several parents — a field describing the child's state *with respect to a parent* has nowhere to put the second parent's answer. Whichever parent writes last wins, and the others silently lose state they still depend on.
+
+```go
+// BAD: one Active bit on a child that several parents share
+type ChildPolicy struct {
+    ID     string `json:"id"`
+    Active bool   `json:"active"` // active for WHICH parent?
+}
+// Deactivating the child from parent A also deactivates it for parents B and C.
+
+// GOOD: the state lives on the relationship
+type ParentChildLink struct {
+    ParentID string `json:"parent_id"`
+    ChildID  string `json:"child_id"`
+    Active   bool   `json:"active"` // one row per pair — no collision possible
+}
+```
+
+**Check for**: any scalar field added to a type whose instances are referenced by more than one owner. The test is a question about the field's meaning, not its type — if you cannot name the field's value without naming a parent ("active *for the import*", "enabled *in this channel*"), the state belongs on the join row, or must be derived per parent at read time rather than stored. A scalar is correct only when the state is genuinely global to the entity ("deleted", "archived"), where every parent agrees by definition.
+
+Cardinality is what makes this a bug rather than a style question, so establish it before flagging: grep for the foreign key pointing at the type and confirm more than one row can reference the same child. A child owned 1:1 has no collision and is not a finding. Tag `type:SCALAR_FOR_RELATIONSHIP`.
+
+**Validated by MM PR review**: PR #37529 `server/channels/app/access_control.go:1774-1806` — "A shared child's `Active` bit cannot represent per-parent state." One global `Active` overwritten from a single parent can disable unrelated active imports.
+
+### Issue 8: New Field Lands Without Its Invariant
+
+The highest-frequency type defect in the MM PR corpus (13 sightings): a field is added to a model struct
+or a TS interface and nothing constrains its legal values. MM types carry their invariants in an
+`IsValid()` method (Go) or a type-guard predicate (`isAppField`, TS); a new field that is not named in
+either is unvalidated at every entry point that trusts the type.
+
+```go
+// BAD: new expiry field with no bound — a non-positive value produces an already-expired URL
+type FileSettings struct {
+    AzurePresignExpiryMinutes *int `access:"environment_file_storage"`
+}
+
+// GOOD: the invariant travels with the field
+func (s *FileSettings) IsValid() *AppError {
+    if s.AzurePresignExpiryMinutes != nil && *s.AzurePresignExpiryMinutes <= 0 {
+        return NewAppError("FileSettings.IsValid", "model.config.is_valid.azure_presign_expiry.app_error", nil, "", http.StatusBadRequest)
+    }
+}
+```
+
+**Check for**: every field the diff adds to a type that has an `IsValid()`/validation sibling — is the
+new field named there? Also check the TS mirror's type-guard and any `IsValid()`-less new type that
+crosses an API boundary (that absence is itself the finding). An `omitempty`-only field with no bound is
+not automatically a finding — flag when an out-of-range value has a concrete consequence you can name.
+Tag `type:MISSING_INVARIANT`. Severity SHOULD_FIX; MUST_FIX when the unvalidated value reaches storage
+or an external call.
+
+**Validated by MM PR review**: T172 — PR #36758 `config.go:1855` — non-positive Azure presign expiry accepted
+(ACCEPTED). Also PR #37119 `apps.ts:499` (new fields missing from `isAppField`, ACCEPTED) and PR #36873
+`model/plugin_channel_permission.go` (no `IsValid()` at all).
+
+### Issue 9: Sentinel Shares a Namespace With Real Values
+
+A marker value — "unset", "sanitized", "not found" — is drawn from the same domain as legitimate data,
+so a legitimate value is indistinguishable from the marker. In Go this most often arrives with
+`omitempty`/`omitzero` on a numeric or boolean field, which makes the zero value the marker; it also
+appears when a synthetic id is keyed on a raw, non-namespaced identifier that a second producer can
+collide with.
+
+```go
+// BAD: `omitzero` makes 0 the sanitization marker, so a legitimate 0 is dropped
+type ChannelMember struct {
+    LastViewedAt int64 `json:"last_viewed_at,omitzero"`
+}
+
+// GOOD: the marker lives outside the value domain
+type ChannelMember struct {
+    LastViewedAt *int64 `json:"last_viewed_at,omitempty"`
+}
+```
+
+**Check for**: any new `omitempty`/`omitzero` on a numeric or boolean field, and any sentinel constant
+(`""`, `0`, `-1`) whose domain overlaps real data. The test: can a caller produce this exact value
+legitimately? If yes, the sentinel is ambiguous. A pointer, a separate presence flag, or a value outside
+the legal range resolves it. Do not flag a sentinel on a field whose zero value is genuinely impossible
+(a creation timestamp, a 26-char id). Tag `type:AMBIGUOUS_SENTINEL`. Severity SHOULD_FIX.
+
+**Validated by MM PR review**: T230 — PR #37505 `channel_member.go` — `omitzero` makes 0 the sanitization
+marker, colliding with a legitimate 0 (ACCEPTED).
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] Hand-written `MarshalJSON` enumerating fields in an anonymous struct, so fields added to the type later are silently dropped (T305, PR #37505)
+- [ ] Serialization tag inconsistent with its siblings, or unsafe for its type — `omitempty` on a `bool` drops a legitimate `false` (T333, PR #37107)
+
 ## Output Format
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `type:PRIMITIVE_OBSESSION`, `type:MISSING_UNION`, `type:POOR_ENCAPSULATION`
+**Domain tags**: `type:PRIMITIVE_OBSESSION`, `type:MISSING_UNION`, `type:POOR_ENCAPSULATION`, `type:SCALAR_FOR_RELATIONSHIP`
 
 **Domain-specific sections** (after canonical sections):
 - Type Ratings: table with Type / File / Encapsulation / Invariants / Usefulness / Overall scores

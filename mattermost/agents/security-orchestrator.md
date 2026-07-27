@@ -2,6 +2,7 @@
 name: security-orchestrator
 description: Orchestrates parallel specialist security agents and synthesizes a unified prioritized report. Use when a code change requires comprehensive security coverage across multiple domains. Must be top-level — not a subagent.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob, Task
 ---
 

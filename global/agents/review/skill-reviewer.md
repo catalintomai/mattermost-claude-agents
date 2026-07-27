@@ -2,6 +2,7 @@
 name: skill-reviewer
 description: "Validates Claude Code skill files in .claude/skills/ against Anthropic's official authoring best practices — checking frontmatter, description quality, body size, progressive disclosure, and anti-patterns like Windows paths or time-sensitive instructions. Use after creating or modifying any SKILL.md file."
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 
@@ -118,6 +119,10 @@ For skills with workflows (sequential steps):
 - Check scripts are referenced from SKILL.md
 - Check references clarify intent: execute vs read-as-reference
 - Unreferenced scripts → SHOULD_FIX: "Script {name} exists but is not referenced from SKILL.md"
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] Reusable prompt or template hardcodes one worked example (a specific product, repo, or domain) where it should take that example as an input (T145, PR #35566)
 
 ## Output Format
 

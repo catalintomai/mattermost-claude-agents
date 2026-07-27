@@ -2,6 +2,7 @@
 name: migration-code-orchestrator
 description: Orchestrates review of mmetl/import*.go for idempotency, integrity, and error handling. Use when reviewing migration or bulk import changes (Slack, Confluence). Must be top-level — not a subagent.
 model: sonnet
+effort: medium
 # Tools note: Bash is justified — this agent runs data flow tracing commands (grep pipelines, find patterns)
 # to verify migration correctness. Edit is included as this agent orchestrates fixes via Task delegation.
 # Task is required — this agent must run top-level to delegate to specialist agents (slack-migration-expert, confluence-migration-expert).

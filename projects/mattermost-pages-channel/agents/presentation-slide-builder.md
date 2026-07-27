@@ -9,6 +9,7 @@ description: >-
   architecture docs themselves (those are the source of truth this agent reads from), and
   NOT the publisher (the main session handles MCP page-create + build + publish).
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 

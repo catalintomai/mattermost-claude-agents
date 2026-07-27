@@ -23,15 +23,16 @@ Agents within each group are independent and can run simultaneously. **Project r
 
 | Group | Agents | When |
 |-------|--------|------|
-| Cross-cutting | `simplicity-reviewer`, `code-slop-reviewer`, `naming-consistency-reviewer`, `db-call-reviewer`, `type-duplication-reviewer`, `structural-health-reviewer`, `separation-of-concerns-reviewer`, `code-reviewer`, `architecture-tradeoff-reviewer` | Always (all projects) |
-| Backend | `api-reviewer`, `app-reviewer`, `store-reviewer`, `pattern-reviewer`, `concurrent-go-reviewer`, `go-silent-failure-reviewer`, `error-handling-reviewer`, `hardcoded-values-reviewer`, `production-reviewer`, `duplication-reviewer`, `logging-reviewer`, `websocket-event-reviewer`, `comment-reviewer`, `transaction-reviewer`, `ha-reviewer`, `api-design-reviewer` | Go changes, api4/ route changes |
+| Cross-cutting | `simplicity-reviewer`, `code-slop-reviewer`, `naming-consistency-reviewer`, `db-call-reviewer`, `efficiency-reviewer`, `type-duplication-reviewer`, `structural-health-reviewer`, `separation-of-concerns-reviewer`, `code-reviewer`, `architecture-tradeoff-reviewer` | Always (all projects) |
+| Backend | `api-reviewer`, `app-reviewer`, `store-reviewer`, `pattern-reviewer`, `concurrent-go-reviewer`, `go-ownership-reviewer`, `go-silent-failure-reviewer`, `error-handling-reviewer`, `hardcoded-values-reviewer`, `production-reviewer`, `duplication-reviewer`, `logging-reviewer`, `websocket-event-reviewer`, `comment-reviewer`, `transaction-reviewer`, `ha-reviewer`, `api-design-reviewer`, `cli-tool-reviewer` | Go changes, api4/ route changes. `cli-tool-reviewer` only when `cmd/`, `mmctl/`, or `tools/` changed. |
 | Frontend | `react-frontend-expert`, `redux-expert`, `component-reviewer`, `race-condition-reviewer`, `ux-edge-case-reviewer`, `ts-silent-failure-reviewer`, `ts-test-writer`, `responsive-reviewer`, `i18n-reviewer`, `ui-pattern-reviewer` | TS/React changes |
 | Compatibility | `backwards-compatibility-reviewer`, `batch-operations-reviewer`, `null-safety-reviewer`, `deprecation-reviewer`, `license-reviewer`, `file-structure-reviewer`, `config-migration-reviewer`, `type-design-reviewer`, `client-server-alignment-reviewer`, `schema-necessity-reviewer`, `launch-readiness-reviewer` | `model/` changes, API surface changes, new files/dirs, config changes |
 | Infrastructure | `ci-failure-reviewer`, `ci-gate-reviewer`, `ci-design-reviewer` | CI/CD file changes or `--ci` flag |
 | Security | `xss-reviewer`, `validation-reviewer`, `permission-reviewer`, `owasp-agentic-auditor`, `accessibility-reviewer`, `security-auditor` | `--thorough` |
-| Testing | `playwright-test-reviewer`, `cypress-test-reviewer`, `test-parallelization-reviewer`, `behavioral-change-reviewer`, `test-coverage-reviewer`, `test-engineer` | Test file changes, test setup refactoring, parallel mode changes |
+| Testing | `playwright-test-reviewer`, `cypress-test-reviewer`, `test-parallelization-reviewer`, `behavioral-change-reviewer`, `test-coverage-reviewer`, `mutation-test-reviewer`, `test-engineer` | Test file changes, test setup refactoring, parallel mode changes |
 | Python | `py-async-reviewer`, `py-datetime-reviewer`, `py-sqlite-reviewer` | Python (`.py`) changes |
-| Playbooks domain | `run-lifecycle-reviewer`, `attribute-template-reviewer`, `playbooks-api-parity-reviewer`, `playbooks-expert` | Any PR in a Playbooks plugin repo (`server/app/`, `server/api/`, `server/sqlstore/`, `client/`) |
+| Plugin framework | `plugin-expert`, `plugin-alignment-reviewer`, `db-migration-expert` | Any `mattermost-plugin-*` repo: changes to `plugin.json`, `server/plugin.go` (`OnActivate`/`OnDeactivate` lifecycle, KV store, hook registration), or plugin DB migrations (`server/store/migrations/`, morph/`RunMigrations`). `plugin-alignment-reviewer` when a new subsystem is added and cross-plugin convention alignment matters. `db-migration-expert` only when migrations changed. |
+| Playbooks domain | `run-lifecycle-reviewer`, `attribute-template-reviewer`, `playbooks-api-parity-reviewer`, `playbooks-expert` — **all four currently DISABLED** (files parked in `~/mattermost/.claude/agents-disabled/`; re-enable before routing) | Any PR in a Playbooks plugin repo (`server/app/`, `server/api/`, `server/sqlstore/`, `client/`) |
 | Playbooks migrations | `playbooks-migration-reviewer` | `server/sqlstore/migrations.go` or `server/plugin.go` changes in playbooks plugin |
 | Deep experts | `go-expert`, `ts-expert`, `react-expert`, `websocket-expert`, `postgres-expert`, `jira-alignment-reviewer` | `--full` or `--thorough` only |
 | Project | *(see project `.claude/agents/AGENT_REGISTRY.md`)* | Project-specific changes |
@@ -86,7 +87,7 @@ For long-form architecture documents, design specs, PRDs - NOT short implementat
 |-------|-------|---------|----------|
 | `doc-consistency-reviewer` | [PLAN] | Internal inconsistencies, schema-text mismatch, terminology drift | `review/` |
 | `doc-opacity-reviewer` | [PLAN] | First-read comprehension — undefined specialist terms, compressed one-liner conclusions, spatial metaphors standing in for a mechanism, forward references. Context-starved (reads only the page). Advisory; distinct from doc-consistency-reviewer (cross-refs/naming). | `(root)` |
-| `mm-doc-clarity-reviewer` | [PLAN] | Comprehension at the SENIOR-MM-engineer bar (knows the platform, not the feature domain). Four shapes: domain-term/subtlety unglossed, nominalization stacks (coined nouns defining each other), mechanism-metaphors & misused terms ("projection" for a copy), define-once violations (cross-cutting term not in glossary). In-voice low-verbosity fixes; holds the MM-basics line. Run AFTER mm-doc-voice-reviewer. Distinct from doc-opacity-reviewer (fresh-reader, context-starved, over-flags canon). | `(root)` |
+| `mm-doc-clarity-reviewer` | [PLAN] | Comprehension at the SENIOR-MM-engineer bar (knows the platform, not the feature domain). Four shapes: domain-term/subtlety unglossed, nominalization stacks (coined nouns defining each other), mechanism-metaphors & misused terms ("projection" for a copy), define-once violations (cross-cutting term not in glossary). In-voice low-verbosity fixes; holds the MM-basics line. Run AFTER a voice/terminology pass (whichever the active project provides). Distinct from doc-opacity-reviewer (fresh-reader, context-starved, over-flags canon). | `(root)` |
 
 ### Architecture (Complex Plans)
 
@@ -124,7 +125,7 @@ For long-form architecture documents, design specs, PRDs - NOT short implementat
 
 ### Playbooks Plugin (mattermost-plugin-playbooks*)
 
-Catalogued in the Level 2 registry (`~/mattermost/.claude/agents/AGENT_REGISTRY.md` § "Mattermost Features"): `playbooks-expert`, `run-lifecycle-reviewer`, `attribute-template-reviewer`, `playbooks-api-parity-reviewer`. Run ALL FOUR when reviewing any plan or PR that touches the Playbooks plugin codebase — they catch domain-specific issues (transaction scope, template resolution, lifecycle state machine, permission paths) that generic agents miss.
+Catalogued in the Level 2 registry (`~/mattermost/.claude/agents/AGENT_REGISTRY.md` § "Mattermost Features"): `playbooks-expert`, `run-lifecycle-reviewer`, `attribute-template-reviewer`, `playbooks-api-parity-reviewer`. **Currently DISABLED** — the four files are parked in `~/mattermost/.claude/agents-disabled/mattermost/features/` and are not loaded; delegating to them will fail. When reviewing a Playbooks plugin plan or PR, first move them back under `agents/` (they catch transaction scope, template resolution, lifecycle state machine, and permission-path issues that generic agents miss), or fall back to the generic backend reviewers.
 
 ### Reference Docs (not agents)
 
@@ -154,6 +155,7 @@ Detection logic is language-agnostic — no Go/TS/MM-specific rules.
 | `type-duplication-reviewer` | [CODE] | Type duplication across Go structs and TypeScript interfaces | `review/` |
 | `structural-health-reviewer` | [BOTH] | Accumulated structural fragility — shotgun surgery, god types, tangled deps, orphaned indirection, responsibility scatter | `review/` |
 | `code-reviewer` | [CODE] | General code review — correctness, readability, architecture, security, performance (use MM-specific reviewers for MM projects) | `review/` |
+| `efficiency-reviewer` | [CODE] | Wasted in-memory work a diff introduces — discarded computation, repeated traversal/recomputation, loop-invariant work, serial independent I/O, startup/hot-path blocking, closure scope retention. The in-memory analogue of `db-call-reviewer` (which owns DB round-trips). Defers unbounded batches/goroutine-per-item → `batch-operations-reviewer`, redundant STATE → `simplicity-reviewer`, profiling/measured micro-opt → `performance-optimizer` | `review/` |
 | `deprecation-reviewer` | [BOTH] | Deprecation plans and removal PRs — replacement readiness, migration docs, zombie code (generic; use `mm-deprecation-reviewer` for MM projects) | `review/` |
 
 ### Tier 1: Core (Mattermost Projects)
@@ -174,6 +176,10 @@ Catalogued in the Level 2 registry: `pattern-reviewer`, `comment-reviewer`, `err
 | Agent | Phase | Purpose | Location |
 |-------|-------|---------|----------|
 | `go-silent-failure-reviewer` | [CODE] | Silent error patterns in Go — ignored returns, empty catch blocks, swallowed errors in deferred functions | `review/` |
+| `go-ownership-reviewer` | [CODE] | Map/slice/pointer aliasing and ownership violations — caller-owned data assigned to struct state, getters returning live internal references, shallow copies | (top-level) |
+| `cli-tool-reviewer` | [CODE] | CLI command correctness — output-mode contracts (`--json` on every path), silently ignored flags, external-command timeouts, archive/file-handling hygiene, boundary rows | `review/` |
+
+> `cli-tool-reviewer`: route only when the diff touches `cmd/`, `mmctl/`, or `tools/` — not on every Go change.
 
 > MM-specific Go backend agents (`go-backend-expert`, `api-reviewer`, `app-reviewer`, `store-reviewer`, `transaction-reviewer`, `concurrent-go-reviewer`, `logging-reviewer`, `websocket-event-reviewer`) are catalogued in the Level 2 registry.
 
@@ -206,7 +212,7 @@ Catalogued in the Level 2 registry: `pattern-reviewer`, `comment-reviewer`, `err
 | `cypress-test-reviewer` | [CODE] | **Review** Cypress E2E tests (read-only: DOM detachment, wait patterns, selector stability) — `*_spec.js`, `*.cy.ts` | `testing/` |
 | `test-engineer` | [CODE] | Test strategy, unit/integration test writing, coverage analysis, mock quality analysis — language-agnostic | `testing/` |
 
-> MM-specific test reviewer (`test-coverage-reviewer`) is catalogued in the Level 2 registry.
+> MM-specific test reviewers (`test-coverage-reviewer`, `mutation-test-reviewer`) are catalogued in the Level 2 registry.
 
 > **`playwright-test-writer`** is an **implementation** agent (Write/Edit/Bash), not a reviewer.
 > Use it to **write or fix** E2E tests. Use `playwright-test-reviewer` (Playwright) or `cypress-test-reviewer` (Cypress) to **review** them.
@@ -238,6 +244,7 @@ Catalogued in the Level 2 registry: `pattern-reviewer`, `comment-reviewer`, `err
 | `ts-expert` | [CODE] | Advanced TypeScript, type systems | `tech/` |
 | `websocket-expert` | [CODE] | WebSocket, real-time communication | `tech/` |
 | `postgres-expert` | [CODE] | PostgreSQL | `tech/` |
+| `plugin-alignment-reviewer` | [CODE] | Empirical convention alignment of a mattermost-plugin-* repo against canonical sibling plugin repos on GitHub (store/migrations, manifest, hooks, test harness, CI) | (top-level) |
 
 > MM-specific domain experts (`ha-reviewer`, `jira-alignment-reviewer`, `i18n-reviewer`) are catalogued in the Level 2 registry.
 
@@ -266,11 +273,11 @@ Use these BEFORE `/create-prd` when the question is "which features should we bu
 
 | Agent | Phase | Purpose | Location |
 |-------|-------|---------|----------|
-| `competitive-product-analyst` | [PLAN] | Cross-product feature matrix from primary sources (vendor docs, pricing, changelogs). Classifies features as Table Stakes / Widespread / Differentiation Opportunity / Declining, plus a `⚑poorly-served` quality flag (present everywhere but universally criticized = highest-value build-better target); distinguishes capability from quality; surfaces user-sentiment as `[user-signal]` hypotheses. | `core/` |
+| `competitive-product-analyst` | [PLAN] | Cross-product feature matrix from primary sources (vendor docs, pricing, changelogs). Classifies features as Table Stakes / Widespread / Differentiation Opportunity / Declining, plus a `⚑poorly-served` quality flag (present everywhere but universally criticized = highest-value build-better target); distinguishes capability from quality; surfaces user-sentiment as `[user-signal]` hypotheses. | `core/` — **NOT YET WRITTEN** (no file exists; do not delegate) |
 | `feature-prioritization-expert` | [PLAN] | Applies ≥2 of RICE / MoSCoW / Kano / JTBD to a candidate feature list, synthesizes consensus picks vs framework outliers, surfaces stealth must-haves (Basic Kano + low RICE). Requires a defined release scope. | `core/` |
-| `product-trend-researcher` | [PLAN] | Mines emerging patterns from vendor launches, conference talks, research papers, funding events. Classifies Mainstream / Emerging / Speculative / Declining / Hype with named evidence + dates (Mainstream requires adoption evidence, not just ship-count). Detects fads vs trends via follow-up-shipping signals. | `core/` |
-| `feature-usage-researcher` | [PLAN] | Estimates how heavily individual features of a SINGLE product are actually used by mining multi-proxy signals (vendor marketplace install counts per category, migration-tool fidelity gap reports, community/Reddit/HN post frequency, third-party surveys). Output: per-feature usage-signal score (HIGH/MEDIUM/LOW/NO-EVIDENCE) with explicit proxy citations + honest "no first-party telemetry" disclaimer. Use to ground feature prioritization in usage frequency, not just feature presence in vendor docs or pain complaints. | `core/` |
-| `voice-of-customer-researcher` | [PLAN] | Mines SINGLE-product customer sentiment on BOTH poles — ranked pain themes (most-complained-about) AND per-feature LOVED/NEUTRAL/DISLIKED satisfaction — from review sites (G2/Capterra/TrustRadius), community forums, Reddit, HN. Output: pain-theme list + satisfaction table with proxy citations + honest "no vendor sentiment telemetry; review sentiment is self-selection-biased" disclaimer. The sentiment lens; pairs with `feature-usage-researcher` as a usage × satisfaction 2x2. NOT for usage frequency, cross-product comparison, vendor-doc presence, or trends. | `core/` |
+| `product-trend-researcher` | [PLAN] | Mines emerging patterns from vendor launches, conference talks, research papers, funding events. Classifies Mainstream / Emerging / Speculative / Declining / Hype with named evidence + dates (Mainstream requires adoption evidence, not just ship-count). Detects fads vs trends via follow-up-shipping signals. | `core/` — **NOT YET WRITTEN** (no file exists; do not delegate) |
+| `feature-usage-researcher` | [PLAN] | Estimates how heavily individual features of a SINGLE product are actually used by mining multi-proxy signals (vendor marketplace install counts per category, migration-tool fidelity gap reports, community/Reddit/HN post frequency, third-party surveys). Output: per-feature usage-signal score (HIGH/MEDIUM/LOW/NO-EVIDENCE) with explicit proxy citations + honest "no first-party telemetry" disclaimer. Use to ground feature prioritization in usage frequency, not just feature presence in vendor docs or pain complaints. | `core/` — **NOT YET WRITTEN** (no file exists; do not delegate) |
+| `voice-of-customer-researcher` | [PLAN] | Mines SINGLE-product customer sentiment on BOTH poles — ranked pain themes (most-complained-about) AND per-feature LOVED/NEUTRAL/DISLIKED satisfaction — from review sites (G2/Capterra/TrustRadius), community forums, Reddit, HN. Output: pain-theme list + satisfaction table with proxy citations + honest "no vendor sentiment telemetry; review sentiment is self-selection-biased" disclaimer. The sentiment lens; pairs with `feature-usage-researcher` as a usage × satisfaction 2x2. NOT for usage frequency, cross-product comparison, vendor-doc presence, or trends. | `core/` — **NOT YET WRITTEN** (no file exists; do not delegate) |
 
 > Related: `ideation-partner` (Core Implementation above) — brainstorming new features that can then be passed to `feature-prioritization-expert` for ranking. `external-claims-auditor` (§ 1 Plan Review) — single-product fact verification (this group's focus is multi-product analysis). The five product-research lenses on one feature set: `competitive-product-analyst` (cross-product presence) + `external-claims-auditor` (single-product vendor-doc presence) + `feature-usage-researcher` (within-product usage frequency) + `voice-of-customer-researcher` (within-product sentiment: pain + satisfaction) + `feature-prioritization-expert` (criticality/ranking). Usage × satisfaction is the highest-value pairing (HIGH-usage × DISLIKED = differentiation opportunity).
 

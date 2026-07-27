@@ -2,6 +2,7 @@
 name: production-reviewer
 description: Scans for mock/stub/placeholder code in production paths. Ensures no fake implementations shipped. Use when checking that production code has no mock, stub, or placeholder implementations.
 model: haiku
+effort: low
 tools: Read, Write, Grep, Glob
 ---
 
@@ -49,6 +50,10 @@ Do not raise `prod:MOCK_IN_PROD` findings for:
 - **E2E test fixtures**: Playwright/Cypress test files that intentionally use test accounts like `test@example.com`
 
 Only flag when mock/stub/placeholder code appears in a **production execution path** that ships to customers.
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] Production path silently degrades to a no-op — a method body commented out while callers assume it persists, or an *enabled* subsystem falling back to a noop store (T308, PR #36940)
 
 ## Anti-Slop Guidance (Do NOT Flag)
 

@@ -2,6 +2,7 @@
 name: react-expert
 description: Implements React components using advanced hooks, custom hook patterns, compound component patterns, code splitting with Suspense, and performance optimizations (memo, virtualization). Use when building or debugging React code outside a Mattermost codebase. For MM webapp components in webapp/channels/src/, use react-frontend-expert instead — MM patterns take precedence.
 model: sonnet
+effort: medium
 tools: Write, Read, Edit, Bash, Grep, Glob
 ---
 

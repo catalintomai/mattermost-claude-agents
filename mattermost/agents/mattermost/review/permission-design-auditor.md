@@ -2,6 +2,7 @@
 name: permission-design-auditor
 description: Reviews permission system DESIGN for semantic correctness, completeness, and alignment with industry standards. Focuses on the model, not the code. Use when evaluating whether the permission model is semantically correct, complete, and aligned with industry standards.
 model: opus
+effort: high
 tools: Read, Write, Grep, Glob, WebSearch
 ---
 
@@ -71,6 +72,12 @@ Reviews permission system **design** for semantic correctness. Unlike `permissio
 - Do permission assignments make sense for each role?
 - Example: Can guests do anything that creates data?
 - Example: Do channel users have appropriate restrictions?
+
+### 5. Borrowed-Permission Reach
+- For every permission the design **reuses** (rather than defines): who ALREADY carries it, and through which resolution paths can they reach the new gate?
+- A design that exhaustively audits its own new permissions routinely forgets that a borrowed permission arrives with pre-existing carriers — including non-obvious ones granted via `SysconsoleAncillaryPermissions` (`role.go` ancillary map: sysconsole read/write permissions silently confer ancillary functional permissions like `read_public_channel` onto `system_manager`-class roles).
+- And with pre-existing resolution fallbacks: `HasPermissionToTeam`'s tail is an unconditional system-role check when no active team membership exists (`authorization.go` — the `HasPermissionTo` fallback), so a team-scoped check on a borrowed permission admits cross-team system-role carriers unless the design adds an explicit membership conjunct.
+- The question to force: "if I grep this permission id across `role.go` (defaults AND the ancillary map), which principals pass my new gate that the design never named — and is each one intended?"
 
 ## Semantic Permission Mapping
 
@@ -233,6 +240,12 @@ For each gap:
 - What's the migration path?
 - Are there backward compatibility concerns?
 
+### Step 5: Audit Borrowed Permissions (mandatory when the design reuses ANY existing permission)
+For each reused permission id:
+1. **Enumerate carriers**: grep the id in `server/public/model/role.go` — the role default lists AND the `SysconsoleAncillaryPermissions` map (ancillary grants are the ones designs never think of).
+2. **Enumerate resolution paths**: which helper evaluates the check (`HasPermissionToTeam`/`HasPermissionToChannel`/`HasPermissionTo`), and what does its fallback chain admit when the primary membership relation is absent? (`HasPermissionToTeam` falls back to system roles unconditionally; `HasPermissionToChannel` falls back to team then system roles.)
+3. **Cross the two**: any carrier × fallback combination that passes the new gate but is not named in the design is a finding — either the design adds an explicit scoping conjunct (e.g. active-membership check) or documents the admission as intended.
+
 ## Example Audit Findings
 
 ### Finding: Move Uses Edit Instead of Delete
@@ -251,6 +264,18 @@ Current: Requires ManageChannelProperties
 Problem: Creating wiki also creates draft page that needs publishing
 Implicit: Draft page requires create_page to publish
 Fix: Also check create_page permission at wiki creation time
+```
+
+### Finding: Borrowed Permission Admits Unintended Carriers
+```
+Operation: open-space non-member read fall-through
+Current: HasPermissionToTeam(read_public_channel) — a REUSED permission
+Problem: HasPermissionToTeam falls back to system roles when the caller has no
+         active team membership, and read_public_channel rides the sysconsole
+         ancillary map onto system_manager — so a cross-team delegated admin
+         passes a gate the design described as "team-membership-scoped"
+Fix: conjoin an explicit isActiveTeamMember check (or document and test the
+     broader admission as intended)
 ```
 
 ### Finding: Comment Resolution Too Permissive

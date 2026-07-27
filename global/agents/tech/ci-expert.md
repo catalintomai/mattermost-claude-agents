@@ -2,6 +2,7 @@
 name: ci-expert
 description: Implements CI/CD pipelines, GitHub Actions workflows (.github/workflows/*.yml), merge gates, branch protection rules, cross-repo coordination via pin files, and automation bots. Use when building or modifying CI infrastructure, debugging a failing workflow, or adding a new required status check. Implements what ci-design-reviewer validates.
 model: sonnet
+effort: medium
 tools: Write, Read, Edit, Bash, Grep, Glob
 ---
 
@@ -215,6 +216,82 @@ update-pinned-dep:
 ```
 
 Ensure the Makefile target name follows the project's existing verb conventions (check `grep -E '^\w+' Makefile` for patterns like `update-*`, `check-*`, `build-*`).
+
+## Corpus-Validated Detection Rules
+
+Recurring defects found in merged MM PRs. Check these whenever you write or modify a shell recipe, a script invoked from CI, or a Makefile target.
+
+### Shell fail-fast wrong for the loop semantics
+
+**Cue**: a script that runs N independent items (specs, packages, PRs) under `set -euo pipefail`, so the first failure kills the remaining items — or the mirror case, a recipe chaining steps with `;` or newlines with no fail-fast, so a failed step is masked by the next success. Also flag an array or glob expanded unquoted into `bash -lc`.
+
+```bash
+# BAD: one bad PR aborts the whole batch; one failing package skips the rest
+set -euo pipefail
+for pr in $PRS; do
+  gh api "repos/$REPO/pulls/$pr" > "out/$pr.json"
+done
+
+# GOOD: collect per-item status, fail once at the end
+set -uo pipefail
+rc=0
+for pr in "${PRS[@]}"; do
+  gh api "repos/$REPO/pulls/$pr" > "out/$pr.json" || { echo "::warning::$pr failed"; rc=1; }
+done
+exit "$rc"
+```
+
+Decide fail-fast per loop, not per file: aggregate loops want continue-and-report, sequential setup steps want `set -e`. Tag `ci:FAIL_FAST_SEMANTICS`, severity MUST_FIX when a masked failure is reported as success, SHOULD_FIX when it only truncates a batch.
+
+**Validated by MM PR review**: PR #36370 `e2e-tests/.ci/server.run_playwright.sh` — `BALANCED_SPECS` expanded unquoted into `bash -lc`; PR #36314 `.github/scripts/branch-freshness-recheck.sh` — a transient `gh api` failure terminates the batch after the first bad PR (accepted); PR #35739 `server/scripts/run-shard-tests.sh` — `-e` aborts the remaining tests (accepted); PR #35476 `server/Makefile:418-431` — commands chained with `;` and no fail-fast.
+
+### Path resolved against the caller's cwd
+
+**Cue**: a relative path in a Makefile recipe, a CI script, or an action input that only resolves correctly when invoked from one directory. Composite-action and cache paths are the common CI form — they resolve against the workspace root, not the checkout the job actually tests.
+
+```makefile
+# BAD: only works when make is run from server/
+update-pin:
+	@cd ../enterprise && git rev-parse HEAD > ../enterprise.pin
+
+# GOOD: anchored to the makefile's own directory
+ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+update-pin:
+	@cd $(ROOT)/../enterprise && git rev-parse HEAD > $(ROOT)/../enterprise.pin
+```
+
+Anchor every path to a known root — `$(ROOT)`, `$GITHUB_WORKSPACE`, or the script's own `dirname` — never to the ambient cwd. Tag `ci:CWD_RELATIVE_PATH`, severity SHOULD_FIX; MUST_FIX when the wrong resolution silently reads or writes a different tree.
+
+**Validated by MM PR review**: PR #37393 `.github/workflows/e2e-tests-cypress-template.yml` — cache action pointed off the tested checkout; PR #35957 `server/Makefile` — fixed by `$(ROOT)/../enterprise.pin` for cwd-independent resolution (accepted).
+
+### Make target not `.PHONY` or duplicated
+
+**Cue**: a new Makefile target whose name could collide with a file or directory in the same tree, or a second rule for a name already defined earlier in the file. Make treats a same-named path as the target's output and skips the recipe; a duplicate rule silently overrides the first.
+
+```makefile
+# BAD: if a `generated/` directory ever appears, this recipe stops running
+generated:
+	$(GO) generate ./...
+
+# GOOD
+.PHONY: generated
+generated:
+	$(GO) generate ./...
+```
+
+Add every non-file target to `.PHONY` — including aliases like `all` — and grep the Makefile for the target name before adding a rule. Tag `ci:MAKE_TARGET_DECL`, severity SHOULD_FIX.
+
+**Validated by MM PR review**: PR #36698 `server/Makefile:415` — `generated` and `default-roles-permissions` not `.PHONY` (accepted, commit 9992875); PR #37268 `server/Makefile` — `vet-api` shadowable, and PR #37409 duplicate `vet-api` rule (accepted); PR #35781 `server/Makefile:1` — `all` missing from `.PHONY`.
+
+---
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] Build flags strip debug symbols (`-s -w`) with no env-var opt-out for attaching delve (T137, PR #36181)
+- [ ] Stateful compose service declared with no volume, so its data is ephemeral (T321, PR #36937)
+- [ ] Destructive workspace reset (wiping tracked changes) as a normal step in a routine dev script (T324, PR #36839)
+
+---
 
 ## Output Format
 

@@ -5,7 +5,7 @@ description: Generic relational database reference material for database review 
 
 # Database Reference
 
-Generic PostgreSQL/relational database patterns, anti-patterns, and analysis reference. Used by `database-architecture-reviewer` and other DB-aware agents.
+Generic PostgreSQL/relational database patterns, anti-patterns, and analysis reference. Used by `database-architecture-auditor` and other DB-aware agents.
 
 ## Anti-Patterns
 

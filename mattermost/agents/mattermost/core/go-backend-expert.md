@@ -3,6 +3,7 @@ name: go-backend-expert
 description: Go backend specialist for Mattermost server code. Use when writing or reviewing Go code in API endpoints (api4/), app layer logic (app/), store layer queries (store/), and model definitions (model/). For non-MM Go code, use go-expert instead.
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
+effort: medium
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
@@ -58,12 +59,36 @@ ls "$MODEL_DIR"/*<feature>*.go 2>/dev/null
 | `mutex_unlock_defer` | Unlock mutexes with `defer` |
 | `go_context_propagation` | Accept `request.CTX` as first parameter |
 | `go_structured_logging` | Use `mlog` structured key-value pairs |
+| `unexported_authz_policy` | A package-level slice/map used as an authorization policy must be unexported, or returned as a copy — exporting it lets any package mutate the policy at runtime (PR #36471, accepted) |
+| `stdlib_default_carries_a_limit` | Before overriding a stdlib hook or default, check what safety limit the default enforced and re-implement it — a custom `http.Client.CheckRedirect` replaces Go's built-in 10-redirect cap and must count hops itself (PR #36665) |
+| `guard_at_the_invariant_owner` | A defensive guard belongs where the invariant is established, not where it crashes — reject the bad value at the entry point that owns it (PR #35722, lieut-data: "We do not support empty usernames, and we certainly shouldn't guard against it inside a method called `createProfileImage`"). Adding the guard at the crash site hides that the invariant was already violated upstream |
 
 > For detailed checks per pattern, see the dedicated reviewer agents: `api-reviewer`, `app-reviewer`, `store-reviewer`, `error-handling-reviewer`, `concurrent-go-reviewer`.
 
+### Request Context Discarded Mid-Path (High — validated by MM PR review)
+
+`go_context_propagation` above covers accepting `request.CTX`. The more common defect is a path that *has* an `rctx` and then throws it away partway down — the callee gets `request.EmptyContext(...)` or `context.Background()`, so the request id, session, and logger fields vanish from the logs and the work becomes uncancellable. On a request path that means a client disconnect no longer stops the work; on a bulk write it means no deadline at all.
+
+```go
+// WRONG: rctx is in scope, but the callee gets a fresh empty one
+func (a *App) SendEphemeral(rctx request.CTX, post *model.Post) {
+    a.Srv().Store().Post().Save(request.EmptyContext(a.Log()), post)
+}
+// WRONG: retry loop ignores cancellation
+for i := 0; i < maxRetries; i++ { time.Sleep(backoff) /* no <-ctx.Done() */ }
+
+// CORRECT
+a.Srv().Store().Post().Save(rctx, post)
+select { case <-time.After(backoff): case <-rctx.Context().Done(): return rctx.Context().Err() }
+```
+
+**Detection**: grep the diff for `request.EmptyContext`, `context.Background()`, `context.TODO()`, and `http.NewRequest(` and, for each hit, check whether an `rctx`/`ctx` is already a parameter of the enclosing function — if so it is a discard, not an origin. Also flag `time.Sleep` in a retry or phase loop with no `ctx.Done()` case, and error branches that drop `ctx.Err()`. Genuine origins (server startup, background jobs with their own lifecycle, `main`) are correct — do not flag those.
+
+**Validated by MM PR review** — PR #37646 `app/bot.go`, `post.go`, `oauth.go`, `sync_recv.go` (`request.EmptyContext` replaces an in-scope `rctx`); PR #37579 `archive.go` (context errors ignored — ACCEPTED); PR #34678 `platform/metrics.go` (`http.NewRequest` drops the scrape context — ACCEPTED); PR #36737 (retry sleeps ignore `ctx` — ACCEPTED); PR #37068 `audit/targets/delivery_db.go` and `delivery_db_sharded.go` (`MarkBulk` on an unbounded `context.Background()`). Two sightings were rejected as out of scope (#37253 `user_post_delivery_target.go`, #36820 `AppendABACEtag`) — where the enclosing function has no context to propagate, report at CONSIDER, not MUST_FIX.
+
 ## Anti-Slop Guidance (Do NOT Flag)
 
-- **Do not flag** `GetReplica()` usage in a write code path as a bug without first verifying the read is a pre-check (e.g., existence check before insert) that does not need to see the write's own in-flight data — such reads on a replica are intentionally eventual.
+- **Do not flag** `GetReplica()` usage in a write code path as a bug without first verifying the read is a pre-check (e.g., existence check before insert) that does not need to see the write's own in-flight data — such reads on a replica are intentionally eventual. **Exception**: this suppression does NOT apply when the pre-check gates authorization or enforcement — a policy/ACL lookup or a membership check whose empty result lets the operation proceed unrestricted. There replica lag is an enforcement hole, not eventual consistency, and the read belongs on master; see `ha-reviewer` → "Replica Reads on Enforcement Gates" (MM PR #37529, `access_control.go:1632-1642`).
 - **Do not flag** the absence of `request.CTX` on private helper functions that perform pure in-memory computation with no store calls, logging, or network I/O — context propagation is required for I/O-bound functions, not for pure transformations.
 - **Do not flag** `errors.Wrap` without a message string as wrong — the MM pattern wraps with a short context label like `"get_page"`, but a bare `errors.Wrap(err, "")` is still valid Go; only flag when the call site returns a raw unwrapped `err` with zero context.
 - **Do not flag** store interface methods that return `(T, error)` rather than `(T, *model.AppError)` as incorrect — the store layer returns plain `error` by design; conversion to `AppError` is the app layer's responsibility.

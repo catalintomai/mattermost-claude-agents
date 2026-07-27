@@ -1,7 +1,8 @@
 ---
 name: transaction-reviewer
 description: Transaction handling code reviewer for Mattermost store layer. Ensures multi-table operations use proper transaction patterns. Use when reviewing store layer code that inserts, updates, or deletes across multiple tables.
-model: haiku
+model: sonnet
+effort: high
 tools: Read, Write, Grep, Glob
 ---
 
@@ -206,6 +207,37 @@ s.GetMaster().Exec(insertHistorySQL, ...)
 5. **Error not wrapped** - Transaction errors without context
 6. **Partial operations** - Create/update that could leave data inconsistent
 7. **Count-check-then-insert TOCTOU** - see below
+8. **Discarded rollback error** - see "Rollback error handling" below
+9. **Duplicated tx vs non-tx query helpers** - see "Single connection-injected helper set" below
+10. **Session-scoped lock returned to the pool** - see "Session-Scoped Lock Hygiene" below
+
+## Rollback Error Handling
+
+The deferred cleanup must SURFACE a rollback failure, not swallow it. MM core's
+`finalizeTransactionX` folds the rollback error into the caller's named return via
+`*perr = merror.Append(*perr, err)` (after ignoring `sql.ErrTxDone`, the
+already-committed case). Flag `_ = tx.Rollback()` / `defer tx.Rollback()` that drops
+the error: a rollback that fails (e.g. a dead connection) otherwise vanishes, masking a
+transaction that never actually rolled back. Note this requires the enclosing method to
+use a **named** error return — a deferred helper writing through `&err` cannot change an
+already-returned value otherwise.
+
+Also flag a `recover()` + re-`panic()` inside a transaction helper purely to run
+rollback: the deferred cleanup already runs during normal panic unwinding, so the
+re-panic only adds a stack frame and discards the original stack trace. Let the panic
+propagate untouched.
+
+## Single Connection-Injected Helper Set
+
+Flag a store that maintains TWO parallel sets of query helpers — one bound to the master
+handle (`s.get`, `s.execBuilder`) and a second `tx`-prefixed set bound to `*sqlx.Tx`
+(`txGet`, `txExecBuilder`). The convention is ONE set whose first parameter is the
+connection to run against, so the same helper serves both standalone and transactional
+calls. This is a type-agnostic principle — the injected type varies legitimately across
+codebases (MM core wraps a `sqlxTxWrapper`; sibling plugins inject `sqlx.Queryer`/`execer`
+or `sq.BaseRunner`) — so flag the DUPLICATION, never the specific interface chosen. Do
+not prescribe a type; verify only that the tx and non-tx paths funnel through one helper
+set rather than two that drift independently.
 
 ## Count-Check-Then-Insert TOCTOU (Critical — validated by MM PR review data)
 
@@ -251,11 +283,49 @@ func (s *SqlViewStore) SaveWithLimit(view *View, max int) (*View, error) {
 
 **Detection**: For every store method that performs a count/exists check before an insert/update, verify the two queries are inside a single `ExecuteInTransaction` block (or that a DB-level constraint enforces the same invariant).
 
+## Session-Scoped Lock Hygiene (Critical — validated by mattermost-plugin-docs PR #4)
+
+A PostgreSQL advisory lock taken with `pg_advisory_lock` is owned by the **backend session**, not the transaction, and it is reference-counted. So the release path has a failure mode a transaction does not: if `pg_advisory_unlock` errors (or reports `false`), the session still holds the lock, and `Conn.Close()` returns that backend to the pool with the lock count intact. The next unrelated caller checks out a poisoned connection, and every subsequent attempt to take the same lock blocks — for the lifetime of the pool, with no error anywhere pointing at the cause.
+
+```go
+// VULNERABLE: unlock failed, but the connection goes back to the pool still holding the lock
+defer conn.Close()
+if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", key); err != nil {
+    s.logger.Warn("advisory unlock failed", "err", err)  // lock is still held
+}
+
+// CORRECT: destroy the connection so the backend (and its lock) is torn down.
+// database/sql marks the Conn unusable when the Raw callback returns driver.ErrBadConn,
+// so the subsequent Close discards the backend instead of pooling it.
+if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", key); err != nil {
+    _ = conn.Raw(func(any) error { return driver.ErrBadConn })
+    _ = conn.Close()
+    return errors.Wrap(err, "advisory unlock failed; connection discarded")
+}
+```
+
+Prefer `pg_advisory_xact_lock` where the critical section fits in one transaction — it is released by the transaction end and has no such release path. This section is about the session-scoped form, which the code chooses when the work spans transactions.
+
+**Detection**: grep the diff for `pg_advisory_lock` / `pg_advisory_unlock` / `Conn(ctx)` / `sql.Conn`. For each release site, check what happens on the error branch: a logged warning followed by a plain `Close()` (or a `defer conn.Close()` that runs regardless) is the bug. Also check the boolean result — `pg_advisory_unlock` returns `false` when the session did not hold the lock, which a `_` discard hides. Flag as `txn:LOCK_LEAKED_TO_POOL`.
+
+```bash
+grep -rn "pg_advisory_lock\|pg_advisory_unlock\|\.Conn(ctx" server/ --include=*.go | grep -v _test.go
+```
+
+**Reference**: mattermost-plugin-docs PR #4, `server/store/space_store.go:428` — "Discard the connection when advisory unlock fails… this session may still own the lock; `Conn.Close()` will otherwise hand the same backend back to the pool with the lock count intact." Accepted.
+
+## Corpus checklist (single-sighting patterns)
+
+Seen once or twice across the MM PR corpus. No full rule yet — check them, report only with concrete evidence in the diff.
+
+- [ ] Chunked write loop not transactional — a batch split into per-chunk `Exec` calls can partially commit, leaving half the members inserted (T196, PR #35761 `sqlstore/team_store.go:853`)
+- [ ] Transaction boundary too narrow — a helper opens and commits its own transaction, so callers cannot enroll the rest of the bootstrap in it; the helper should accept an existing `tx` (T201, PR #35887 `sqlstore/channel_store.go`)
+
 ## Output Format
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `txn:MISSING_TXN`, `txn:MISSING_CONTEXT`, `txn:PARTIAL_ROLLBACK`
+**Domain tags**: `txn:MISSING_TXN`, `txn:MISSING_CONTEXT`, `txn:PARTIAL_ROLLBACK`, `txn:LOCK_LEAKED_TO_POOL`
 
 **Domain-specific sections** (after canonical sections):
 - Transaction Checklist: 5-item checklist (ExecuteInTransaction, transaction object, error wrapping, scope, defer finalize)

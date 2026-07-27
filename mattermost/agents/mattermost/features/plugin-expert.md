@@ -2,6 +2,7 @@
 name: plugin-expert
 description: Expert in Mattermost plugin architecture covering manifests, server hooks, KV store, and webapp registry APIs. Use when building or reviewing mattermost-plugin-* repositories. Not for mm-core internals.
 model: sonnet
+effort: medium
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -549,6 +550,36 @@ Some plugins include `github.com/mattermost/mattermost-govet` in their Makefile 
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 ```
+
+## Pre-PR Manifest and Module Hygiene
+
+Two checks that must run before a plugin PR opens. Both are mechanical and both have shipped as review findings on real plugin PRs.
+
+### Developer-local `replace` directives must not reach a PR
+
+A `replace` pointing at an absolute local path lets you build against an unmerged sibling checkout. It breaks every clean CI runner and every downstream contributor, because the path does not exist there.
+
+```bash
+# Any replace whose target is an absolute or relative filesystem path
+grep -nE '^\s*replace .*=>\s*[./]' server/go.mod go.mod 2>/dev/null
+```
+
+Flag every hit. The fix is to remove the directive and depend on a published version or pseudo-version of the sibling module; if the needed change is unmerged, the plugin PR is blocked on that merge, not on the `replace`. A `replace` that redirects one module path to another module path (no leading `/` or `./`) is a different, legitimate case — do not flag it.
+
+**Validated by MM PR review**: mattermost-plugin-docs PR #3 `go.mod` — "Remove the developer-local `replace` before merge." The absolute `/Users/...` path "will break clean CI" (accepted, commit d6665f3).
+
+### `min_server_version` must be derived from the server symbols the plugin calls
+
+`min_server_version` is not a formality copied from the template. It is the contract that stops the server from loading a plugin whose required APIs do not exist, and it must be derived from the server surface the plugin actually uses — not from whatever version happened to be in the manifest when the repo was scaffolded.
+
+Derivation, per PR:
+1. Collect every `mmmodel.*`, `plugin.API`, and `pluginapi.*` symbol the diff newly references.
+2. For each, find the server release that introduced it (`git log --oneline -S'<Symbol>' -- server/public/` in the mm-core checkout, then map the commit to its release tag).
+3. `min_server_version` must be at least the highest of those releases.
+
+The hard case: the plugin calls a symbol that exists only on an **unreleased** server branch. `min_server_version` then cannot be satisfied by any published server, and pointing it at the current release is a false promise — the plugin will load and then fail at runtime. Set it to the release that will ship the symbol, and re-check the value after that release exists, because the placeholder is only correct once the release is real.
+
+**Validated by MM PR review**: mattermost-plugin-docs PR #3 `plugin.json` — "Bump `min_server_version` with the unreleased `ChannelTypeSpace` dependency." (accepted), then re-raised: "`min_server_version` still needs to match the server release that ships `ChannelTypeSpace`."
 
 ## Anti-Slop Guidance (Do NOT Flag)
 

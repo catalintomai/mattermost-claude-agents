@@ -1,7 +1,8 @@
 ---
 name: behavioral-change-reviewer
-description: Detects semantic behavior changes disguised as refactoring, test cleanup, or infrastructure updates. Catches renamed tests with different assertions, changed error codes, altered control flow, and silent contract modifications. Use when reviewing PRs labeled as refactoring, cleanup, or infrastructure that touch test assertions or production control flow.
+description: Detects semantic behavior changes disguised as refactoring, test cleanup, or infrastructure updates. Catches renamed tests with different assertions, changed error codes, altered control flow, silent contract modifications, and generic methods silently widened to accept new types via fallback resolvers. Use when reviewing PRs labeled as refactoring, cleanup, or infrastructure that touch test assertions or production control flow.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -170,9 +171,82 @@ Changing default values in config structs, function parameters, or feature flags
 3. If callers are silently affected AND change is undocumented: flag as SHOULD_FIX
 4. Verify in tests that the new default is exercised (tests should cover both old and new behavior)
 
-### 7. Import Removal as Behavior Signal (Low)
+### 7. Generic Method Widening via Silent Fallback (High)
+
+A new feature needs an existing generic method to work on a new type (e.g. space channels, board channels). Instead of adding a dedicated method, the developer replaces the generic resolver with a "smart" wrapper that falls back to the new type when the generic resolver returns 404/nil. This silently widens the semantics of the generic method for ALL callers, not just the feature.
+
+**Canonical shape:**
+```go
+// Before — clear contract: only returns message channels
+func (api *PluginAPI) DeleteChannel(id string) {
+    channel, _ := api.GetChannel(id)  // returns nil for space/board channels
+    ...
+}
+
+// After — widened silently: now also resolves space channels
+func (api *PluginAPI) DeleteChannel(id string) {
+    channel, _ := api.resolveManagedChannel(id)  // fallback to space lookup
+    ...
+}
+
+func resolveManagedChannel(id string) (*Channel, error) {
+    ch, err := api.GetChannel(id)
+    if err != nil && err.StatusCode == 404 {
+        return api.GetSpaceBackingChannel(id)  // silent widening
+    }
+    return ch, err
+}
+```
+
+**Why this is dangerous:** Any caller of `DeleteChannel` can now accidentally delete a space backing channel. The change reads as a routine refactor but changes what the method accepts.
+
+**What to scan for:**
+- A new private helper that calls a generic resolver and falls back to a type-specific one on not-found
+- Existing call sites changed from `GetChannel(id)` → `resolveManagedChannel(id)` / `resolveChannel(id)` / `getOrFallback(id)`
+- The new helper is called from multiple existing methods (delete, add member, restore) — widening all of them at once
+
+**Process:**
+1. Find newly introduced resolver/helper functions in the diff
+2. Check if they contain a "try generic, fall back to type-specific on 404/nil" pattern
+3. Identify every call site that was changed to use the new helper
+4. For each call site: was the original method's contract limited to a specific set of channel types? Does the fallback widen that set?
+5. If yes: flag as SHOULD_FIX. The correct fix is to add dedicated methods for the new type rather than widening the generic ones.
+
+### 8. Import Removal as Behavior Signal (Low)
 
 When a refactoring PR removes an import (e.g., `"os"`), it signals that process-global operations were replaced. Verify the replacement is behaviorally equivalent.
+
+### 9. Parse-But-Never-Forward (High)
+
+A value is read from the request, computed, or collected — and then never reaches the struct, call, or dispatch that consumes it. The code compiles, the parsing tests pass, and the feature is silently inert: the filter is ignored, the metadata is absent from the export, the shortcut never fires. This is the most common behavior-loss shape in the corpus and it is invisible unless you trace each parsed value to a consumer.
+
+```go
+// FLAG — TimePeriod is parsed from the request and never placed on the job
+timePeriod := r.URL.Query().Get("time_period")
+job := &model.Job{Type: model.JobTypeRecap, Data: map[string]string{"user_id": userID}}
+
+// CORRECT — the parsed value reaches the consumer
+job := &model.Job{Type: model.JobTypeRecap, Data: map[string]string{
+    "user_id": userID, "time_period": timePeriod,
+}}
+```
+
+**Detection**: for every value the diff newly parses, computes, collects, or accepts as a parameter, grep forward within the function for a use that is not a log or a validation. Flag any that is only validated, only logged, assigned to a field of a struct that is then discarded, or shadowed by a literal (`''`, `nil`, a default) on the path that actually ships. Pay particular attention to option structs passed down one layer and rebuilt at the next, collected stats never copied into their packet, keyboard/menu handlers computed but never registered, and IDs never persisted onto the session or record they belong to. Tag `behavior:PARSE_NOT_FORWARDED`. Validated by MM PR review: #35592 `app/recap.go:514` (`TimePeriod` never forwarded — accepted), #35934 `classification_markings.tsx` (preset option IDs replaced with `''` — accepted), #36023 `server/channels/api4/post.go` (`includeDeleted` not forwarded — accepted), #35517 `app/report.go` (`SearchTerm` dropped from export job metadata), #35495 `app/scheduled_recap.go` (`ScheduledRecapId` not set), #36324 `app/platform/support_packet.go` (pool stats collected, never copied into the packet), #36143 (`code_block_ctrl_enter` never forwarded), #35636 `channel_tabs_submenu.tsx:39` (computed limit never wired), #36472 (`targetRole` never applied), #36583 `admin_actions.jsx:370` (test-connection never forwards the edited config), #36839 `.agents/incident-cc/orchestrate.ts` (release PR URL never persisted into `session.prUrl`).
+
+### 10. Dual-Mode Change Applied to One Branch Only (High)
+
+When a system has two paths for the same concern — legacy and new editor, CLI migrator and server migrator, the `iconUrl` variant and the component variant, drag-start and drop — a fix applied to one leaves the other with the old behavior. The result is worse than not fixing it: the behavior now depends on which path the user happens to take, and the tests usually cover only the branch that was changed.
+
+```typescript
+// FLAG — the guard is added to the overflow path; onDrop still accepts the same target
+const forceOverflowOpen = (target) => { if (!isDroppable(target)) return; ... };
+const onDrop = (target) => { applyMove(target); };
+
+// CORRECT — both entry points share the guard
+const onDrop = (target) => { if (!isDroppable(target)) return; applyMove(target); };
+```
+
+**Detection**: for each fix in the diff, ask what the sibling path is — grep for the other implementation of the same operation (legacy vs new component, CLI vs server, each branch of a mode/variant conditional, the inverse event of an interaction pair). If a second implementation exists and the diff touches only one, flag it and name the untouched path plus the line where the same defect remains. Tag `behavior:DUAL_MODE_PARTIAL`. Validated by MM PR review: #36457 `hooks/use_bookmarks_dnd.ts` (guard added to `forceOverflowOpen` only, `onDrop` still accepts the target), #36946 `app_bar_plugin_component.tsx` (a11y fix applied only on the `iconUrl` branch), #37019 and #37021 `sqlstore/migrate.go` (CLI migrator path not wired), #36490 `classification_markings.tsx` (existing-channel field not dispatched), #37299 `user_properties_dot_menu.tsx` (duplicate path not owner-aware).
 
 ---
 
@@ -217,6 +291,9 @@ Domain tags:
 | `behavior:CONTROL_FLOW` | Added/removed guard clause, early return, or conditional branch in production code |
 | `behavior:DEFAULT_CHANGE` | Default value changed for config, parameter, or feature flag |
 | `behavior:UNDOCUMENTED` | Behavior change not mentioned in PR description |
+| `behavior:GENERIC_WIDENING` | Generic method silently widened to accept new types via fallback resolver |
+| `behavior:PARSE_NOT_FORWARDED` | Value parsed, computed, or collected but never reaches its consumer |
+| `behavior:DUAL_MODE_PARTIAL` | Fix applied to one of two paths for the same concern; the sibling keeps the old behavior |
 
 ### Severity Guidelines
 

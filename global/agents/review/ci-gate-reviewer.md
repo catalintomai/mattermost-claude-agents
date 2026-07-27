@@ -2,6 +2,7 @@
 name: ci-gate-reviewer
 description: Verifies CI merge-gate enforcement specifically when a PR touches continue-on-error, allow-failure, required status checks, or fail-fast settings — i.e., when there is a risk of silently weakening a merge gate. For broader CI workflow design review (job ordering, secret scoping, trigger maps), use ci-design-reviewer instead.
 model: sonnet
+effort: medium
 tools: Read, Write, Grep, Glob
 ---
 
@@ -97,6 +98,58 @@ with:
 ```
 
 **Effect**: The `continue-on-error` in the reusable workflow's job controls how that job reports to the Checks API. The caller determines the value. **Each caller must be audited independently** — one caller may set `allow-failure: false` (safe) while another sets `true` (gate-weakening).
+
+---
+
+### Aggregate Status Job Fail-Open
+
+A repo with many conditional jobs usually funnels them into one aggregate job (`ci-complete`, `all-checks`, `required`) that branch protection lists as the single required check. That job's `if:` / `needs:` condition is the merge gate, and it is easy to write one that treats a skipped upstream job as an acceptable outcome:
+
+```yaml
+ci-complete:
+  needs: [build, test-postgres, test-fips]
+  if: always()                      # runs even when an upstream job failed or was skipped
+  steps:
+    - run: echo "all checks done"   # never inspects needs.*.result
+```
+
+**Effect**: the aggregate reports success while a gating job failed or never ran. This is strictly worse than job-level `continue-on-error` because the weakened gate is the *only* required check.
+
+**Detection**: for every aggregate/summary job in the diff, read its condition and its steps together. Enumerate each entry in `needs:` and ask whether a `failure`, `skipped`, or `cancelled` result for that entry can still reach a passing step. `if: always()` or `if: !cancelled()` with no step that asserts on `needs.<job>.result` is the finding; the fix is an explicit check that every gating job's result is `success` (treating `skipped` as a failure unless the job is genuinely optional). Tag `gate:AGGREGATE_FAIL_OPEN`, severity MUST_FIX when the aggregate is (or is plausibly) the required check.
+
+**Validated by MM PR review**: PR #37557 `.github/workflows/server-ci.yml:37` — "`ci-complete` can still run because its condition accepts skipped FIPS jobs, then report success." (accepted).
+
+**Calibration — the sibling finding that was withdrawn.** On the same PR, a second finding claimed the path-based relevance filter omitted `./.github/actions/setup-buildenv`, so PRs touching the shared composite actions produced `relevant-changed == 'false'`. It was retracted: the omission predated the diff and the PR did not regress it. Before flagging a gate condition, establish that the diff introduced or widened the hole — a pre-existing gap in a file the diff happens to touch is `[PRE-EXISTING][INFO]`, not a gate finding.
+
+---
+
+### Job Condition Mishandles Skipped or Neutral
+
+Distinct from the aggregate fail-open above: this is any single job's or step's `if:` that treats a non-`success` outcome as success. Two shapes recur — a condition reading an output that the producing step never actually sets on the failure path, and a condition that checks only "did the step run" rather than "did it succeed", so a failed or skipped upstream still triggers the downstream effect (a label applied, a comment posted, a gate reported green).
+
+```yaml
+# BAD: `failed` is only written on the success path, so this is never 'true'
+- id: analyze
+  run: ./analyze.sh || echo "failed=true" >> "$GITHUB_OUTPUT"
+- if: steps.analyze.outputs.failed != 'true'
+  run: gh pr edit "$PR" --add-label "Docs/Needed"
+
+# GOOD: assert on the outcome the runner itself records
+- id: analyze
+  run: ./analyze.sh
+- if: steps.analyze.outcome == 'success'
+  run: gh pr edit "$PR" --add-label "Docs/Needed"
+```
+
+**Detection**: for every `if:` in the diff that references a step output or a `needs.*` result, trace the producing side. If the output is unset on any path, the comparison silently evaluates against the empty string. Prefer `outcome`/`result` over a hand-rolled output flag. Check the fork case too: a condition that can never be true on fork PRs turns the gate into a permanent skip. Tag `gate:CONDITION_SKIPPED_NEUTRAL`, severity MUST_FIX when the condition guards a merge gate or a state-changing effect, SHOULD_FIX when it only affects reporting.
+
+**Validated by MM PR review**: PR #37065 `.github/workflows/pr-manual-qa-execute.yml` — `steps.success.outputs.failed` never `'true'` (accepted); PR #36715 `.github/workflows/server-ci.yml` — the `image-fips` ref means forks can never build it (accepted); PRs #37224 and #37109 `.github/workflows/docs-impact-review.yml` — `Docs/Needed` added even when the analysis outcome was not success.
+
+---
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] Coverage or lint config excludes production source — a `tsconfig`/coverage path list omitting a shipped file makes the gate pass on unchecked code (T154, PR #36839)
 
 ---
 
@@ -212,6 +265,7 @@ Domain tags:
 | `gate:MISSING_INVENTORY` | Callers of a modified template not audited for gate impact |
 | `gate:MISLEADING_COMMENT` | Comment describes flakiness handling but mechanism suppresses all failures |
 | `gate:BLANKET_SUPPRESS` | `continue-on-error: true` used as flakiness mitigation instead of targeted retry/skip |
+| `gate:AGGREGATE_FAIL_OPEN` | Aggregate status job passes while an upstream gating job failed or was skipped |
 
 ### Severity Guidelines
 
@@ -219,6 +273,7 @@ Domain tags:
 |----------|----------|
 | MUST_FIX | `continue-on-error: true` on an active, PR-triggered job that is a required status check |
 | MUST_FIX | New parameter with `default: true` that silently weakens gates for existing callers |
+| MUST_FIX | Aggregate status job whose condition accepts a failed or skipped gating job and never asserts on `needs.*.result` |
 | SHOULD_FIX | `continue-on-error: true` on a disabled job (dormant risk when re-enabled) |
 | SHOULD_FIX | Gate-weakening with `default: false` on a non-PR-triggered job (lower risk but needs documentation) |
 | SHOULD_FIX | Concern conflation (parallelism flag controlling error tolerance) |

@@ -2,6 +2,7 @@
 name: ts-expert
 description: Implements TypeScript solutions using advanced type system features — conditional types, mapped types, discriminated unions, branded types, exhaustive checking, and module augmentation. Use when writing or debugging TypeScript code that requires precise type modeling. For Mattermost webapp types in webapp/channels/src/types/, search existing definitions first — MM patterns take precedence.
 model: sonnet
+effort: medium
 tools: Write, Read, Edit, Bash, Grep, Glob
 ---
 
@@ -58,6 +59,36 @@ When implementing TypeScript solutions:
 3. Implement proper error handling
 4. Follow naming conventions
 5. Use modern ECMAScript features
+
+## PR Review Patterns
+
+### Type declaration diverges from the value it describes (validated by MM PR review, T228)
+
+The most common typing defect in this corpus is not a missing type — it is a type that confidently describes something the runtime object is not. Four shapes: a declared type narrower than the values the field actually holds (`Record<string, string>` over a map that stores objects); a declared type that omits part of the real shape (an exported handle type missing the forwarded ref members, an `ActionResult<unknown>` where the caller needs the payload); a type that *adds* members the runtime object never has (a selector's declared output claims methods the created object lacks); and a declaration whose arity disagrees with its call sites (a metrics vector declaring two labels while `.With()` supplies one — a runtime panic, not a type error, because the mismatch is inside a string-keyed API).
+
+Detection cue: for every type/interface added or edited by the diff, open the value it annotates and compare member-by-member. Do not read the type as the source of truth; read the constructor, the reducer, or the `.With()`/`.get()` call. Pay attention to any place a cast (`as`) bridges the two — the cast is where the divergence is being hidden.
+
+```ts
+// WRONG — the map stores structured overrides, not strings
+type Session = {session_overrides: Record<string, string>};
+
+// CORRECT
+type Session = {session_overrides: Record<string, SessionOverride>};
+```
+
+Not a finding: a deliberately widened public type documented as an extension point, or an optional member a consumer legitimately does not set.
+
+Severity `SHOULD_FIX`; `MUST_FIX` when the divergence is only detectable at runtime (string-keyed label sets, dynamic property access) because the compiler will not catch it.
+
+**Validated by MM PR review**: PR #36472 `access_control.ts` (`session_overrides` narrowed to `Record<string,string>` — accepted). PR #36954 `create_selector/index.ts` (`OutputSelector` declares methods the runtime object lacks — accepted). PR #37122 `server/enterprise/metrics/metrics.go` (a `HistogramVec` declares `event,length` but `.With()` supplies only `event` → runtime panic — accepted). PR #37339 `platform/shared/src/types/global/editor.ts` (`ActionResult<unknown>`). PR #37514 `types/global/editor.ts` (exported type omits the forwarded ref handle).
+
+## Corpus checklist (single-sighting patterns)
+
+Patterns seen once or twice in MM PR review. Check them, but weight a hit as a candidate, not a rule.
+
+- [ ] Module-level `RegExp` with the `/g` flag reused across `.exec()` calls — `lastIndex` is mutable shared state, so results depend on call order (T78, PR #35374 `channel_mention_utils.ts:8`)
+- [ ] Index signature conflicts with a narrower member in the same type — `[key: string]: string` intersected with a field typed as an enum (T112, PR #35569 `types.ts:8`)
+- [ ] Regex text rewriting applied to raw message text with no Markdown awareness, so it rewrites matches inside code blocks and strikethrough (T95, PR #35374 `channel_mention_utils.ts`, PR #36993 release-notes script)
 
 ## Anti-Slop Guidance (Do NOT Flag)
 

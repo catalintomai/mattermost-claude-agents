@@ -2,6 +2,7 @@
 name: security-auditor
 description: Reviews code for practical, exploitable security vulnerabilities across input handling, authentication/authorization, data protection, infrastructure, and third-party integrations (OWASP Top 10 baseline). Use when reviewing a PR or performing a pre-release security audit on any backend or frontend code. For architectural threat modeling, use threat-modeler instead.
 model: opus
+effort: high
 tools: Read, Write, Grep, Glob, WebSearch
 ---
 
@@ -231,6 +232,84 @@ grep -n "^func Validate" server/app/types.go
 # If only called from API layer, it's a bypass vulnerability
 grep -r "ValidateNewChannelOnlyMode" server/app/
 ```
+
+### 7. Dependency Advisory Verification on Manifest Changes
+
+Rule 6 ("check dependencies for known CVEs") is executable, not a reminder. When the diff touches `go.mod`, `go.sum`, `package.json`, or `package-lock.json`, do this instead of noting it:
+
+1. **Extract the changed versions** — every `+` line that adds or bumps a dependency, including indirect ones. A transitive bump is in scope: `goxmldsig` was flagged on a PR whose direct deps were unchanged.
+2. **Run the scanner when it exists in the repo**:
+   ```bash
+   govulncheck ./...          # Go — reports the module, the CVE, and the fixed version
+   npm audit --omit=dev       # Node — same, for runtime deps
+   ```
+   Run from the module root. `govulncheck` reports only vulnerabilities actually reachable from the code, so a clean run on a bumped-but-old dependency is a real PASS, not a miss.
+3. **When no scanner is available** (no toolchain, offline, plugin repo without the binary), do not stay silent. Report the added/pinned version as `[UNVERIFIED]` with the module path and version so a human can check the advisory database. Do not guess a CVE number — an invented advisory ID is worse than an unverified flag.
+4. **Every finding names the fixed version**, not just the vulnerable one. "Bump `google.golang.org/grpc` to v1.79.3 or newer" is actionable; "grpc has a CVE" is not.
+
+Severity: an auth-bypass or RCE in a reachable dependency is **High**; a DoS or a vulnerability in a dev-only/test-only dependency is **Low**.
+
+**Validated by MM PR review**: mattermost-plugin-docs PR #1 `go.mod` — "Bump `google.golang.org/grpc` to v1.79.3 or newer", because v1.76.0 "is affected by an auth-bypass issue" (accepted), alongside accepted bumps for `server/v8` and transitive `goxmldsig`. PR #3 `go.mod` — "Bump `golang.org/x/crypto` to `v0.52.0` or later." (SSH/agent vulns, accepted).
+
+### 8. Secret Written to a Checked-In or Artifact Path
+
+A secret is not only leaked by printing it. It leaks whenever it lands somewhere durable that a wider audience can read: a CI artifact, a committed Dockerfile layer, a diagnostics bundle, a log file uploaded on failure.
+
+**Cue**: a diff that adds a diagnostic dump, an artifact upload, or an image build step in a context where a credential is in scope. The dangerous shapes are (a) a wholesale environment or container dump (`docker inspect`, `env`, `printenv`, `kubectl describe`) written to a path that is later uploaded, and (b) a credential baked into an image or committed file — a default password, an HSM PIN, a signing key.
+
+```dockerfile
+# BAD: the password is a layer in the published image, readable by anyone who pulls it
+RUN echo "ubuntu:ubuntu" | chpasswd
+```
+
+```yaml
+# BAD: the env array includes MM_LICENSE and the whole file is uploaded
+- run: docker inspect "$CONTAINER" > "$DIAG_DIR/inspect.json"
+- uses: actions/upload-artifact@<sha>
+  with: { path: "${{ env.DIAG_DIR }}" }
+
+# GOOD: project only the fields the diagnostic needs
+- run: docker inspect "$CONTAINER" --format '{{json .State}}' > "$DIAG_DIR/state.json"
+```
+
+Trace the sink, not just the assignment: for every new file written under a path that a later step uploads or commits, ask what is in scope at that point. Severity **High** when the artifact or image is publicly readable, **Medium** when it is restricted to org members. A dev-only signing key that the server accepts as a root of trust is High regardless of who can read it — the issue is the trust, not the exposure.
+
+**Validated by MM PR review**: PR #36370 `e2e-tests-ci-template.yml` + `e2e-tests/.ci/server.start.sh` — raw `docker inspect` env arrays artifacted with `MM_LICENSE` in scope (accepted); PRs #36549 and #36559 `.cursor/Dockerfile` — `ubuntu:ubuntu` password baked into the image; PR #37034 `server/build/Dockerfile:73` — SoftHSM token and PIN in the default image, and `plugin_public_keys.go:65` — the dev signing key becomes a server-wide root.
+
+### 9. Sanitizer Scope Wrong or Bypassed
+
+A sanitizer, masker, or suppression check is only as good as its coverage of the return paths. The recurring defect is not a broken sanitizer — it is a correct one that some path skips: a new field added to the response but not to the masking loop, a sibling predicate that answers the same question without consulting the guard, or a helper that re-fetches data after sanitization and returns the raw copy.
+
+**Cue**: the diff adds a return path, a field, or a predicate near an existing `Sanitize*`, `Mask*`, `ForPlugin`, `IsSuppressed`, or allowlist call. Grep for every caller of the sanitizer and every sibling of the new predicate, then ask which paths reach the client without passing through it.
+
+```go
+// BAD: a second predicate answers "should we notify?" without the suppression check
+func (p *Post) HasSilentNotification() bool {
+    return p.GetProp(PostPropsSilent) == "true"
+}
+
+// GOOD: the guard is the single source of truth for the decision
+func (p *Post) HasSilentNotification() bool {
+    return p.IsNotificationSuppressed() || p.GetProp(PostPropsSilent) == "true"
+}
+```
+
+Nested and collection-valued fields are the blind spot — masking that walks the top level of a result but not `Results[i].Attributes` leaks exactly the values the policy exists to hide. So is metadata: a distinct error string or a tooltip that reveals *why* access was denied is an enumeration oracle even when the value itself is masked. Severity **High** when the bypassed sanitizer protects another tenant's or another user's data, **Medium** when it only leaks structure.
+
+**Validated by MM PR review**: PR #36771 `model/post.go:1091` — `HasSilentNotification()` bypasses `IsNotificationSuppressed()` (accepted); PR #36472 `access_control_masking.go:911` — masking skips `Results[i].Attributes` (accepted), plus deny metadata leaked via a tooltip; PR #36873 `app/plugin_api.go` — `ForPlugin()` not reapplied before returning posts.
+
+---
+
+## Corpus checklist (single-sighting patterns)
+
+- [ ] Lockout or rate-limit counter consumed on an infrastructure error rather than a genuine credential failure (T209, PR #36515)
+- [ ] Content sniffing window or encoding too narrow to serve as a security control (padded/encoded payloads bypass the detector) (T204, PR #35669)
+- [ ] A new serialization format opts secret fields into the wire payload — check XML/CSV/export tags on `Password`, `AuthData`, `MfaSecret` (T206, PR #36126)
+- [ ] External CDN asset (font, script) on a self-hosted or blocking page, leaking client metadata and failing in restricted networks (T272, PR #35382)
+- [ ] Documentation instructs an insecure practice — bearer token over plain HTTP, secret written to disk, credential in version control (T303, PR #37480; also #37433, #35519)
+- [ ] Credential threaded through several call layers instead of read once from the environment at the point of use (T327, PR #36760)
+
+---
 
 ## Relationship to threat-modeler
 

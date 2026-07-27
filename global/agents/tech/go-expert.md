@@ -2,6 +2,7 @@
 name: go-expert
 description: Implements Go code for concurrent programming, goroutine lifecycle management, channel patterns, sync primitives, gRPC/REST microservices, and error handling. Use when writing or debugging Go code outside a Mattermost codebase. For Mattermost server code in api4/, app/, or store/, use go-backend-expert instead — MM patterns take precedence.
 model: sonnet
+effort: medium
 tools: Write, Read, Edit, Bash, Grep, Glob
 ---
 
@@ -63,6 +64,38 @@ When implementing Go solutions:
 3. Implement comprehensive error handling
 4. Add benchmarks for critical paths
 5. Use go fmt and go vet
+
+## Recurring Defects
+
+### Glob First-Match Ambiguity (Medium — validated by MM PR review)
+
+`filepath.Glob` returns *all* matches in lexical order. Taking `matches[0]` — or piping a glob into a command that consumes one path — silently picks the lexicographically first file whenever the pattern matches more than one, and the wrong pick looks identical to the right one: a stale artifact from an earlier build wins over the fresh one, or one shard's report is uploaded and the rest are dropped.
+
+```go
+// WRONG: silently uses the first of N matches
+matches, _ := filepath.Glob(filepath.Join(dir, "report-*.json"))
+data, err := os.ReadFile(matches[0])
+
+// CORRECT: assert the expected cardinality, or handle all matches
+matches, err := filepath.Glob(filepath.Join(dir, "report-*.json"))
+if err != nil { return err }
+if len(matches) != 1 {
+    return fmt.Errorf("expected exactly one report in %s, found %d", dir, len(matches))
+}
+```
+
+**Detection**: every `filepath.Glob` / `fs.Glob` result indexed at `[0]`, or passed to a single-value consumer, with no `len(matches)` check between. The same shape in shell steps (`cp build/*.tar .`, `$(ls dir/*.json)`) has the same failure mode. If more than one match is legitimate, iterate; if exactly one is expected, assert it and fail loudly. Also flag `.find()`-style single-match cleanup where every match must be removed.
+
+**Validated by MM PR review** — PR #35977 `.github/workflows/e2e-tests-ci.yml`; PR #35979 `.github/workflows/docs-needed.yml`; PR #36231 (masking-helper cleanup uses a single-match find instead of deleting all matches).
+
+## Corpus checklist (single-sighting patterns)
+
+Seen once or twice across the MM PR corpus. No full rule yet — check them, report only with concrete evidence in the diff.
+
+- [ ] `os.Exit` in a lifecycle helper — exit skips `defer`red teardown in every caller (T247, PR #36222 `channels/testlib/helper.go`, bypasses `mainHelper.Close()`)
+- [ ] Response body closed without draining — `Close()` with no `io.Copy(io.Discard, resp.Body)`, so the keep-alive connection cannot be reused (T278, PR #36451 `app/platform/support_packet.go`)
+- [ ] `defer` reading a named return that a later edit can shadow — the deferred hook then reports success while the inner `err` was non-nil (T300, PR #37395 `app/properties/property_value.go`, human; same stack in #37299)
+- [ ] `defer` inside a loop — per-iteration cleanup accumulates until function exit instead of releasing per iteration (T332, PR #36822 `public/utils/sql/sql_utils.go`, deferred cancel in a ping retry loop)
 
 ## Anti-Slop Guidance (Do NOT Flag)
 
