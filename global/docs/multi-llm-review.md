@@ -8,6 +8,7 @@ Use `/multi-review` - Unified multi-LLM review (includes all below)
 ## Manual Method (parallel)
 - `codex exec -m gpt-5.3-codex` (CLI) - Code review / `gpt-5.5-pro` for architecture
 - `gemini -p "..." -m gemini-2.5-flash --output-format text` (CLI) - Best available free tier
+- `agent --print --trust "..."` (CLI) - Cursor Agent, default (`auto`) model
 - `mcp__seq-server__sequentialthinking` (MCP) - Systematic reasoning
 
 ## CLI vs MCP Preference (for multi-LLM review tools only)
@@ -19,7 +20,7 @@ Use `/multi-review` - Unified multi-LLM review (includes all below)
 CLIs are faster, have consistent output formatting, and match skill documentation.
 MCP tools have different parameter names and behavior.
 
-**Note**: This exception applies ONLY to multi-LLM review tools (codex, gemini). For everything else (filesystem, GitHub, Jira), prefer MCP tools — see `~/mattermost/CLAUDE.md`.
+**Note**: This exception applies ONLY to multi-LLM review tools (codex, gemini, cursor agent). For everything else (filesystem, GitHub, Jira), prefer MCP tools — see `~/mattermost/CLAUDE.md`.
 
 ## Model Selection Guidelines
 
@@ -42,6 +43,12 @@ MCP tools have different parameter names and behavior.
 - **Auth (corrected):** `codex exec` authenticates from its OWN login at `~/.codex/auth.json` — it does NOT read the `OPENAI_*` env vars. It does NOT require the enterprise key. Check which key is active with `codex login status` (it prints the key suffix). On this machine codex is logged in with the **personal** `sk-proj-…` key (matches `OPENAI_PERSONAL_KEY`, distinct from `OPENAI_ENTERPRISE_KEY`), so `codex exec` bills the personal key and works for any personal project.
 - **Project key-isolation caveat:** a project's CLAUDE.md may forbid specific keys (e.g. Taxes2025 forbids enterprise/cross-project keys). Before running codex on such a project, confirm `codex login status` is NOT showing a forbidden key. The personal key is fine for personal projects.
 - Reasoning effort: `~/.codex/config.toml` is set to `model_reasoning_effort = "medium"` (good default for routine reviews; avoids 10-min runs). For a deep architecture review, bump per-call with `-c model_reasoning_effort="high"` (or `"xhigh"`).
+
+### Cursor Agent (verified 2026-07-29)
+- **Auth**: check with `agent status`; log in with `agent login` if needed.
+- **Non-interactive use requires `--trust`** (or `-f`/`--yolo`) the first time in a given directory, otherwise it blocks on a workspace-trust prompt and exits 1.
+- **Use the default model** — don't pass `-m`/`--model`. Default is `auto`, which routes to whatever Cursor's classifier picks (Composer/GPT/Claude under the hood); this also avoids breaking if auth ever regresses to a free-tier account (named models fail there with `ActionRequiredError: Named models unavailable`, but `auto` always works).
+- Gives a genuinely independent 3rd voice in the consensus alongside Codex and Gemini, since `auto`'s routing/harness differs from the other two CLIs.
 
 ### Claude Code (Handle Directly)
 - File operations (Read, Write, Edit, Glob, Grep)
@@ -73,6 +80,11 @@ gemini -p "prompt" -m gemini-2.5-flash-lite --output-format text
 
 # Second fallback
 gemini -p "prompt" -m gemini-3.1-flash-lite --output-format text
+```
+
+### Cursor Agent (default `auto` model)
+```bash
+agent --print --trust "prompt"
 ```
 
 ## Notes
