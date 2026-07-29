@@ -59,7 +59,7 @@ Read every registry level before selecting any agent. Missing a level silently d
 Read these files **in order**, collecting every agent tagged `[PLAN]` or `[BOTH]` from each:
 
 1. `~/.claude/agents/AGENT_REGISTRY.md` — Level 1 (global, language-agnostic)
-2. `~/mattermost/.claude/agents/AGENT_REGISTRY.md` — Level 2 (Mattermost-suite) — read when working in any Mattermost project clone
+2. `%%MM_ROOT_DIR%%/.claude/agents/AGENT_REGISTRY.md` — Level 2 (Mattermost-suite) — read when working in any Mattermost project clone
 3. `.claude/agents/AGENT_REGISTRY.md` — Level 3 (project-specific) — read when the file exists
 
 The merged candidate list from all three levels feeds Step 2 domain routing. **Do not select any agents until all applicable levels are read. Never select agents from memory.**

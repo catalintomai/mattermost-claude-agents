@@ -19,7 +19,7 @@ Use `/multi-review` - Unified multi-LLM review (includes all below)
 CLIs are faster, have consistent output formatting, and match skill documentation.
 MCP tools have different parameter names and behavior.
 
-**Note**: This exception applies ONLY to multi-LLM review tools (codex, gemini). For everything else (filesystem, GitHub, Jira), prefer MCP tools — see `~/mattermost/CLAUDE.md`.
+**Note**: This exception applies ONLY to multi-LLM review tools (codex, gemini). For everything else (filesystem, GitHub, Jira), prefer MCP tools — see `%%MM_ROOT_DIR%%/CLAUDE.md`.
 
 ## Model Selection Guidelines
 

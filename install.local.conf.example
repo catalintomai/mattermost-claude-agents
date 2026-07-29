@@ -1,0 +1,8 @@
+# Copy this file to install.local.conf (gitignored) and adjust MM_ROOT_DIR
+# to match where your Mattermost repo clones actually live.
+#
+# install.sh sources this file if present, overriding the default
+# MM_ROOT_DIR="$HOME/mattermost". Any %%MM_ROOT_DIR%% placeholder in the
+# installed .md/.sh files is substituted with this value at install time.
+
+MM_ROOT_DIR=~/projects/mattermost
