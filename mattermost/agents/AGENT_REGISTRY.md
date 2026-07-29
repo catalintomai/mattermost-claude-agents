@@ -5,12 +5,12 @@ description: Registry of Mattermost-suite agents shared across all Mattermost pr
 
 # Agent Registry - Mattermost Suite (Level 2)
 
-**Location**: `~/mattermost/.claude/agents/`
+**Location**: `%%MM_ROOT_DIR%%/.claude/agents/`
 
 This is the **Level 2** registry per the three-level discovery in `~/.claude/docs/project-context-loading.md`. It owns Mattermost-specific agents that apply across every Mattermost clone in this directory tree but are NOT generic enough to live globally.
 
 - **Level 1** (global, language-agnostic): `~/.claude/agents/AGENT_REGISTRY.md`
-- **Level 2** (this file, Mattermost-suite): `~/mattermost/.claude/agents/AGENT_REGISTRY.md`
+- **Level 2** (this file, Mattermost-suite): `%%MM_ROOT_DIR%%/.claude/agents/AGENT_REGISTRY.md`
 - **Level 3** (per-project): `<project>/.claude/agents/AGENT_REGISTRY.md`
 
 Phase tags (`[PLAN]`, `[CODE]`, `[BOTH]`) defined in `~/.claude/agents/AGENT_REGISTRY.md` § "Phase Tags".
