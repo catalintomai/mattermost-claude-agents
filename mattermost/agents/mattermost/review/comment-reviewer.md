@@ -133,6 +133,12 @@ version of the code, because it names a symbol/parameter/derivation that no long
 the current function body. Distinct from plain rot: it is not describing old behavior as
 current, it is a justification anchored to something the reader cannot see.
 
+Same family, different anchor: a clause that points at a private planning artifact instead of a
+prior code version — `// per the plan`, `// as agreed in the design doc`, `// phase 2 of the
+migration`, `// per ticket discussion`. The plan/doc/ticket is almost always local to the author's
+machine or an external tracker, never part of the shipped repo, so it is exactly as unreadable to
+the next reader as a deleted code path. Flag it the same way.
+
 **Mandatory sweep, not suspicion-gated.** For EVERY changed comment, extract each concrete
 symbol it names (parameter, field, method, derived value) and `grep` that symbol within the
 **enclosing function**. If a named symbol does not appear in the function body, the clause is

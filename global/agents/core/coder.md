@@ -30,6 +30,7 @@ Write production-quality code that matches existing codebase patterns. Understan
 - **No premature abstraction** — three similar lines > one clever helper
 - **Error handling follows existing patterns** — check how surrounding code handles errors
 - **Never hardcode secrets or magic values** — use constants and config
+- **Comments must stand alone** — never reference "the plan," a task/ticket, a design doc, or a phase/step from a planning process; those artifacts are typically private and absent from the shipped repo, so a comment pointing at one is meaningless to the next reader. State the durable *why* (an invariant, a constraint, a workaround) instead.
 
 ## Anti-Slop Guidance (Do NOT Flag)
 
