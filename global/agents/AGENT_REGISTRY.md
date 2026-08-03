@@ -9,7 +9,7 @@ description: Registry of all available global agents organized by purpose
 
 > **READ THIS FILE IN FULL before selecting any agents.** The Parallel Groups table — the primary input for agent selection in `/review-code` and `/review-plan` — is directly below. The catalog further down lists ONLY the agents whose files live at this (global) level.
 >
-> **Mattermost-suite agents** (~60 of them: layer reviewers, MM domain experts, migration agents, etc.) are catalogued in the **Level 2** registry at `~/mattermost/.claude/agents/AGENT_REGISTRY.md`. The Parallel Groups table below references them by name — three-level discovery (`~/.claude/docs/project-context-loading.md`) resolves each name to its actual file at any level.
+> **Mattermost-suite agents** (~60 of them: layer reviewers, MM domain experts, migration agents, etc.) are catalogued in the **Level 2** registry at `%%MM_ROOT_DIR%%/.claude/agents/AGENT_REGISTRY.md`. The Parallel Groups table below references them by name — three-level discovery (`~/.claude/docs/project-context-loading.md`) resolves each name to its actual file at any level.
 
 This registry lists global agents organized by **purpose**. Use the right agent for the right job.
 
@@ -32,7 +32,7 @@ Agents within each group are independent and can run simultaneously. **Project r
 | Testing | `playwright-test-reviewer`, `cypress-test-reviewer`, `test-parallelization-reviewer`, `behavioral-change-reviewer`, `test-coverage-reviewer`, `mutation-test-reviewer`, `test-engineer` | Test file changes, test setup refactoring, parallel mode changes |
 | Python | `py-async-reviewer`, `py-datetime-reviewer`, `py-sqlite-reviewer` | Python (`.py`) changes |
 | Plugin framework | `plugin-expert`, `plugin-alignment-reviewer`, `db-migration-expert` | Any `mattermost-plugin-*` repo: changes to `plugin.json`, `server/plugin.go` (`OnActivate`/`OnDeactivate` lifecycle, KV store, hook registration), or plugin DB migrations (`server/store/migrations/`, morph/`RunMigrations`). `plugin-alignment-reviewer` when a new subsystem is added and cross-plugin convention alignment matters. `db-migration-expert` only when migrations changed. |
-| Playbooks domain | `run-lifecycle-reviewer`, `attribute-template-reviewer`, `playbooks-api-parity-reviewer`, `playbooks-expert` — **all four currently DISABLED** (files parked in `~/mattermost/.claude/agents-disabled/`; re-enable before routing) | Any PR in a Playbooks plugin repo (`server/app/`, `server/api/`, `server/sqlstore/`, `client/`) |
+| Playbooks domain | `run-lifecycle-reviewer`, `attribute-template-reviewer`, `playbooks-api-parity-reviewer`, `playbooks-expert` — **all four currently DISABLED** (files parked in `%%MM_ROOT_DIR%%/.claude/agents-disabled/`; re-enable before routing) | Any PR in a Playbooks plugin repo (`server/app/`, `server/api/`, `server/sqlstore/`, `client/`) |
 | Playbooks migrations | `playbooks-migration-reviewer` | `server/sqlstore/migrations.go` or `server/plugin.go` changes in playbooks plugin |
 | Deep experts | `go-expert`, `ts-expert`, `react-expert`, `websocket-expert`, `postgres-expert`, `jira-alignment-reviewer` | `--full` or `--thorough` only |
 | Project | *(see project `.claude/agents/AGENT_REGISTRY.md`)* | Project-specific changes |
@@ -104,7 +104,7 @@ For long-form architecture documents, design specs, PRDs - NOT short implementat
 | `abac-design-reviewer` | [PLAN] | ABAC designs — policy engine / PDP-PEP architecture, attribute pipeline, per-resource policies — against the ABAC anti-pattern catalog (fail-open, BOLA object-surface gaps, engine-as-grantor, attribute provenance/staleness, combining-algorithm, inheritance, scale). Distinct from `permission-design-auditor` (operation→permission semantics) | `(root)` |
 | `rbac-design-reviewer` | [PLAN] | RBAC designs — role catalog, hierarchy/inheritance, default & admin roles, assignment scope, SoD — against the RBAC anti-pattern catalog (role explosion, god roles, over-powerful defaults, privilege creep, toxic combinations, deny-in-an-additive-model, dangerous role unions). Distinct from `abac-design-reviewer` (policy/attribute designs) and `permission-design-auditor` (operation→permission semantics) | `(root)` |
 
-> MM-specific architecture reviewers (`system-design-reviewer`, `client-server-alignment-reviewer`, `permission-design-auditor`, `type-design-reviewer`) are catalogued in the Level 2 registry at `~/mattermost/.claude/agents/AGENT_REGISTRY.md`.
+> MM-specific architecture reviewers (`system-design-reviewer`, `client-server-alignment-reviewer`, `permission-design-auditor`, `type-design-reviewer`) are catalogued in the Level 2 registry at `%%MM_ROOT_DIR%%/.claude/agents/AGENT_REGISTRY.md`.
 
 ### Domain-Specific (Based on Plan)
 
@@ -125,7 +125,7 @@ For long-form architecture documents, design specs, PRDs - NOT short implementat
 
 ### Playbooks Plugin (mattermost-plugin-playbooks*)
 
-Catalogued in the Level 2 registry (`~/mattermost/.claude/agents/AGENT_REGISTRY.md` § "Mattermost Features"): `playbooks-expert`, `run-lifecycle-reviewer`, `attribute-template-reviewer`, `playbooks-api-parity-reviewer`. **Currently DISABLED** — the four files are parked in `~/mattermost/.claude/agents-disabled/mattermost/features/` and are not loaded; delegating to them will fail. When reviewing a Playbooks plugin plan or PR, first move them back under `agents/` (they catch transaction scope, template resolution, lifecycle state machine, and permission-path issues that generic agents miss), or fall back to the generic backend reviewers.
+Catalogued in the Level 2 registry (`%%MM_ROOT_DIR%%/.claude/agents/AGENT_REGISTRY.md` § "Mattermost Features"): `playbooks-expert`, `run-lifecycle-reviewer`, `attribute-template-reviewer`, `playbooks-api-parity-reviewer`. **Currently DISABLED** — the four files are parked in `%%MM_ROOT_DIR%%/.claude/agents-disabled/mattermost/features/` and are not loaded; delegating to them will fail. When reviewing a Playbooks plugin plan or PR, first move them back under `agents/` (they catch transaction scope, template resolution, lifecycle state machine, and permission-path issues that generic agents miss), or fall back to the generic backend reviewers.
 
 ### Reference Docs (not agents)
 
@@ -305,7 +305,7 @@ Use these BEFORE `/create-prd` when the question is "which features should we bu
 
 > Orchestrators use Task to delegate — they MUST run as top-level agents, NOT as subagents.
 
-`security-orchestrator` is catalogued in the Level 2 registry (`~/mattermost/.claude/agents/AGENT_REGISTRY.md` § "Top-Level"). It coordinates `xss-reviewer`, `permission-reviewer`, `threat-modeler`, and other security agents for comprehensive security passes.
+`security-orchestrator` is catalogued in the Level 2 registry (`%%MM_ROOT_DIR%%/.claude/agents/AGENT_REGISTRY.md` § "Top-Level"). It coordinates `xss-reviewer`, `permission-reviewer`, `threat-modeler`, and other security agents for comprehensive security passes.
 
 ### Orchestration Model
 
@@ -332,7 +332,7 @@ Leader deduplicates by file+line+tag, keeps highest severity when overlapping.
 
 ## 5. DOMAIN EXPERTS
 
-Mattermost feature/core/infra/migration domain experts (`plugin-expert`, `copilot-ai-expert`, `mobile-expert`, `shared-channels-expert`, `calls-webrtc-expert`, `property-system-expert`, `config-expert`, `db-migration-expert`, `tech-debt-refactorer`, `performance-optimizer`, `caching-expert`, `migration-code-orchestrator`, `slack-migration-expert`, `confluence-migration-expert`, `playbooks-migration-reviewer`) are catalogued in the **Level 2** registry at `~/mattermost/.claude/agents/AGENT_REGISTRY.md` § "Mattermost Features", "Mattermost Migration", and "Mattermost Infrastructure".
+Mattermost feature/core/infra/migration domain experts (`plugin-expert`, `copilot-ai-expert`, `mobile-expert`, `shared-channels-expert`, `calls-webrtc-expert`, `property-system-expert`, `config-expert`, `db-migration-expert`, `tech-debt-refactorer`, `performance-optimizer`, `caching-expert`, `migration-code-orchestrator`, `slack-migration-expert`, `confluence-migration-expert`, `playbooks-migration-reviewer`) are catalogued in the **Level 2** registry at `%%MM_ROOT_DIR%%/.claude/agents/AGENT_REGISTRY.md` § "Mattermost Features", "Mattermost Migration", and "Mattermost Infrastructure".
 
 For project-specific domain experts, see the project's own `.claude/agents/AGENT_REGISTRY.md` (Level 3).
 

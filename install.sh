@@ -3,7 +3,18 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GLOBAL_DIR="$HOME/.claude"
-MM_DIR="$HOME/mattermost/.claude"
+
+# MM_ROOT_DIR is the directory that holds your Mattermost repo clones.
+# Override it in install.local.conf (gitignored, see install.local.conf.example)
+# without editing this script or the versioned .md sources.
+MM_ROOT_DIR="$HOME/mattermost"
+LOCAL_CONFIG="$REPO_DIR/install.local.conf"
+if [ -f "$LOCAL_CONFIG" ]; then
+  # shellcheck disable=SC1090
+  source "$LOCAL_CONFIG"
+fi
+
+MM_DIR="$MM_ROOT_DIR/.claude"
 
 PROJECTS=(
   "mattermost-plugin-playbooks"
@@ -15,10 +26,13 @@ usage() {
   echo "Usage: $0 [global|mattermost|project:<name>|all] [--dry-run]"
   echo ""
   echo "  global               Install global agents, skills, and docs to ~/.claude/"
-  echo "  mattermost           Install Mattermost-suite agents to ~/mattermost/.claude/agents/"
-  echo "  project:<name>       Install project-specific files to ~/mattermost/<name>/.claude/"
+  echo "  mattermost           Install Mattermost-suite agents to \$MM_ROOT_DIR/.claude/agents/"
+  echo "  project:<name>       Install project-specific files to \$MM_ROOT_DIR/<name>/.claude/"
   echo "  all                  Install everything (default)"
   echo "  --dry-run            Show what would be copied without copying"
+  echo ""
+  echo "MM_ROOT_DIR is currently: $MM_ROOT_DIR"
+  echo "Override it by creating install.local.conf (see install.local.conf.example)."
   echo ""
   echo "Available projects:"
   for p in "${PROJECTS[@]}"; do echo "  project:$p"; done
@@ -33,6 +47,12 @@ usage() {
 DRY_RUN=false
 SCOPE="all"
 PROJECT_NAME=""
+
+if sed --version >/dev/null 2>&1; then
+  SED_INPLACE=(-i)        # GNU sed
+else
+  SED_INPLACE=(-i '')     # BSD/macOS sed
+fi
 
 for arg in "$@"; do
   case "$arg" in
@@ -57,13 +77,14 @@ copy_dir() {
   else
     mkdir -p "$dst"
     cp -r "$src/." "$dst/"
+    find "$dst" -type f \( -name "*.md" -o -name "*.sh" \) -exec sed "${SED_INPLACE[@]}" "s#%%MM_ROOT_DIR%%#${MM_ROOT_DIR}#g" {} +
   fi
 }
 
 install_project() {
   local name="$1"
   local src="$REPO_DIR/projects/$name"
-  local dst="$HOME/mattermost/$name/.claude"
+  local dst="$MM_ROOT_DIR/$name/.claude"
   echo "--- Project: $name ---"
   copy_dir "$src/agents"   "$dst/agents"   "agents"
   copy_dir "$src/skills"   "$dst/skills"   "skills"

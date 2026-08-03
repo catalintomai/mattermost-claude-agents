@@ -29,7 +29,7 @@ for level in [global, parent_project, current_project]:
     # Recursively scan agent files (*.md), excluding registry, archive, and shared dirs.
     # MUST be recursive — agents are organized into subdirectories
     # (e.g., ~/.claude/agents/{core,review,security,tech,testing}/*.md, or
-    # ~/mattermost/.claude/agents/mattermost/{core,features,review,...}/*.md).
+    # %%MM_ROOT_DIR%%/.claude/agents/mattermost/{core,features,review,...}/*.md).
     # A non-recursive `dir/*.md` glob would silently miss every nested agent.
     for file in glob(dir/**/*.md, exclude=[_archived/**, _shared/**, AGENT_REGISTRY.md]):
         agent = parse_agent_file(file)

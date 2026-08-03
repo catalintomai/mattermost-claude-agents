@@ -47,23 +47,23 @@ Authority order: **merged upstream code** > **open upstream PRs** > **implementa
 
 ### Local docs (derived — may lag upstream)
 
-4. `~/mattermost/mattermost-integrated-boards/implementation-plans/integrated-boards-implementation-plan.md`
+4. `%%MM_ROOT_DIR%%/mattermost-integrated-boards/implementation-plans/integrated-boards-implementation-plan.md`
    - Predates PR 35887's BO/BP split — still refers to `ChannelTypeBoard = "B"` (single type). **Treat as historical context; prefer PR 35887 for channel-type facts.**
-5. `~/mattermost/mattermost-integrated-boards/implementation-plans/wave-5a-tab-bar-board-view.md`
+5. `%%MM_ROOT_DIR%%/mattermost-integrated-boards/implementation-plans/wave-5a-tab-bar-board-view.md`
    - Webapp wave for tab bar + board view + kanban components
-6. `~/mattermost/mattermost-integrated-boards/implementation-plans/wave-5b-card-detail-rhs-property-editors.md`
-7. `~/mattermost/mattermost-integrated-boards/implementation-plans/INTEGRATED_BOARDS_SPECIFICATION.md`
-8. `~/mattermost/mattermost-integrated-boards/implementation-plans/archive/BOARDS_VS_PAGES_ARCHITECTURE_COMPARISON.md`
+6. `%%MM_ROOT_DIR%%/mattermost-integrated-boards/implementation-plans/wave-5b-card-detail-rhs-property-editors.md`
+7. `%%MM_ROOT_DIR%%/mattermost-integrated-boards/implementation-plans/INTEGRATED_BOARDS_SPECIFICATION.md`
+8. `%%MM_ROOT_DIR%%/mattermost-integrated-boards/implementation-plans/archive/BOARDS_VS_PAGES_ARCHITECTURE_COMPARISON.md`
    - Useful as a starting point for the pages/boards deltas, but pre-dates BO/BP pivot.
 
 ### Original Tech Spec PDFs (partially superseded — check PRs first)
 
 9. **Integrated Boards Tech Spec** (12 pages):
-   `~/mattermost/mattermost-integrated-boards/implementation-plans/_5c333c236d9c474cefb13319-Integrated Boards Tech Spec-170226-210816.pdf`
+   `%%MM_ROOT_DIR%%/mattermost-integrated-boards/implementation-plans/_5c333c236d9c474cefb13319-Integrated Boards Tech Spec-170226-210816.pdf`
 10. **Linked Channel Memberships Tech Spec** (7 pages):
-    `~/mattermost/mattermost-integrated-boards/implementation-plans/_5c333c236d9c474cefb13319-Linked Channel Memberships Tech Spec-170226-211210.pdf`
+    `%%MM_ROOT_DIR%%/mattermost-integrated-boards/implementation-plans/_5c333c236d9c474cefb13319-Linked Channel Memberships Tech Spec-170226-211210.pdf`
 11. **UX Spec: Integrated Boards MVP** (14 pages):
-    `~/mattermost/mattermost-integrated-boards/implementation-plans/DES-UX Spec_ Integrated Boards MVP-160226-131223.pdf`
+    `%%MM_ROOT_DIR%%/mattermost-integrated-boards/implementation-plans/DES-UX Spec_ Integrated Boards MVP-160226-131223.pdf`
 
 ### Jira Epics
 
