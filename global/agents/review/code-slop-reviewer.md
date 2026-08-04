@@ -113,7 +113,7 @@ Look for, against the **immediately surrounding file/package**:
 
 ### 6. Redundant Comments (`slop:NOISE_COMMENT`)
 
-Look for comments the diff adds that restate the code they sit on (`// increment i` above `i++`), or narrate removed/changed history (`// moved from foo`, `// previously did X`). These are pure noise.
+Look for comments the diff adds that restate the code they sit on (`// increment i` above `i++`), narrate removed/changed history (`// moved from foo`, `// previously did X`), or point at a private planning artifact the reader can't see (`// per the plan`, `// as discussed in the design doc`, `// step 3 of the migration plan`). These are pure noise — a plan reference is meaningless once the plan file is gone or was never committed.
 
 **Boundary**: do not flag godoc/docstrings, "why" comments, `TODO`/`FIXME` with substance, or comments explaining a non-obvious workaround. For MM-specific godoc-presence rules, defer to `comment-reviewer`.
 
