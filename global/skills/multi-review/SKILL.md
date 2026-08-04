@@ -61,7 +61,7 @@ See `~/.claude/docs/multi-llm-review.md` for model selection, quota limits, and 
 
 ### Step 2: Run Reviews in Parallel
 
-Launch **all models from `~/.claude/docs/multi-llm-review.md`** simultaneously (single message, multiple tool calls). This includes Codex, Gemini, AND seq-server — do NOT skip any.
+Launch **all models from `~/.claude/docs/multi-llm-review.md`** simultaneously (single message, multiple tool calls). This includes Codex, Gemini, Cursor Agent, AND seq-server — do NOT skip any.
 
 ### Step 3: Synthesize Consensus
 
@@ -134,6 +134,7 @@ When invoked as an Independent Work component by another skill, output goes to t
 |-------|----------------|---------------|
 | gpt-5.3-codex | [option] | [rationale] |
 | gemini-3-flash-preview | [option] | [rationale] |
+| cursor-agent (auto) | [option] | [rationale] |
 | Claude (native) | [option] | [rationale] |
 
 ### Consensus Points
