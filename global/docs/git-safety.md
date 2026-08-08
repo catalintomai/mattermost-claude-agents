@@ -10,6 +10,23 @@ These commands DESTROY uncommitted work and are FORBIDDEN:
 - **NEVER use `git rebase`** - Rewrites history
 - **NEVER use force flags** (`-f`) on any git command
 - **NEVER unstage files** without explicit user permission
+- **NEVER run `git fetch`/`git pull` with `--depth`** in a working clone - grafts the repo and breaks later pulls with "refusing to merge unrelated histories"
+
+## Reading a Commit From Another Repo
+
+To inspect a commit or PR that is not in the local history, clone shallowly into the scratchpad
+directory - never shallow-fetch into a working clone:
+
+```bash
+# CORRECT WAY:
+git clone --depth 1 <url> "$SCRATCHPAD/repo"   # throwaway
+git fetch origin <sha>                         # no --depth, in the working clone
+
+# WRONG WAY (FORBIDDEN):
+git fetch origin <sha> --depth=1               # writes .git/shallow, grafts the clone
+```
+
+Recovery if it already happened: `git fetch --unshallow origin`.
 
 ## Safe Alternatives
 

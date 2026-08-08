@@ -314,6 +314,25 @@ func (c *Client4) MethodName(params) (*Response, error) {
 
 Run client-server-alignment AFTER api-contract-reviewer and BEFORE testing.
 
+## PASS Evidence Rule (Mandatory)
+
+A PASS on any "X matches Y" contract claim is valid ONLY if it enumerates every branch of the
+writer/serializer the claim quantifies over — every early return, special-cased status code, and
+envelope variant — and cites each branch checked. A PASS that quotes one branch is structurally
+invalid: report the unchecked branches instead of the PASS.
+
+Additionally, compare server handler tests' asserted wire shapes (status code + body envelope)
+against client tests' mocked responses for the same endpoint. A client mock in a shape no server
+test produces is a finding, not background noise. Mock fidelity is measured against the SERVER's
+wire output, never against the client parser — that comparison is circular and hides exactly the
+bugs this agent exists to catch.
+
+Why this exists: on MM-69269 this agent PASSed "RestError parsing matches the AppError shape
+written by writeAppError" after tracing only the general branch. `writeAppError` special-cases
+every 409 into a `{error, current_page}` envelope three lines above the verified code, so every
+conflict reached users as "Received status code 409" — and the server test asserted the nested
+envelope while the client test mocked a flat AppError, a contradiction nobody compared.
+
 ## Anti-Slop Guidance (Do NOT Flag)
 
 - **Do not flag** the `toLowerCase()` call inside `getOptions()` in `client4.ts` as a method-casing bug — this call is used only for CSRF token logic (`if method !== 'get'`) and does not normalize the HTTP method string sent to the server; the actual method value is passed through unchanged.

@@ -68,14 +68,16 @@ Ignore: prose nouns ("the wiki"), example identifiers in code blocks that the pl
 
 ## Output format
 
-Use the canonical finding format. Group by outcome — MISSING first (highest signal), then AMBIGUOUS, then a one-line ANCHORED summary.
+> **Canonical format**: `~/.claude/agents/_shared/finding-format.md` — this agent intentionally replaces the MUST_FIX/SHOULD_FIX/PASS severities with MISSING/AMBIGUOUS/ANCHORED outcomes (it is a mechanical pre-pass, not a judgment reviewer), but the `[agent:symbol-sweep-reviewer]` prefix requirement still applies to every finding.
+
+Group by outcome — MISSING first (highest signal), then AMBIGUOUS, then a one-line ANCHORED summary.
 
 ```
 ## Symbol Sweep Result
 
 ### MISSING ({count})
 
-[symbol-sweep:MISSING] `<plan-path>:<line>` — symbol `<X>` referenced as if existing; not found in codebase.
+**[agent:symbol-sweep-reviewer]** [symbol-sweep:MISSING] `<plan-path>:<line>` — symbol `<X>` referenced as if existing; not found in codebase.
 Narrow grep:
 $ grep -rn "EnableWikis" server/ webapp/
 (no output)
@@ -86,7 +88,7 @@ Fix: rename to a real flag, mark as [proposed], or drop the reference.
 
 ### AMBIGUOUS ({count})
 
-[symbol-sweep:AMBIGUOUS] `<plan-path>:<line>` — symbol `<X>` referenced; no exact match but related symbols exist.
+**[agent:symbol-sweep-reviewer]** [symbol-sweep:AMBIGUOUS] `<plan-path>:<line>` — symbol `<X>` referenced; no exact match but related symbols exist.
 Grep evidence:
 $ grep -rn "ExecuteInTransaction" server/
 server/channels/store/sqlstore/store_helpers.go:52:func (ss *SqlStore) ExecuteInTransaction(...)

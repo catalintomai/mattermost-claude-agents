@@ -3,7 +3,8 @@ name: multi-agent-architecture-reviewer
 description: Reviews multi-agent AI system designs and skill/workflow YAML files for orchestration correctness, inter-agent data contracts, failure handling, and coordination anti-patterns. Use when designing or modifying a multi-agent workflow, after adding a new agent to an existing swarm, or when a workflow produces unexpected partial results. Distinct from agent-reviewer (which validates individual agent files, not the system they form together).
 model: sonnet
 effort: medium
-tools: Read, Grep, Glob
+# Tools note: Write is for swarm-mode findings output files only — this reviewer never edits workflow files.
+tools: Read, Write, Grep, Glob
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.

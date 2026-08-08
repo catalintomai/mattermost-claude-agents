@@ -1,9 +1,9 @@
 ---
 name: hardcoded-values-reviewer
-description: Reviews code for hardcoded values that should be constants. Catches magic numbers, repeated strings, and config values. Use when reviewing code for magic numbers, repeated string literals, or hardcoded configuration values.
+description: Reviews code, docs, and config for hardcoded values that should be constants — magic numbers, repeated strings, config values — and for merge-bound files that reference machine-local or gitignored artifacts (absolute home paths, personal worktree names, ignored helper scripts). Use when reviewing changed files for magic numbers, repeated string literals, hardcoded configuration, or local-only paths that will not resolve on anyone else's machine.
 model: haiku
 effort: low
-tools: Read, Write, Grep, Glob
+tools: Read, Write, Grep, Glob, Bash
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
@@ -164,6 +164,33 @@ Recurring instances: a workflow hardcoding `origin/master` where the base ref is
 
 **Validated by MM PR review**: T149 — PR #37099 `server-ci.yml` — hardcoded `origin/master` on push runs (ACCEPTED). Also PR #36930 `.cursor/Dockerfile` (hardcoded Node version vs the `NODE_VERSION` ARG), PR #36418 (`server/go.mod` 1.26.2 vs `Dockerfile.buildenv` 1.25.9), and PR #37277 `masking_admin_roles.spec.ts` (`/api/v4` hardcoded over `getBaseRoute()`).
 
+### 7. Merge-Bound File Referencing a Local-Only Artifact
+
+A tracked file is read by everyone who clones the repo and by CI. When it names something that exists only on the author's machine — an absolute home path, a personally-named worktree sibling, a gitignored helper script — the reference resolves for exactly one person and is dead text for everyone else. It never fails loudly: docs simply mislead, and a script takes its fallback branch.
+
+The three shapes, in descending frequency:
+
+```md
+<!-- BAD: gitignored helper — `/scripts/` is in .gitignore, so no clone but the author's has it -->
+Deploy it with ./scripts/deploy.sh
+
+<!-- BAD: worktree name specific to one person's checkout layout -->
+(cd ../MM-69269-core/webapp && npm run build)
+
+<!-- BAD: absolute home path -->
+MM_LICENSE_FILE=~/Downloads/staff-test-enterprise.mattermost-license make test-e2e
+
+<!-- GOOD: a placeholder the reader substitutes -->
+MM_LICENSE_FILE=/path/to/mattermost.mattermost-license make test-e2e
+(cd <core-checkout>/webapp && npm run build)
+```
+
+**Detection**: run only against files `git ls-files` reports as tracked — an untracked or ignored file may reference whatever it likes. For each, grep the added lines for `/Users/`, `/home/<name>`, `C:\Users`, a leading `~/`, and any repo-relative path; pass each extracted path to `git check-ignore -q` and flag a hit. Treat a directory name carrying a ticket id or a person's initials (`../MM-69269-core`, `../wip-jsmith`) as local even when `git check-ignore` says nothing, since it names a sibling checkout the repo does not control.
+
+**Severity**: MUST_FIX when the reference is the reader's only stated route to performing the task (a doc's sole run command, an error message's only named remedy) — it strands every other reader. SHOULD_FIX when it is illustrative and the surrounding text still conveys the intent.
+
+**Do not flag**: a placeholder (`/path/to/…`, `<core-checkout>`, `$HOME/…`, `${VAR}`); a relative candidate list that carries a generic alternative and an override, since it degrades rather than strands (`for c in "$ROOT/../MM-69269-core/server" "$ROOT/../mattermost/server"` guarded by an `MM_SERVER_REPO` override and an error naming it); or a path inside a file that is itself gitignored.
+
 ## Review Process
 
 ### Step 1: Scan for Patterns
@@ -181,6 +208,11 @@ grep -n "=== [0-9]" <file>
 
 # Repeated strings
 grep -n '"[a-z_]\{3,\}"' <file> | sort | uniq -c | sort -rn
+
+# Local-only references, tracked files only (rule 7)
+git ls-files <changed paths> | xargs grep -nE '/Users/|/home/[a-z]|C:\\Users|~/|\./scripts/'
+# then confirm each extracted path is ignored rather than merely relative
+git check-ignore -q <extracted path> && echo "ignored — flag it"
 ```
 
 ### Step 2: Check Existing Constants
@@ -203,12 +235,14 @@ grep -r "export const.*<term>" --include="*.ts" --include="*.tsx" webapp/
 | High | Repeated magic numbers/strings (3+ occurrences) |
 | Medium | Single magic number that affects behavior |
 | Low | One-off strings that could be constants |
+| High | Tracked file whose only stated route to a task is a local-only path (rule 7) |
+| Medium | Tracked file citing a local-only path illustratively (rule 7) |
 
 ## Output Format
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 
-**Domain tags**: `hardcoded:MAGIC_NUMBER`, `hardcoded:REPEATED_STRING`, `hardcoded:CONFIG_VALUE`
+**Domain tags**: `hardcoded:MAGIC_NUMBER`, `hardcoded:REPEATED_STRING`, `hardcoded:CONFIG_VALUE`, `hardcoded:LOCAL_ONLY_PATH`
 
 ## Common Mattermost Constants to Know
 

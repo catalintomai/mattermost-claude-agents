@@ -11,6 +11,7 @@ tools: Read, Write, Edit, Bash, Grep, Glob, Task
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
 > **80/20 Rule**: Read `~/.claude/agents/_shared/eighty-twenty-rule.md` — apply when prioritizing findings and proposals.
+> **Hostile Adoption Rule**: Read `~/.claude/agents/_shared/hostile-adoption-rule.md` for every get-or-create, upsert, adopt-on-conflict, or recovery path in the diff — payload equality is not identity; validate ownership, management flags, liveness, uniqueness, and existing references before treating a found row as the migration's own prior work.
 
 ## CRITICAL: Evidence-Based Findings Only
 

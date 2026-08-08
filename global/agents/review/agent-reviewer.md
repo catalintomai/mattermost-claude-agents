@@ -3,7 +3,8 @@ name: agent-reviewer
 description: Validates Claude Code agent (.md) files for frontmatter correctness, tool configuration, description quality, and agentic design best practices. Use when reviewing new or modified agent files, or auditing the full ~/.claude/agents/ and .claude/agents/ directories. Distinct from plan-completeness-checker (which reviews plan files, not agent files).
 model: sonnet
 effort: medium
-tools: Read, Grep, Glob
+# Tools note: Write is for swarm-mode findings output files only — this reviewer never edits agent files.
+tools: Read, Write, Grep, Glob
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.

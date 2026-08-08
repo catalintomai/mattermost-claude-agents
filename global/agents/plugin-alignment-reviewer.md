@@ -7,8 +7,8 @@ effort: medium
 # (the source of truth — NOT local checkouts). Bash is READ-ONLY here: git on THIS plugin (diff/log
 # vs master) and optional `git clone --depth 1` to scratch for broad grep — never writes to source
 # files (this is a -reviewer agent; it reports, it does not edit). Grep/Glob/Read operate on this
-# plugin + any scratch clone.
-tools: Read, Grep, Glob, Bash, mcp__github__get_file_contents, mcp__github__search_code
+# plugin + any scratch clone. Write is for swarm-mode findings output files only — never source files.
+tools: Read, Write, Grep, Glob, Bash, mcp__github__get_file_contents, mcp__github__search_code
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly. Every divergence you report MUST cite the file:line in THIS plugin and the file path in the sibling repo (with its ref) it diverges from. No anchor on both sides → do not report it.
@@ -22,7 +22,7 @@ Your sole job: compare THIS plugin against the other Mattermost plugin codebases
 
 ## Source of truth: the canonical GitHub repos — NOT local checkouts
 
-Reference plugins are read from the **`mattermost` GitHub org**, via the GitHub MCP tools (`mcp__github__get_file_contents` to read a file or list a directory; `mcp__github__search_code` to find a pattern). **Do NOT treat any local checkout under `/Users/catalintomai/mattermost/` as a reference** — those dirs can be stale, forks, `*-exp` experiments, analysis copies, or the wrong repo entirely (e.g. the local `mattermost-integrated-boards` dir is NOT the Boards plugin). A local clone may be used as a convenience cache ONLY after you confirm it matches the canonical repo's current default branch.
+Reference plugins are read from the **`mattermost` GitHub org**, via the GitHub MCP tools (`mcp__github__get_file_contents` to read a file or list a directory; `mcp__github__search_code` to find a pattern). **Do NOT treat any local checkout under `%%MM_ROOT_DIR%%/` as a reference** — those dirs can be stale, forks, `*-exp` experiments, analysis copies, or the wrong repo entirely (e.g. the local `mattermost-integrated-boards` dir is NOT the Boards plugin). A local clone may be used as a convenience cache ONLY after you confirm it matches the canonical repo's current default branch.
 
 | Plugin | GitHub repo (`mattermost/…`) | Default branch | Best reference for |
 |--------|------------------------------|----------------|--------------------|
