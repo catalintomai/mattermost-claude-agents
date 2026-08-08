@@ -7,8 +7,8 @@ effort: medium
 # (the source of truth — NOT local checkouts). Bash is READ-ONLY here: git on THIS plugin (diff/log
 # vs master) and optional `git clone --depth 1` to scratch for broad grep — never writes to source
 # files (this is a -reviewer agent; it reports, it does not edit). Grep/Glob/Read operate on this
-# plugin + any scratch clone.
-tools: Read, Grep, Glob, Bash, mcp__github__get_file_contents, mcp__github__search_code
+# plugin + any scratch clone. Write is for swarm-mode findings output files only — never source files.
+tools: Read, Write, Grep, Glob, Bash, mcp__github__get_file_contents, mcp__github__search_code
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly. Every divergence you report MUST cite the file:line in THIS plugin and the file path in the sibling repo (with its ref) it diverges from. No anchor on both sides → do not report it.

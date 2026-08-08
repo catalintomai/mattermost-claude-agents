@@ -405,3 +405,7 @@ Agent names follow a suffix convention that signals capabilities and tool access
 - `-reviewer` agents MAY have `WebSearch` or MCP read-only tools when their review scope includes verifying external claims — but prefer `-auditor` suffix in that case
 - `-expert` agents whose output is analytical documentation (not source-code edits) MAY omit `Edit` and `Bash` from their tool set — e.g., `feature-prioritization-expert` produces a prioritization report, so `Read, Write, Grep, Glob` is the correct minimal set; the `-expert` suffix is retained because the agent encodes methodological expertise (framework knowledge), not artifact type
 - These exceptions MUST be documented in the agent's frontmatter or prompt
+
+### Frontmatter: `effort` field
+
+Every agent in this collection declares an `effort: low | medium | high` frontmatter field. This is a local convention, not part of Claude Code's documented frontmatter schema — it is consumed as a reasoning-effort hint when the agent is spawned, and harnesses that do not recognize it ignore it. Match it to the agent's cost profile: `low` for mechanical scans and lightweight detectors, `medium` for standard reviews, `high` for deep audit/design agents.

@@ -100,7 +100,7 @@ A finding from this agent is a **traced attack path**, never a speculation:
 Use the standard finding format. Tag findings `cex:` with the invariant violated, e.g.:
 
 ```
-1. [cex:INVARIANT_BROKEN] [VERIFIED] server/channels/app/space_role_guards.go:258 —
+1. **[agent:counterexample-reviewer]** [cex:INVARIANT_BROKEN] [VERIFIED] server/channels/app/space_role_guards.go:258 —
    Claimed: "presets are core-provided and fixed" (space_migrations.go:260).
    Counterexample: PATCH /api/v4/roles/{id}/patch on a preset's generated role →
    App.PatchRole → UpdateRole → checkSpacePermissionScope accepts via the preset-name

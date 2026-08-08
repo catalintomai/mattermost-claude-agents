@@ -5,6 +5,8 @@ model: sonnet
 effort: medium
 # Tools note: Bash is justified — this agent runs grep commands against migrations (CREATE TABLE, CREATE INDEX,
 # FOREIGN KEY) and store query patterns to find schema definitions and N+1 risks (see Search Patterns section).
+# WebSearch is for verifying database-engine behavior claims (e.g. PostgreSQL index, vacuum, or locking
+# semantics) against vendor docs when a critical finding depends on them — not for general research.
 tools: Read, Write, Grep, Glob, Bash, WebSearch
 ---
 
