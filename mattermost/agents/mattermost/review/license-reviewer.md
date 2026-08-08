@@ -191,6 +191,46 @@ func (a *App) GetComplianceReports() ([]*model.Compliance, error) {
 }
 ```
 
+### 3b. Alternate Entry Point Reaches a Gated Capability Ungated (High — validated by MM PR review)
+
+A license gates a **capability**, not a **transport**. Whenever a diff adds a new way to reach a licensed capability, that path must observe the gate too — enforcement a customer can bypass by installing a plugin is not enforcement.
+
+**Sweep, don't spot-check.** For every licensed capability the diff touches, enumerate *all* entry points that reach it and verify each one:
+
+| Entry point | Where to look |
+|---|---|
+| REST handler | `server/channels/api4/` |
+| Plugin API | `server/channels/app/plugin_api.go`, `server/public/plugin/api.go` |
+| CLI | `server/cmd/`, `mmctl/` |
+| Bulk import | `server/channels/app/import_functions.go` |
+| Scheduled job / migration | `server/channels/jobs/`, `app/*_migrations.go` |
+
+MM's own convention is explicit here: `checkLDAPLicense` (`app/plugin_api.go:42`) is applied at **sixteen** call sites so the plugin path observes the LDAP Groups gate the REST path enforces. Treat that as the rule, not an analogy.
+
+```go
+// WRONG — new plugin method reaches a licensed capability with no gate
+func (api *PluginAPI) CreateScheme(scheme *model.Scheme) (*model.Scheme, *model.AppError) {
+    return api.app.CreateScheme(scheme)   // api4/scheme.go gates this on CustomPermissionsSchemes
+}
+
+// CORRECT — same condition as the REST handler, in a helper beside checkLDAPLicense
+func (api *PluginAPI) CreateScheme(scheme *model.Scheme) (*model.Scheme, *model.AppError) {
+    if err := api.checkCustomPermissionsLicense(); err != nil {
+        return nil, model.NewAppError("PluginAPI.CreateScheme", "api.scheme.create_scheme.license.error", nil, "", http.StatusNotImplemented).Wrap(err)
+    }
+    return api.app.CreateScheme(scheme)
+}
+```
+
+**Copy the gate condition from the REST handler verbatim.** Do not re-derive it from a sibling helper: gates differ in shape, and several MM gates carry an SKU escape hatch (`SkuShortName != model.LicenseShortSkuProfessional`) that a feature-flag-only helper like `checkLDAPLicense` has no equivalent of. Getting that clause wrong locks out paying licensees (see checklist item on license floors).
+
+**Evidence standard — state the capability surface.** A finding of the form "path A enforces the gate, path B doesn't" is true but waveable, and it *will* get waved. Every finding under this rule MUST additionally report **how much of the licensed feature path B exposes**:
+
+- *Whole feature* — the method accepts unrestricted input (e.g. `CreateScheme` takes an arbitrary `*model.Scheme` with a caller-chosen `Scope`, so it reaches team/channel scheme creation, not just one narrow use case). This makes the finding unconditional: it holds regardless of how the diff's own feature is licensed.
+- *Scoped subset* — the method can only reach a narrow slice. Then say so, and note that narrowing the API may be a better fix than adding a gate.
+
+Without this, the finding is a parity observation and reads as a style nit. With it, the finding is unfalsifiable.
+
 ### 4. Feature Flag Without Default
 
 ```go

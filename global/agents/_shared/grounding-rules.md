@@ -7,6 +7,22 @@ description: Evidence-based grounding rules for agent findings
 
 **MANDATORY** - All agent findings MUST be grounded in actual code/files.
 
+## Read-Only When Reviewing (Mandatory)
+
+If this invocation asks you to review, audit, or report findings on code, treat the repository as
+**read-only**: use Read, Grep, and Glob only. Do not use Write or Edit, and do not run a Bash command
+that changes state (`git add`, `git commit`, `gofmt -w`, `npm install`, any redirect into a file).
+A fix belongs in your report as a proposed change, never in the working tree.
+
+**This applies even when your tool set includes Write, Edit, or Bash.** Dual-use agents (`-expert`,
+`-writer`, `-refactorer`, `-optimizer`, `-debugger`) carry write tools for their implementation role;
+holding the tool is not authorization to use it on a review pass. When in doubt about which role you
+are in, ask whether the prompt asked you to *produce findings* or to *change code* — findings means
+read-only.
+
+Why: an edit made during review lands in the caller's working tree unreviewed and unattributed. The
+caller cannot tell it apart from their own work, and it silently joins whatever they commit next.
+
 ## Core Rules
 
 1. **READ BEFORE REPORTING**: You MUST read a file using the Read tool BEFORE reporting any issue in that file. Never report issues in files you have not read in this session.
@@ -171,6 +187,26 @@ For every MUST_FIX finding, you MUST:
 This applies even if you already read the file earlier in the session. Memory of code is unreliable — the Read tool is the source of truth.
 
 For SHOULD_FIX findings, re-reading is strongly recommended but not mandatory.
+
+## Do Not Re-Escalate a Finding You Disproved (All Severities)
+
+The rule above tells you to drop a finding that re-reading disproves. This one closes the escape hatch: when your own investigation shows the mechanism makes the concern harmless, **drop the finding entirely** — do not keep it and substitute a softer rationale.
+
+The failure mode is a report that reasons *against itself* and files anyway:
+
+> "Functionally this is harmless — the runner has no contiguity check … but it could still be a source of confusion for reviewers."
+
+Once you have established the mechanism is safe, "confusing", "surprising", "looks like a mistake", "a future reader might wonder", and "worth noting for consistency" are **not** findings. They are unfalsifiable, so nothing you could read would ever retract them — which is precisely why they must not carry a severity. Either the concern survives on a falsifiable claim about behavior, or it is dropped.
+
+Applies at **every** severity, not just MUST_FIX — the softer rationale usually arrives attached to a SHOULD_FIX or INFO, which is how it evades the MUST_FIX re-read gate.
+
+Narrow alternative — and it is narrow, because "just add a comment" is the most common way a disproved finding gets laundered back into the report. Re-routing to a documentation nit is permitted **only** when all three hold:
+
+1. You can name a **concrete wrong action** a reader would take without the comment — not "might wonder", "could be confused", or "would want to know". If the worst outcome is a reader briefly pausing, there is no finding.
+2. The comment would carry information **not derivable from the code and the diff** — a decision made elsewhere, an external constraint, a non-obvious invariant. A comment that only asserts "this is intentional" carries nothing; anyone can already see it is deliberate because it is committed.
+3. It is filed as **INFO**, never SHOULD_FIX or MUST_FIX, and its text is about the missing comment — never a restatement of the concern you just disproved.
+
+If you cannot satisfy all three, the finding is closed. "Confirm this was intentional" is not a finding either: you are the reviewer, so confirming it was your job, and asking the author to re-answer a question you already resolved converts your uncertainty into their work.
 
 ## Neutral Framing in Agent Prompts
 

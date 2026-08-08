@@ -27,13 +27,14 @@ this order, never trading one for another:
    plain-language rewrite, never a terser opaque shorthand.
 
 This principle is enforced by the specific sections below — apply them as one goal, not as
-isolated checks: §7D (overpacked → split), §7E (half-baked → name the mechanism), §7H (roundabout
-→ concrete shorter rewrite), §7I (opaque symbol-naming → state the effect), §7L (entailed
-redundancy → drop the implied qualifier), §7M (self-evident narration → delete), §7S
-(parameter-name restatement → delete). When a comment is
+isolated checks: §7D (overpacked → split), §7E (half-baked → name the mechanism), §7I (opaque
+symbol-naming → state the effect), §7L (entailed redundancy → drop the implied qualifier), §7M
+(self-evident narration → delete), §7S (parameter-name restatement → delete). Phrasing itself —
+roundabout constructions, register, narration — belongs to `comment-prose-reviewer`. When a comment is
 both accurate AND longer/murkier than it needs to be, that is still a finding: accuracy (§3 PASS)
 does not exempt a comment from clarity. Conversely, length alone is never the trigger — a long
-comment where every clause adds a distinct fact is correct (see the §7H discriminator).
+comment where every clause adds a distinct fact is correct — the rewrite must preserve every
+load-bearing fact or there is no finding.
 
 ## What to Check
 
@@ -258,11 +259,11 @@ reader still can't check it: they see the `+2` (or `* 1024`, `- 1`, `60`, `5000`
 reasoning that produces it. This is the numeric cousin of §7E half-baked — a result without its
 mechanism. A derivation must do three things:
 
-1. **State the convention/units** the number lives in — without it the math is unverifiable
+4. **State the convention/units** the number lives in — without it the math is unverifiable
    (e.g. "root page = depth 1"; "bytes, not runes"; "0-indexed").
-2. **Decompose each term**, don't collapse it — `+1 (parent) +1 (child) = ancestorDepth + 2`,
+5. **Decompose each term**, don't collapse it — `+1 (parent) +1 (child) = ancestorDepth + 2`,
    not `= ancestorDepth + 2`.
-3. **Tie each term to a reason** the reader can confirm against the code (e.g. "+1 because
+6. **Tie each term to a reason** the reader can confirm against the code (e.g. "+1 because
    GetPageAncestorDepth excludes the parent itself").
 
 ```go
@@ -276,12 +277,12 @@ mechanism. A derivation must do three things:
 **Mandatory cap: derived is not a license to over-explain.** The three requirements above are a
 minimum, not an invitation to add scope beyond them — a derivation that also narrates an
 unrelated contrast (a different function's convention, a sibling method's semantics not needed
-to check *this* number) or opens with a narrated-action verb (see §7H's narrated-opener tell)
-still gets flagged, under §7H, even though it satisfies §F's three requirements. Real example
+to check *this* number) is over-scoped even though it satisfies §F's three requirements. A
+derivation opening with a narrated-action verb ("Derive the…") is `comment-prose-reviewer`'s. Real example
 this rule previously missed — it passed §F's checklist (states the convention, decomposes the
 terms, ties each to a reason) but is still a finding because of the tangent and the opener:
 ```go
-// FLAG (over-scoped derivation, §7H applies on top of §7F):
+// FLAG (over-scoped derivation):
 // Derive the new child's absolute depth from the tree root (a root page is depth 1; this is
 // distinct from the subtree-relative depth the descendants CTE reports, where the queried
 // node is 0). ancestorDepth counts the parent's ancestors but not the parent itself, so the
@@ -312,12 +313,23 @@ The comments are individually accurate (each passes §3) yet collectively mislea
 the sibling set (same verb family, same entity, different axis — grep the type's methods). For
 each behavioral qualifier any sibling states (live/deleted filtering, ordering, depth/limit
 bounds, root inclusion), confirm against the **implementation** whether the behavior is actually
-shared: e.g. grep `DeleteAt = 0` / `OriginalId = ""` in each query. Two outcomes:
-- **Behavior is shared, wording differs (FLAG).** The omission is a false contrast. Fix: align
-  the wording — add the qualifier to the sibling that omits it (default), or drop it from all
-  *only* if it is both non-distinguishing and uninformative. Prefer adding: a qualifier like
-  "live" documents a real filter (a deleted mid-chain ancestor truncates the walk) even when no
-  `WithDeleted` variant exists to disambiguate against. → `SHOULD_FIX`
+shared: e.g. grep `DeleteAt = 0` / `OriginalId = ""` in each query. Three outcomes:
+- **Behavior is shared, wording differs by OMISSION (FLAG).** The omission is a false contrast.
+  Fix: align the wording — add the qualifier to the sibling that omits it (default), or drop it
+  from all *only* if it is both non-distinguishing and uninformative. Prefer adding: a qualifier
+  like "live" documents a real filter (a deleted mid-chain ancestor truncates the walk) even when
+  no `WithDeleted` variant exists to disambiguate against. → `SHOULD_FIX`
+- **Qualifier stated at equal strength but with DIFFERENT semantics (FLAG).** Both comments name
+  the qualifier, neither omits nor overclaims, but the words do not denote the same behavior — a
+  lateral paraphrase that silently swaps the predicate. Judge the phrase against the
+  implementation, not against the sibling comment's plausibility: "newest first" over an
+  `ORDER BY UpdateAt DESC` is wrong (it names creation order, so a draft created last month and
+  edited yesterday sorts first — the opposite of what the reader predicts), where the store's own
+  "most-recently-updated first" is right. Same shape: "created" for an update timestamp, "sorted"
+  for a `GROUP BY`, "unique" for a non-unique index, "all" for a filtered set. This is the axis
+  the omission and overclaim checks both miss — the claim's magnitude matches, only its meaning
+  drifts. Fix: adopt the wording that matches the implementation, normally the callee's.
+  → `SHOULD_FIX`
 - **Behavior genuinely differs (PASS).** If one method really does include deleted rows and the
   other does not, the wording difference is correct and load-bearing — do NOT flag.
 
@@ -329,82 +341,14 @@ false contrast one layer up.
 → `SHOULD_FIX`. Verify the shared/differs question against the query before flagging; do NOT
 flag stylistic wording differences that carry no behavioral qualifier ("fetches" vs "returns").
 
-**H. Roundabout / over-abstract phrasing — one idea, said the long way around.** Distinct from
-§7D Overpacked (too many *distinct* mechanisms — split it): here a *single* accurate point is
-expressed through abstraction, indirection, or redundancy that a concrete paraphrase removes
-without losing a fact. The tells (each individually enough):
-
-- **Abstract restatement where a concrete one exists** — names a concept in general terms when
-  the specific thing is shorter. Real example: `enforces patch-level invariants that Page.IsValid
-  cannot see, because they depend on which fields the patch carries rather than on the merged
-  page's final values` → `checks rules about which fields the patch sets — Page.IsValid can't,
-  since it only sees the merged page` (same point, ~half the words).
-- **Indirection / double-negative framing** — "cannot see, because they depend on X rather than
-  Y" where a positive statement is direct. Prefer "checks X; Page.IsValid only sees Y".
-- **Nominalization stack** — chained abstract nouns ("performs validation of the determination
-  of…") where verbs are shorter ("validates whether…").
-- **Redundant symmetric clauses** — the same point stated in both directions. Real example: `a
-  Body change that left SearchText stale would desync the index, and a SearchText change without
-  a Body change would desync the projection` → `changing one without the other desyncs the index
-  from the body`.
-- **Ordering-rationale counterfactual** — a comment justifies the position of a step by
-  describing what would fail if it ran later ("otherwise X fails with Y", "fail cheaply rather
-  than after a wasted Z round-trip", "only fails inside Channel.Create as a 500 instead of a
-  clean 400"). The ordering may be correct, but narrating the internal failure mode adds
-  implementation detail that rots when internals change and is longer than just stating the
-  ordering constraint. Fix: state what the step does and when, dropping the failure-mode
-  scenario. Real example: `Validate all in-memory fields before the first I/O call below,
-  mirroring CreatePage: an over-long title/description/icon should fail cheaply rather than
-  after a wasted Team.GetMember round-trip.` → `Validate all in-memory fields before the
-  first I/O call, mirroring CreatePage.` Distinct from §7C (which targets *false*
-  counterfactuals): the failure mode here is real, just unnecessary to state. → `SHOULD_FIX`
-- **Compressed technical shorthand** — a phrase that saves words by coining an
-  implementation-specific term that a reader unfamiliar with the internals cannot decode in one
-  pass. Tells: noun phrases that compress a mechanism into a compound modifier ("under-lock",
-  "unlocked pre-check", "store-layer re-check", "compensating archive"), unexpanded acronyms
-  for project-internal concepts, or hyphenated role descriptions that name an abstraction rather
-  than stating what happens. The test: would a competent engineer who hasn't read the
-  implementation understand this phrase without opening another file? If not, replace the
-  shorthand with a plain description of the mechanism. Real example: `A depth-cap violation
-  caught by a store-layer under-lock re-check … the app layer's own unlocked pre-check
-  (checkDepthCap)` → `The store re-checks the depth cap inside the transaction and signals a
-  violation via Reason. Return a 400 with the cap-specific message key, matching what the app
-  layer's own pre-check (checkDepthCap) returns for the same condition.`
-  A second variant is a **coined label for an unstated convention** — a noun phrase that names a
-  category, payload, or "shape" the reader can only decode by already knowing a cross-cutting
-  convention stated nowhere nearby; the label itself is the opaque part, not any single word in it.
-  Tells: a `<adjective> shape`/`<adjective> form`/`<adjective> variant` construction, or a bare
-  domain noun standing in for "the way the other N things do it". The test is the same — could a
-  competent engineer who has not read the *other* code decode it in one pass? Real example: `carries
-  a presence snapshot (…), not the {page_id, space_id} mutation shape` — "mutation shape" silently
-  means "the minimal {page_id, space_id} payload the OTHER page_* events use as a change signal"; a
-  reader who has not studied those sibling events cannot decode it. Fix: state the convention
-  plainly instead of labeling it — `unlike the other page_* events, which carry only {page_id,
-  space_id} as a "changed, refetch" signal, this event carries the full snapshot inline`.
-- **Narrated-action opener** — the comment opens by narrating the code's action with a verb
-  ("Derive the...", "Compute the...", "Determine whether...", "Handles the...", "Calculates...")
-  instead of stating the resulting fact/invariant directly. The verb tells the reader "watch me
-  work it out" instead of just giving them the answer. This tell is easy to miss on an otherwise
-  well-formed §7F constant derivation, because "derive" sounds like the correct verb for a
-  derivation comment — but the fix is to state what the derivation IS, not to announce that a
-  derivation is happening. Real example: `Derive the new child's absolute depth from the tree
-  root (a root page is depth 1; this is distinct from the subtree-relative depth the descendants
-  CTE reports, where the queried node is 0). ancestorDepth counts the parent's ancestors but not
-  the parent itself, so the parent is at ancestorDepth + 1, and its new child is one deeper: +1
-  (parent) +1 (child) = ancestorDepth + 2.` → `ancestorDepth excludes the parent itself, so the
-  parent is at ancestorDepth + 1 and the new child one level deeper, at ancestorDepth + 2. Root
-  pages have depth 1.` (drops the narrated opener AND the unrelated CTE tangent — see §7F's
-  mandatory cap). **Mandatory check**: for every changed comment, look at its first clause — if
-  the grammatical subject is the action/verb rather than the fact, flag it, even when the rest of
-  the comment is accurate and well-derived.
-
-The discriminator (mandatory, prevents churn): produce the concrete shorter rewrite and confirm
-it preserves EVERY load-bearing fact — the why, any counterfactual (§7C), any constant
-derivation (§7F), any behavioral qualifier (§7G). If the shorter form drops a fact, the length
-was carrying information — **do NOT flag** (that is thoroughness, not roundaboutness). Only flag
-when a peer would accept the rewrite as equivalent. Length alone is never the trigger: a long
-comment where every clause adds a distinct fact is fine. → `SHOULD_FIX`, and the finding MUST
-include the proposed rewrite so equivalence is checkable.
+**Phrasing tells live in `comment-prose-reviewer`.** Six sections previously here — roundabout
+phrasing, informal/anthropomorphic register, self-evident function narration, declarations narrated
+by consumer behavior, implementation-mechanics narration in godoc, and significance announcements —
+moved to `comment-prose-reviewer`, which judges the comment TEXT with no callee context. They were
+here for the wrong reason: none of them needs the implementation, and holding them alongside checks
+that DO open callees meant they were reliably skipped. Do not re-add phrasing tells to this file.
+Your remaining scope is what genuinely requires reading the code: accuracy, rot, misplacement,
+duplication, and structure.
 
 **I. Restated internal call — a callee named, its effect not stated.** A clause that announces
 the function calls some internal helper, by the helper's symbol name plus a generic verb
@@ -582,84 +526,6 @@ The discriminator:
 Fix: state the condition/behavior, not the wire code (`rejects a conflicting concurrent edit`
 rather than `Returns 409 on conflict`). → `SHOULD_FIX`.
 
-**P. Declaration narrated by a consumer's runtime behavior — a var/type/const/struct-field comment
-whose grammatical subject is what some *consumer does* with the value, not what the value *is*.** A
-data declaration's doc should state the entity's identity and contents, then any non-obvious *why*
-of its shape. When the subject is instead a runtime action performed elsewhere (`loading it for
-every row would be wasteful`, `sent to the client on every keystroke`, `scanned by the scheduler
-each tick`), it documents the consumer's execution, not the declaration: the reader learns a usage
-cost but never what the thing *is*, and the rationale rots when the consumer changes. Real example:
-`draftMetaColumns omits Body: ... loading it for every row would be wasteful` on a `[]string` column
-set — "loading … for every row" is the *query's* behavior; the variable is simply the metadata
-column set, and Body's size is why it is *excluded from the set* (a property of the set, not of any
-load).
-
-The discriminator:
-- **FLAG** — the comment's subject is a runtime action a consumer takes on the value
-  (load/iterate/send/scan, often "for every row/request/tick") while the declaration's own identity
-  ("X is the metadata column set", "the live-page predicate", "the retry budget") is left implicit.
-  Rewrite with the entity as subject — state what it IS — and reattach any shaping reason as a
-  property of the entity (`Body is excluded because it can be up to PageBodyMaxBytes`).
-- **KEEP** — a genuine non-obvious *why* the value is shaped this way that the declaration cannot
-  show (a measured perf reason, an ordering/init-time requirement, a unit/convention §7F). The
-  defect is the *subject*, not the presence of a rationale: keep the why, reframe it onto the
-  entity. Do not strip a load-bearing reason (§7M KEEP applies).
-
-This is the data-declaration cousin of §7N (which targets a *function* godoc whose subject is the
-caller's action): §7N is about contracts, §7P about what a stored value is.
-
-Fix: make the declared entity the grammatical subject — describe what it is/contains — and attach
-any shaping rationale as a property of the entity, not as a consumer's runtime cost. → `SHOULD_FIX`.
-
-**Q. Implementation-mechanics narration in godoc — a godoc describing *how* the method works
-internally (its locking/concurrency strategy, algorithm steps, ordering tactics) instead of the
-caller-facing contract, EVEN WHEN the method itself performs those steps.** Godoc states the
-contract: the preconditions a caller must satisfy, the guarantees / return values / errors it can
-expect, and which inputs are accepted or rejected. *How* the method achieves that internally — the
-lock-acquisition order, a `FOR UPDATE`, the deadlock-avoidance reasoning, a retry loop, a batch
-size, which index it hits — is implementation detail: it does not change what the caller does or
-expects, it rots when the implementation changes, and (for locking especially) it is usually
-already documented at the lock/helper site where a maintainer actually reads it. This is the blind
-spot §7D leaves: §7D's gate is "does THIS method perform the mechanism?" and exempts mechanics the
-method performs (reword-only); §7Q flags mechanics the method **does** perform but that are still
-not the caller's business. Real example: `UpsertDraft … follows CreatePage's space-before-page lock
-order: … locking it FOR UPDATE so a concurrent DeletePage cannot soft-delete the page underneath
-the write` — UpsertDraft does acquire those locks, so §7D treats it as legitimate, but the lock
-order / `FOR UPDATE` / race rationale is pure mechanics already documented on `lockLiveSpace` /
-`lockLiveParent`; the caller-facing contract is only "the space must be live; an existing page must
-be live and in the same space; a new-page draft is accepted."
-
-The discriminator (contract vs. how):
-- **FLAG (drop from godoc, or demote to the code that performs it)** — the clause describes the
-  internal *how*: lock order, `FOR UPDATE` / lock type, the concurrency/deadlock rationale,
-  retry/batch tactics, index choice, internal algorithm steps — and removing it leaves the caller's
-  preconditions, guarantees, and error behavior intact. A load-bearing maintainer invariant belongs
-  as a comment at the lock/loop site, not in the godoc.
-- **KEEP** — a caller-facing **requirement** (`must be called within a transaction`, `callers must
-  hold the space lock`) or a **guarantee** stated as an observable effect the caller relies on, and
-  not already implied by the method being an ordinary transactional store write. The test: does the
-  clause tell the caller something they must do or can rely on (KEEP), or only how the body is wired
-  (FLAG)?
-
-**Status-code promise without explicit code** (a sub-case of §7Q): a godoc names a specific HTTP
-status or error type (`returns not-found`, `returns 409 Conflict`, `returns forbidden`) for a case
-the method body does not explicitly produce — the status only arrives via a generic error-propagation
-helper such as `storeAppError`. The godoc is narrating an implementation detail of the helper, not
-the method's own contract.
-
-Discriminator:
-- **FLAG** — the method body has no `http.StatusNotFound` (or equivalent) for the named case; a
-  bare `storeAppError(...)` is the only path. The godoc is promising an outcome the method doesn't
-  explicitly decide. Fix: state the behavioral contract without naming the status code ("rejected",
-  "returns an error", "fails if the page has moved to a different space").
-- **KEEP** — the method body has an explicit `mmmodel.NewAppError(... http.StatusNotFound)` for
-  exactly that case. The godoc is restating the method's own decision, not delegating to a helper.
-
-When a godoc trips §7D **Overpacked** and the surplus is internal mechanics, prefer §7Q — **drop**
-the mechanics, do not split them into their own paragraph. Fix: keep the contract (preconditions,
-accepted/rejected inputs, guarantees, errors); drop the internal mechanics or move a load-bearing
-invariant to the implementation site. → `SHOULD_FIX`.
-
 **R. Provenance / history narration — a comment that records where the code CAME FROM instead of
 what it does.** A comment (on a function, file, test, type, or block) that names another file,
 test, symbol, repo, branch, commit, or prior implementation as this code's origin, or uses a
@@ -689,7 +555,7 @@ reference to its origin. → `SHOULD_FIX`
 already says.** A clause like "in the space identified by spaceID" or "for the user given by
 userId" adds a noun phrase (`space`, `user`) that the parameter name already encodes — the reader
 sees `spaceID` and already knows it identifies a space; the comment just re-says "space" and
-"identified by" around it. This is the identifier-level cousin of §7H (roundabout phrasing): the
+"identified by" around it. This is the identifier-level cousin of roundabout phrasing (`comment-prose-reviewer` tell 1): the
 fix is not a shorter rewrite of the same fact, it is deleting the fluff clause entirely, because
 the parameter name already carries 100% of the fact.
 
@@ -736,8 +602,42 @@ The discriminator:
 Fix: pick one site (default: inline, at the implementing code), merge the details there, and cut
 the duplicated clause from the other. → `SHOULD_FIX`
 
+**T2. Idiom repetition across sites — one rationale restated everywhere it applies.** The §T check
+above is pairwise inside one declaration. This one is diff-wide: a branch adopts a house
+explanation for a recurring situation and re-states the whole causal chain at every site that hits
+it. Each instance is individually accurate, decodable, and passes every other check — the defect
+only exists in aggregate, which is why nothing else catches it.
+
+**Detection is mechanical, not a judgment call.** Do this; do not eyeball it:
+1. From each changed comment take the most distinctive 4–8 word span of its *rationale* (the causal
+   clause, not the subject it applies to).
+2. `grep -c` that span across the diff's changed files.
+3. Three or more hits → FLAG once for the set, listing every site. Do NOT emit one finding per site.
+
+Real example (a branch that shipped this): `read from master … would otherwise miss against a
+lagging replica` and its variants appeared at **20 sites across 12 files**, with `until replication
+catches up` and `only the miss pays for it` recurring verbatim inside them. At every site the only
+non-repeated content was one clause naming *which caller* reaches that code that way. The fix kept
+that clause and compressed the shared mechanism to a single line — `Re-read on the primary: a
+scheme created moments earlier is absent from the replica.` — cutting 11 lines with no fact lost.
+
+The discriminator:
+- **FLAG** — the repeated span is the *mechanism or rationale*: the same causal chain re-derived.
+  Fix: state the chain once, in its shortest form, and keep only the site-specific clause
+  (which caller, which race, which consequence) at each site. Where the codebase already states the
+  chain at a canonical site — a store interface godoc, a helper's doc — cut it at the call sites
+  entirely and let the canonical statement stand.
+- **KEEP** — the repeated span is a *term* denoting the same thing at every use. That is
+  vocabulary, not boilerplate; consistent naming is a virtue. (A repeated term whose referent
+  *changes* per site is a different defect, owned by `comment-opacity-reviewer`.)
+- **KEEP** — the sites sit in unrelated subsystems a reader will never encounter together, so no
+  one ever reads the repetition.
+
+→ `SHOULD_FIX`, one finding for the whole set, with the compressed form proposed once.
+
 **U. Filler/hedge word — an intensifier, qualifier, or throat-clearing phrase that adds no fact.**
-Distinct from §7H (which restructures a *whole idea* expressed the long way): here the sentence's
+Distinct from roundabout phrasing (`comment-prose-reviewer` tell 1, which restructures a *whole
+idea* expressed the long way): here the sentence's
 structure and facts are already fine, but it carries a word or short phrase that could be deleted
 with zero information loss — no fact, no qualifier, no scope change. Common offenders: "purely"
 ("exists purely to allow X" → "exists to allow X"), "simply"/"just" as throat-clearing ("simply
@@ -753,7 +653,7 @@ The discriminator (mechanical — delete the word/phrase and check if any fact i
   marker, not throat-clearing — do not strip it. "just" used as a scope qualifier ("returns just
   the ID, not the full row") is load-bearing, not filler.
 
-This is a mechanical strike-list check, not a rewrite exercise like §7H: if deleting the word/phrase
+This is a mechanical strike-list check, not a rewrite exercise: if deleting the word/phrase
 leaves a grammatically complete sentence with the same facts, it was fluff.
 → `SHOULD_FIX`. Fix: delete the filler word/phrase in place; no rewrite needed beyond the deletion.
 
@@ -783,69 +683,13 @@ files, or the lock/index pattern across sibling types) before flagging. Two outc
 → `SHOULD_FIX`. Do NOT flag a comment stating what a value or relationship IS (a positive fact);
 this section is specifically for comments whose content is "we do NOT do X here."
 
-**Y. Absent-behavior documentation — a comment on a function that lists things the function does NOT do, when the function's own name and body already make its scope clear.** The reader looking at `normalizeTitle` (one line: trim + sanitize) would not expect length validation; a comment saying "length constraints are not checked here" states an absence that was never in question. This is the negative-space cousin of §M and §W: instead of narrating what the function does, it narrates what it does not do. The reader learns nothing — the absence is already implied by the function's defined scope.
+**Y. Absent-behavior documentation — a comment on a function that lists things the function does NOT do, when the function's own name and body already make its scope clear.** The reader looking at `normalizeTitle` (one line: trim + sanitize) would not expect length validation; a comment saying "length constraints are not checked here" states an absence that was never in question. This is the negative-space cousin of §M and of `comment-prose-reviewer`'s self-evident-function-narration tell: instead of narrating what the function does, it narrates what it does not do. The reader learns nothing — the absence is already implied by the function's defined scope.
 
 The discriminator:
 - **FLAG** — the absent behavior is outside the function's evident scope (the name/body already delimits what it does), so the reader would not expect it to be there; the comment only confirms that expectation. Fix: delete it.
 - **KEEP** — the absent behavior is surprising given the function's name or location, i.e. a reader familiar with similar functions would reasonably expect it. Real example: a `ValidatePage` function that explicitly does NOT check permissions when callers might assume it does — that absence is load-bearing. Or a `Patch` helper that does NOT fill defaults (callers relying on defaults would pass wrong input). When the absence could genuinely mislead, document it.
 
 → `SHOULD_FIX`.
-
-**W. Self-evident function narration — a short, unexported function whose complete behavior is
-already conveyed by its name and body, with a comment that only restates it.** This is the
-function-level cousin of §M (which is scoped to a single declaration/statement): here the target
-is a whole function — typically a handful of lines, straightforward control flow (a simple
-if/return, no loop beyond a trivial one, no side effects, no error-handling nuance) — where the
-name already states the effect precisely and the comment adds no fact beyond what one glance at
-the body already shows. Real example: `// ensureProps returns props, or a new empty map when
-props is nil.` over
-```go
-func ensureProps(props mmmodel.StringInterface) mmmodel.StringInterface {
-	if props == nil {
-		return make(mmmodel.StringInterface)
-	}
-	return props
-}
-```
-— the name says "ensure props [is usable]", the three-line nil-coalesce is instantly readable, and
-the comment restates both with no added "why," precondition, or edge case not visible in the code.
-
-The discriminator (mandatory — prevents stripping load-bearing rationale):
-- **FLAG** — the function is unexported (godoc-generation purpose does not apply — see the exported
-  carve-out below), short and straightforward (no loop over a non-trivial collection, no
-  error/edge-case branching beyond the one the name already implies, no external side effect), and
-  every clause of the comment is recoverable from the name + body in one read. Fix: **delete** the
-  comment, not reword it — same fix as §M.
-
-  **Compound action-condition name (specific tell).** When the function name is a compound
-  phrase encoding both the action AND its triggering condition — `rejectSpaceChannelByID`,
-  `checkDepthCap`, `ensureProps`, `validatePageTitle`, `rejectDeletedChannel` — a comment that
-  only paraphrases that condition and/or states the standard return convention (`returns true and
-  sets c.Err when …`, `returns an error when …`) is self-evident narration: the name already
-  encodes the action + condition, and for guard/validator/ensure helpers the `bool`+error return
-  convention is standard. Do NOT treat "states the return values" as automatically saving the
-  comment — if the return semantics are obvious from the verb class (`reject*`, `check*`,
-  `ensure*`, `validate*`), that clause is still narration. Real example:
-  ```go
-  // FLAG: name already says "reject when channel is a space-channel, by ID"
-  // rejectSpaceChannelByID returns true and sets c.Err when the channel ID resolves to a space
-  // backing channel.
-  func rejectSpaceChannelByID(...) bool { ... }
-  ```
-
-- **KEEP** — the function is exported (godoc-generation purpose — same carve-out as Anti-Slop
-  Guidance's godoc exemption); OR the comment states a non-obvious *why*, precondition, or coupling
-  the code doesn't show (a hidden dependency on a caller-supplied convention, e.g. `draft_store.go`'s
-  `applyDraftLivenessFilter`, whose fragments hardcode the literal SQL alias `"d"` for the draft
-  table — invisible from the `q sq.SelectBuilder` signature, and every caller must satisfy it via
-  `From("DOCS_Draft d")` or the query breaks; that is a real, load-bearing coupling, not narration);
-  OR the function has more than one non-obvious exit path, a subtle correctness requirement, or a
-  name that doesn't fully capture what the body does. When in doubt whether the "why" is
-  load-bearing, prefer KEEP.
-
-This does NOT relax or replace the Anti-Slop Guidance carve-out that missing godoc on unexported
-functions is never required — §W is about an EXISTING comment that adds nothing, not about
-requiring one. → `SHOULD_FIX`.
 
 **X. Cross-layer justification — a comment in layer L justifies its own behavior by describing
 what a DIFFERENT layer does.** Each layer owns its own invariants; when a comment says "the API
@@ -973,31 +817,87 @@ contract, precondition, or bound — only the news that the code isn't wasteful 
 
 Fix: delete the efficiency-justification clause. → `SHOULD_FIX`.
 
-**AC. Informal or anthropomorphic register — a comment describes code with a colloquial, financial,
-physical, or human-agency verb where a plain technical verb is clearer.** Code and data structures
-have no wallets, wants, or social lives; a metaphor forces the reader to translate it back into what
-the code literally does before they can verify the claim. Common offenders: cost/finance metaphors
-("an autosave *pays for* a full scan" → "performs"), volition/social phrasings ("leaves refreshed
-entries *be*" → "leaves … in place"; "the query *is happy to*"; "the lock *wants*"), physical
-metaphors standing in for a mechanism ("the write *walks into*"; "requests *pile up*" → "queue"),
-and casual idiom ("bail", "grab the row", "under the hood", "for free", "kick off").
-
-The discriminator turns on whether a neutral technical verb says the same thing:
-- **FLAG** — the metaphor/idiom swaps cleanly for a literal verb (performs, executes, acquires,
-  returns, retains, queues, skips) with no lost fact. `"pays for a full scan"` → `"performs a full
-  scan"`; `"leaves the entry be"` → `"leaves the entry in place"`; `"grab the row"` → `"lock the row"`.
-- **KEEP** — the term is the established, precise name for the mechanism, not colour: "walk the
-  parent chain" (a tree traversal is literally a walk), "heartbeat" for a periodic liveness signal,
-  "fan out"/"broadcast", "lock"/"deadlock". Domain-standard vocabulary is not informal register.
-
-Tell: a human/financial/physical verb attached to a code subject that a neutral technical verb
-would replace with no change to what the reader can verify.
-
-Fix: replace the informal or metaphorical verb with the plain technical one. → `SHOULD_FIX`.
-
 **AD. Identifier left describing removed behavior.** Rot is not confined to comments: when a diff removes a mechanism, the names built on it survive. A `debouncedOnHeightChange` that now fires immediately misinforms every call site and every reader who greps for the debounce. Sweep the diff for removed mechanisms (debounce, throttle, cache, retry, async) and grep the enclosing file for identifiers and comments naming them. Fix: rename the identifier and drop the stale clause. → `SHOULD_FIX`.
 
 **AE. Guarantee promised, best-effort implemented.** An interface or exported godoc that states an outcome ("existing recovery tokens are invalidated") while the body only logs the failure and proceeds is worse than silence — callers build security decisions on the promise. For every changed doc comment asserting an outcome, trace the failure path of the operation that produces it: if failure is logged-and-continued rather than returned, either the comment overclaims or the code should abort. Prefer flagging the code. → `MUST_FIX`.
+
+**AF. Unproven concurrency guarantee — a comment claims a class of interaction cannot happen.**
+The positive twin of §7C: where §7C catches an invented failure that "would otherwise" occur, this
+catches an invented *safety property*. Trigger on any changed comment asserting that concurrent
+actors cannot interfere — "cannot clobber", "cannot race", "safe against concurrent X", "no two
+callers can", "serialized", "last write is always the newest". A guarantee reads as authoritative
+and gets built on, so a false one is `MUST_FIX`, not a wording nit.
+
+Verification is two lookups, and neither is a local `if`/return trace — that is why §7C's recipe
+misses this shape. The refuting evidence usually lives in a different layer than the comment.
+
+7. **Who can actually collide?** Find the row's uniqueness — primary key, unique index, or
+   `ON CONFLICT (...)` target — in the store method and its migration. If the key already scopes
+   the row to one actor (e.g. `(UserId, PageId)` means only the same user's own tabs contend), the
+   guarantee is either vacuous or aimed at a collision that cannot occur. State the real scope.
+8. **What enforces it?** Name the mechanism on this path: a held row/advisory lock, a CAS on a
+   version token or timestamp, a serializable transaction, a unique constraint. If the comment's
+   stated cause is something else — field-merge semantics, write ordering, "the client only sends
+   changed fields" — it does not produce the guarantee.
+
+The discriminator:
+- **FLAG** — the named mechanism does not enforce the named guarantee. Real example: *"omitted
+  fields are preserved, so concurrent heartbeats cannot clobber each other's changes."* Preserving
+  unsent fields is partial-update semantics; for the fields a request *does* send there is no
+  per-field version check, so the later commit still wins. Fix: state what the mechanism actually
+  buys (`omitted fields keep their stored value, so a partial heartbeat does not clear the fields
+  it left out`) and drop the guarantee.
+- **FLAG** — the guarantee holds but the collision it prevents is impossible given the row key, so
+  the clause documents a defence against nothing.
+- **KEEP** — the comment names the enforcing mechanism and it is present on this path (`the space
+  row is held FOR UPDATE, so two structural page ops in one space serialize`). A verified
+  concurrency contract is load-bearing: do not strip it as godoc mechanics narration.
+
+Tell: a "cannot / safe / serialized" predicate about concurrent actors whose stated cause is not a
+lock, CAS, constraint, or isolation level.
+
+Fix: replace the guarantee with the property you can verify, or name the mechanism that actually
+enforces it. → `MUST_FIX`.
+
+**AG. Cross-layer comment duplication — one fact documented at two layers, where only one owns
+it.** The cross-*layer* sibling of §T (which catches the same fact in a godoc and an inline comment
+of one function). When an API handler, an app service method, and a store method all sit on one
+call path, a fact about behavior belongs at exactly one of them; restating it upward is how the
+copies drift apart. The upper copy is usually the lossy one — it compresses the callee's precise
+wording and, being shorter and nearer the reader, wins attention while being less correct. Real
+case: `Service.UpdatePageDraft` restated `Store.UpsertDraft`'s pointer-intent triad
+(nil-preserves / `""`-clears / value-sets) for `parentID` and `props`, dropping the empty-vs-nil
+distinction that was the entire subtlety — and silently omitting `fileIDs`, which then read as a
+deliberate contrast (§G).
+
+**Ownership test — ask which layer the fact is TRUE BECAUSE OF, not which layer's reader is
+curious about it.** Assign each duplicated fact to the layer whose code would have to change for
+the fact to stop being true:
+- **A mechanism** (SQL preserve/clear semantics, lock scope, monotonic bumping, a column choice) is
+  owned by the layer that implements it — normally the store. Upper layers state only their delta.
+- **A client-facing remedy or wire contract** (how a 409 is recovered from, a WS payload's field
+  set) is owned by the layer that defines the wire — the API handler or the event/type declaration.
+- **A field's meaning** is owned by its declaration, not by a query that happens to filter on
+  it. A store method may say *why this query picks that column*; it should not re-derive what the
+  column means.
+
+Do NOT flag: (1) the **one-line summary opener** — every layer's godoc may open by saying what the
+operation does (`RestorePage un-deletes a soft-deleted page and returns it`); duplication starts
+below that line. (2) A **shared premise supporting different conclusions** — app "an unpublished
+new-page draft has no page row, so the staleness guard cannot fire" and store "…so presence must be
+scoped by SpaceId" restate a premise to reach layer-specific conclusions; that is not one fact
+twice. (3) A **matched handoff pair**, where one side disclaims what the other asserts (store: "size
+must be validated by the caller"; app: "size is validated here, not in the store") — those two
+comments are load-bearing precisely because they reference each other. (4) A convention repeated
+across **separate packages** that cannot share a doc site.
+
+**Mandatory check.** For each changed comment on a method that delegates to, or is called by,
+another changed method in a different layer, diff the two comments fact-by-fact. For every fact
+appearing in both, apply the ownership test and delete it from the non-owner — preserving any
+clause the non-owner alone adds. Prefer deleting the upper copy outright over rewriting it into a
+cross-layer pointer: `see Store.UpsertDraft` leaks a lower layer to a caller who should not need
+it, and is warranted only when the upper signature passes the parameter straight through.
+→ `SHOULD_FIX`
 
 **Validated by MM PR review**: PRs #36879 / #35569 `list_item.tsx:47`, `logs.tsx:127` — "`debouncedOnHeightChange` and nearby comments still describe debouncing, but the callback is now immediate." (accepted); PR #35374 `channel_mention_utils.ts:67` — "this first part of the comment seems to be from `convertSlugsToDisplayMentions`"; PR #37526 `server/public/plugin/api.go:271` — "promises that existing recovery tokens are invalidated, but … only logs `InvalidatePasswordRecoveryTokensForUser` errors and still saves a new token" (accepted with a code fix).
 
@@ -1021,7 +921,8 @@ Fix: replace the informal or metaphorical verb with the plain technical one. →
 | Purpose gestured with a vague noun, no actionable mechanism ("which rows?") | Half-baked |
 | Magic number/arithmetic restated, not derived (no convention, no decomposition) | Asserted constant |
 | Parallel sibling method omits a behavioral qualifier its siblings state (one says "live", another doesn't) | Sibling-inconsistent qualifier |
-| One accurate idea said the long way (abstract restatement, double-negative, redundant symmetric clauses, compressed shorthand like "under-lock re-check", coined label for an unstated convention like "the {page_id, space_id} mutation shape", ordering-rationale counterfactual like "fail cheaply rather than after a wasted round-trip", narrated-action opener like "Derive the...") — a shorter plain-language rewrite preserves every fact | Roundabout phrasing |
+| Phrasing: roundabout construction, informal/anthropomorphic register, self-evident function narration | Route to `comment-prose-reviewer` |
+| A phrase only a reader of the callees can decode ("under-lock re-check", "the generic sink", "those grants", "authorization-visible") | Opacity — route to `comment-opacity-reviewer` |
 | Clause names an internal call by symbol + generic verb ("applies PreSave") without stating its caller-facing effect | Restated internal call |
 | Codebase-reserved term reused for a different concept ("conflict" for a SQL upsert, where it means a 409 rejection here) | Overloaded-term collision |
 | Conjoined conditions where one entails another under an invariant ("live, non-snapshot" — live already excludes snapshots) | Entailed-predicate redundancy |
@@ -1030,12 +931,12 @@ Fix: replace the informal or metaphorical verb with the plain technical one. →
 | Godoc asserts what the caller does as a consequence ("so the caller passes raw input") instead of the function's own guarantee | Caller-behavior assertion |
 | Comment restates an HTTP/numeric status the code already sets ("Returns 409 on conflict" where the body passes `http.StatusConflict`) | Status-code narration |
 | Delegating method's comment asserts an outcome its own body doesn't implement ("returns all", "at most N", "errors when") that overclaims vs. the callee — e.g. app godoc "perPage <= 0 returns all pages" where the store caps at MaxRowsPerQuery + ErrLimitExceeded | Unverified delegated outcome |
+| Behavioral qualifier restated at equal strength but with different meaning than the code — neither omission nor overclaim, a synonym that swaps the predicate ("newest first" over `ORDER BY UpdateAt DESC`, "created" for an update timestamp, "unique" for a non-unique index) | Drifted qualifier semantics |
 | Comment spells out the entity type a parameter name already encodes ("in the space identified by spaceID") with no added qualifier | Parameter-name restatement |
 | Same fact stated in both a function's godoc and an inline comment at the code line that implements it (e.g. "excludes version snapshots" in both places) | Godoc/inline duplication |
+| Same behavioral fact documented at two layers on one call path, where only one owns it — an app godoc restating the store's pointer-intent/preserve-clear semantics, an API inline comment restating the app's documented return contract, a store method re-deriving a model field's meaning | Cross-layer comment duplication |
 | Intensifier/hedge word deletable with zero fact loss ("purely to", "simply", "essentially", "in order to", "the fact that") | Filler/hedge word |
-| Colloquial/anthropomorphic verb where a plain technical verb fits ("pays for", "wants", "grab", "leaves … be", "under the hood") | Informal/anthropomorphic register |
 | Comment notes a mechanism is absent ("no foreign key", "no index") as if a deliberate exception, when absence is the codebase's universal default (verify via grep) | Vacuous absence |
-| Comment on a short, unexported, straightforward function restates what the name + body already show, with no "why"/precondition/coupling | Self-evident function narration |
 | Comment lists things a function does NOT do, when its scope makes those absences obvious ("length constraints are not checked here" on a trim+sanitize helper) | Absent-behavior documentation |
 | Godoc describes what happens when a precondition is violated, but the violation is silent/unobservable (wrong answer, under-count, zero-value substitution) — often ends with "Callers are responsible for ensuring…" | Violation-consequence narration |
 | Branch-added comment describes a sibling feature's behavior the diff doesn't change (spaces change explaining "board creation is still blocked", "boards need membership rows") | Off-feature editorializing |
@@ -1064,44 +965,73 @@ Fix: replace the informal or metaphorical verb with the plain technical one. →
 
 ## Verification Process
 
-1. **Extract comments** from changed files
-2. **Read surrounding code** to understand actual behavior
-3. **Compare** comment claims vs implementation
-4. **For each changed comment that names a downstream mechanism** (godoc OR inline — child/sibling
+9. **Extract comments** from changed files
+10. **Read surrounding code** to understand actual behavior
+11. **Compare** comment claims vs implementation
+12. **For each changed comment that names a downstream mechanism** (godoc OR inline — child/sibling
    promotion, lock ordering, snapshot/filter rules, cascade, "matching <product>", a callee's
    error shape), open the called function and ask whether THIS method's body performs that
    mechanism. If it does not, flag it (§7D Misplaced). If the comment justifies an action this
    method DOES perform by a downstream **effect**, keep it (§7C carve-out) — but if it narrates the
    method's own internal **mechanics** (lock order / `FOR UPDATE` / concurrency rationale, retry,
    batch size, algorithm steps) that are not a caller-facing requirement or guarantee, flag it
-   (§7Q): drop the mechanics, keep only the contract. Method shape (thin wrapper or not) does not
-   gate this check — the comment text triggers it.
-5. **For each changed comment on a DELEGATING method that asserts a behavioral OUTCOME its own
+   report it to `comment-prose-reviewer` (godoc mechanics narration) rather than flagging it here.
+   Method shape (thin wrapper or not) does not gate this check — the comment text triggers it.
+13. **For each changed comment on a DELEGATING method that asserts a behavioral OUTCOME its own
    body does not implement** — "returns all", "returns at most N", "errors when …", "ordered by
    …", a limit/bound, a not-found/conflict condition — you MUST open the callee it delegates to and
    verify the outcome against the callee's CODE, then reconcile with the callee's GODOC. This is the
    outcome-claim companion to step 4 (which traces named mechanisms): an outcome like "perPage <= 0
    returns all pages" is NOT falsifiable from the delegating body alone — the body just calls the
    store — so the only way to catch an overclaim (the store actually caps at MaxRowsPerQuery and
-   returns ErrLimitExceeded beyond it) is to trace into the callee. Flag when the comment overclaims
-   versus the callee, or omits a bound/error the callee's godoc states (§7G cross-layer corollary).
-6. **For each changed function that has both a changed godoc and a changed inline comment**, check
+   returns ErrLimitExceeded beyond it) is to trace into the callee. Flag on any of three axes
+   (§7G cross-layer corollary): the comment **overclaims** versus the callee; it **omits** a
+   bound/error the callee's godoc states; or it **restates the qualifier in words that do not mean
+   what the callee's code does** — matching magnitude, drifted meaning. The third is the easiest to
+   wave through, because the phrase reads as a harmless synonym of the callee's: "newest first"
+   against `ORDER BY UpdateAt DESC` names creation order, not update order, and is simply false for
+   any row edited after it was made. Do not settle for "an ordering is claimed and an ordering
+   exists" — verify the claimed ordering IS the implemented one, column by column.
+5b. **Having opened the callee for step 5, diff the two comments fact-by-fact before closing it**
+   (§7AG). Step 5 asks whether the caller's claim is TRUE; this asks whether it should be stated
+   there at all. Any fact present in both is owned by exactly one layer — the one whose code would
+   have to change for the fact to stop being true — so delete it from the other, keeping whatever
+   that side alone contributes. Do not require verbatim overlap: the duplicate is typically a
+   compressed paraphrase ("nil preserves the stored value" for "nil means omitted — preserve the
+   existing stored parent"), which no literal string match catches. Exempt the one-line summary
+   opener, a shared premise reaching different conclusions, and matched handoff pairs where one
+   side disclaims what the other asserts.
+14. **For each changed function that has both a changed godoc and a changed inline comment**, check
    whether they restate the same concrete fact (§7T). If so, flag it and propose consolidating to
    one site (default: the inline comment at the implementing code), carrying over the load-bearing
    detail from the other.
-7. **For each changed comment whose predicate is "avoid(s) a redundant/extra call/query/RPC/
+15. **For each changed comment whose predicate is "avoid(s) a redundant/extra call/query/RPC/
    fetch/allocation"**, ask whether the efficiency rationale is load-bearing (the mechanism's
    whole reason to exist, or anchored to an external bound/measured cost). If it merely narrates
    that an ordinary parameter/reuse choice isn't wasteful, flag it (§7AB) — efficiency is the
    default expectation, not a documented decision.
-8. **For each changed comment, scan its verbs and idioms for informal or anthropomorphic register** — a colloquial, financial, physical, or human-agency word ("pays for", "leaves … be", "wants", "grab", "bail", "under the hood", "for free") where a neutral technical verb (performs, executes, acquires, returns, retains, skips) says the same thing. If the swap loses no fact, flag it (§7AC). Domain-standard terms (walk a tree, heartbeat, broadcast, lock) are not register.
-9. **Flag** discrepancies with specific file:line references
+16. **For each changed comment asserting that concurrent actors cannot interfere** — "cannot
+   clobber", "cannot race", "safe against concurrent X", "no two callers can", "serialized" — you
+   MUST perform the two §7AF lookups instead of a local trace: (a) open the store method and its
+   migration and read the row's primary key / unique index / `ON CONFLICT` target to establish who
+   can actually collide, and (b) identify the mechanism enforcing the guarantee on this path (lock,
+   CAS on a version token, unique constraint, isolation level). A guarantee whose stated cause is
+   field-merge semantics, write ordering, or client behavior is not enforced — flag it (§7AF). Note
+   a concurrency clause that survives both lookups is a verified contract, not narrated
+   mechanics, so keep it.
+17. **For every comment asserting a caller OBLIGATION** — "the caller must delete it", "callers
+   must call within a transaction", "the caller is responsible for …" — open the code that is
+   supposed to discharge it and confirm it does. A stated obligation that no caller performs, or
+   that a helper silently no-ops (an early `return` on the very condition the comment describes),
+   is a false contract, not a style nit. Cite the discharging site in the finding so the claim is
+   verified rather than plausible.
+18. **Flag** discrepancies with specific file:line references
 
 ## Output Format
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`
 >
-> **Severity mapping**: MISLEADING comments, false counterfactual claims (§7C), missing copyright → `MUST_FIX` | STALE comments, unnecessary comments, braided concerns (§7A), provenance-anchored clauses (§7B), overpacked/misplaced comments (§7D), caller-coupled/half-baked comments (§7E), asserted (underived) constants (§7F), sibling-inconsistent qualifiers (§7G), roundabout/over-abstract phrasing (§7H), restated internal calls (§7I), drift-prone schema/migration anchors (§7J), overloaded-term collisions (§7K), entailed-predicate redundancy (§7L), self-evident single-statement comments (§7M), caller-behavior assertions (§7N), status-code narration (§7O), declaration narrated by consumer behavior (§7P), implementation-mechanics narration in godoc (§7Q), provenance/history narration (§7R), parameter-name restatement (§7S), godoc/inline duplication (§7T), filler/hedge words (§7U), vacuous absence (§7V), self-evident function narration (§7W), absent-behavior documentation (§7Y), violation-consequence narration (§7Z), off-feature editorializing (§7AA), routine-efficiency justification narration (§7AB), informal/anthropomorphic register (§7AC) → `SHOULD_FIX` | TODOs (see below) → `INFO` unless clearly stale | Accurate comments → `PASS`
+> **Severity mapping**: MISLEADING comments, false counterfactual claims (§7C), guarantee promised but best-effort implemented (§7AE), unproven concurrency guarantee (§7AF), missing copyright → `MUST_FIX` | STALE comments, unnecessary comments, braided concerns (§7A), provenance-anchored clauses (§7B), overpacked/misplaced comments (§7D), caller-coupled/half-baked comments (§7E), asserted (underived) constants (§7F), sibling-inconsistent qualifiers (§7G), restated internal calls (§7I), drift-prone schema/migration anchors (§7J), overloaded-term collisions (§7K), entailed-predicate redundancy (§7L), self-evident single-statement comments (§7M), caller-behavior assertions (§7N), status-code narration (§7O), provenance/history narration (§7R), parameter-name restatement (§7S), godoc/inline duplication (§7T), filler/hedge words (§7U), vacuous absence (§7V), absent-behavior documentation (§7Y), violation-consequence narration (§7Z), off-feature editorializing (§7AA), routine-efficiency justification narration (§7AB), identifier describing removed behavior (§7AD) → `SHOULD_FIX` | TODOs (see below) → `INFO` unless clearly stale | Accurate comments → `PASS`
 >
 > **TODO severity**: Flag TODOs as `INFO` by default — they are often tracked in external issue trackers and represent intentional deferred work. Escalate to `SHOULD_FIX` only when the TODO is clearly stale: references deleted code, past version numbers, removed APIs, or dates that have passed.
 
@@ -1116,12 +1046,12 @@ Fix: replace the informal or metaphorical verb with the plain technical one. →
 
 ### Comment Accuracy Issues
 
-1. **STALE** `file.go:42`
+19. **STALE** `file.go:42`
    - Comment: "Returns active users from last 24 hours"
    - Actual: Code returns users from last 7 days
    - Fix: Update comment or fix code
 
-2. **MISLEADING** `file.go:87`
+20. **MISLEADING** `file.go:87`
    - Comment: "Thread-safe counter update"
    - Actual: No synchronization present
    - Fix: Add mutex or remove claim
@@ -1167,6 +1097,8 @@ Fix: replace the informal or metaphorical verb with the plain technical one. →
 
 ## See Also
 
+- `comment-prose-reviewer` - For HOW a comment is phrased: roundabout constructions, register, narration, significance announcements. Judges the text with no callee context
+- `comment-opacity-reviewer` - For whether a comment can be decoded at all by a reader of its own file; owns coinages, empty metaphors, unresolved referents
 - `i18n-reviewer` - For translation string accuracy
 - `code-reviewer` - For general code quality
 - `duplication-reviewer` - For repeated comments

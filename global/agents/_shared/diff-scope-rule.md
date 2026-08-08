@@ -11,6 +11,29 @@ description: Constrains review agents to only flag issues in changed lines (diff
 
 You are reviewing a **branch diff**, not the entire codebase. Your findings MUST be scoped to lines that were actually changed.
 
+## Two Refs Only — Other Branches Are Not Evidence (Mandatory)
+
+The rules below scope *which lines* you may flag. This one scopes *which refs may inform a finding at all*, which is a separate axis and an easier one to violate by accident.
+
+Your review universe is exactly **two refs**: the stated base (usually `origin/master`) and `HEAD`. Nothing else in the repository is evidence.
+
+**Never consult or cite**: sibling feature branches, other worktrees, unmerged PRs, stashes, the reflog, or any remote branch other than the base. Commands that silently widen scope past those two refs — treat a hit from any of these as **not a finding**:
+
+```
+git log --all …          git branch -a / -r        git show <other-branch>:<file>
+git log --diff-filter=A -- <path>     # unqualified: searches every ref, not the base
+```
+
+**Why**: another branch may never merge, may be rebased, squashed, or renumbered before it does. Its contents are a fact about *that* branch, never about the diff in front of you. When two branches do eventually collide, the one that merges second reconciles against master — routine practice, and not a cost this PR should pre-pay.
+
+**This cuts both ways, and that is the part most often missed.** It is equally wrong to:
+- *raise* a finding because another branch conflicts with this diff ("branch X already claims this identifier/number/name"), **and**
+- *withdraw or soften* a finding because another branch appears to justify this diff ("branch X reserved it, so the gap here is deliberate").
+
+Both smuggle the same inadmissible ref into the decision. If a concern cannot be stated using only the base ref and `HEAD`, it is not a finding — and if the resolution likewise cannot be justified from those two refs, it is not a resolution. Judge the diff against the base and say what the base alone supports.
+
+**The one legitimate cross-ref check** is about the diff's own validity, not about a third branch: confirming whether `HEAD` has merged the base (`git merge-base --is-ancestor origin/master HEAD`). A branch that has not merged current master produces a diff containing the base's *newer* commits inverted — files that look deleted or reverted but were never touched by the branch. Detecting that is in scope and worth reporting, because it invalidates findings rather than creating them.
+
 ## Rules
 
 1. **ONLY flag issues on changed lines**: Lines marked with `+` in the diff are your review scope. Lines without `+` are context only.

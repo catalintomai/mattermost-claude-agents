@@ -336,6 +336,13 @@ grep -rn "addMessageListener\|addChannelListener" webapp/ --include="*.tsx" --in
 - `ws:UNTYPED_PAYLOAD`, `ws:HANDLER_PLACEMENT` → `SHOULD_FIX`
 - `ws:MISSING_DOC` → `SHOULD_FIX`
 
+## PASS Evidence Rule
+
+A PASS about payload shape, broadcast scope, or event coverage is valid only if it enumerates
+every publish call site and payload variant for the event family it quantifies over (grep all
+`publishTo*`/`PublishWebSocketEvent` sites first). A PASS derived from one call site of a
+multi-site event is structurally invalid — list the unchecked sites instead.
+
 ## See Also
 
 - `ha-reviewer` — broader HA correctness checks including cache invalidation

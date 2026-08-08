@@ -236,9 +236,39 @@ The diff extracts a helper — which is the right move — but leaves the pre-ex
 place, so the codebase now has three implementations instead of one. The reviewer sees the extraction
 and reads it as a cleanup, when it has actually widened the drift surface.
 
-**Cue**: whenever the diff adds a helper, grep the repo for the helper's body pattern (not its name)
-and check whether the original copies were repointed at it. Also check whether the helper duplicates
-one that already exists in a shared template or base workflow.
+**Cue — make it exact, not fuzzy.** "Grep the body pattern" is too vague to execute; a body rarely
+recurs verbatim. Do this instead:
+
+1. Read the helper's body and pick the **distinctive external call it wraps** — a store method, an
+   SDK call, a stdlib API. The one call that is the reason the helper exists.
+2. `grep -rn "<that literal call>" --include="*.go" <package>/`
+3. **The only site should be the helper.** Every other hit is a copy the extraction left behind.
+
+This converts a hard semantic-similarity problem into a string match with no false positives, and it
+works precisely where text-similarity scanning fails — when the copies have diverged in signature,
+error convention, or file. Report every remaining hit with `file:line`.
+
+Worked example (MM-69269, 2026-08-06): a "simplify code" commit extracted
+`getSchemeWithMasterFallback` and repointed three of four sites. The fourth,
+`GetSchemeRolesForChannel` in `channel.go`, kept its own copy — same control flow, but named returns
+instead of a `(*model.Scheme, *model.AppError)` pair, `err = nil` instead of a `nil, nil`
+unresolvable contract, and a different file. No text-similarity scan pairs those two. The one-line
+check does:
+
+```
+$ grep -rn "Scheme().GetFromMaster" --include="*.go" channels/app/
+  space_scheme_guards.go:33     ← the helper
+  channel.go:1192               ← the copy the extraction missed
+```
+
+Also check whether the helper duplicates one that already exists in a shared template or base
+workflow.
+
+**Timing note — this check is worthless run late.** That duplication was introduced at 07:03 and
+found the same morning only because a comment reviewer noticed the same rationale written four
+times. Run the three-step check on the diff that *introduces* the helper; a branch-level sweep days
+later will be looking at a codebase where the copy has already been read, reviewed, and normalised
+by everyone.
 
 ```yaml
 # FLAG — `update-failure-status` already exists in the shared template this workflow extends;
