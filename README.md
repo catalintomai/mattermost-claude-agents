@@ -60,6 +60,8 @@ Available in **any project**.
 | `code-reviewer` | General-purpose reviewer: correctness, readability, architecture, security, performance |
 | `simplicity-reviewer` | Catches over-engineering, YAGNI violations, speculative abstractions |
 | `code-slop-reviewer` | Catches AI-generation slop: dead code, god functions, cargo-cult patterns, idiom drift |
+| `comment-prose-reviewer` | Phrasing of changed comments: roundabout constructions, informal register, godoc narrating mechanics |
+| `comment-opacity-reviewer` | Changed comments a reader of that file alone cannot decode: coinages, empty metaphors, dangling referents |
 | `naming-consistency-reviewer` | Detects naming drift across files, config keys, CLI flags, API fields |
 | `structural-health-reviewer` | Finds shotgun surgery, god types, tangled dependencies, orphaned indirection |
 | `separation-of-concerns-reviewer` | Catches backend/frontend conflation and false "X requires Y" couplings |
@@ -141,6 +143,7 @@ Available in **any project**.
 | Agent | Description |
 |-------|-------------|
 | `security-auditor` | OWASP Top 10 audit across input handling, auth, data protection |
+| `counterexample-reviewer` | Adversarial pass that tries to disprove the diff's own safety/correctness claims |
 | `threat-modeler` | Security architect for threat modeling and security design reviews |
 | `owasp-agentic-auditor` | OWASP Top 10 for Agentic Applications 2026 |
 | `aws-ec2-hardening-auditor` | EC2 deployment plans for Security Group misconfigs, IMDSv1, IAM over-permissions |
@@ -187,6 +190,7 @@ These files are loaded by agents at runtime — not invoked directly.
 | `error-handling-patterns.md` | Universal Go, TypeScript, and React error handling patterns |
 | `db-reference.md` | Relational database reference material for database review agents |
 | `security-pr-policy.md` | No exploit details in public PR descriptions |
+| `hostile-adoption-rule.md` | Adoption/get-or-create paths must treat found state as hostile input |
 
 ---
 
@@ -387,6 +391,7 @@ Referenced from `CLAUDE.md` and agents via `@docs/...`.
 | `selection-rationale.md` | How to choose the right agent for a task |
 | `pattern-completeness-rule.md` | Ensures pattern libraries are complete |
 | `edge-case-taxonomy.md` | Taxonomy of edge cases for review agents |
+| `skill-delta-finding-ledger.md` | Proposal: cross-round finding ledger, fix verification, and stop condition for review skills |
 
 ---
 
