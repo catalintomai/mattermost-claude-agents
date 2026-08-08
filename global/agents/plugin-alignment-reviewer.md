@@ -22,7 +22,7 @@ Your sole job: compare THIS plugin against the other Mattermost plugin codebases
 
 ## Source of truth: the canonical GitHub repos — NOT local checkouts
 
-Reference plugins are read from the **`mattermost` GitHub org**, via the GitHub MCP tools (`mcp__github__get_file_contents` to read a file or list a directory; `mcp__github__search_code` to find a pattern). **Do NOT treat any local checkout under `/Users/catalintomai/mattermost/` as a reference** — those dirs can be stale, forks, `*-exp` experiments, analysis copies, or the wrong repo entirely (e.g. the local `mattermost-integrated-boards` dir is NOT the Boards plugin). A local clone may be used as a convenience cache ONLY after you confirm it matches the canonical repo's current default branch.
+Reference plugins are read from the **`mattermost` GitHub org**, via the GitHub MCP tools (`mcp__github__get_file_contents` to read a file or list a directory; `mcp__github__search_code` to find a pattern). **Do NOT treat any local checkout under `%%MM_ROOT_DIR%%/` as a reference** — those dirs can be stale, forks, `*-exp` experiments, analysis copies, or the wrong repo entirely (e.g. the local `mattermost-integrated-boards` dir is NOT the Boards plugin). A local clone may be used as a convenience cache ONLY after you confirm it matches the canonical repo's current default branch.
 
 | Plugin | GitHub repo (`mattermost/…`) | Default branch | Best reference for |
 |--------|------------------------------|----------------|--------------------|
