@@ -483,13 +483,6 @@ Available **only inside that project directory**.
 | `tiptap-reference.md` | Tiptap schema, extensions, and serialization reference |
 | `wiki-api-reference.md` | Wiki API surface and endpoint reference |
 
-**Scripts**
-
-| Script | Description |
-|--------|-------------|
-| `run_pages_tests.sh` | Runs the Pages test suite by layer (model/store/app/api/jobs, Jest, Playwright, mmctl) with per-layer pass/fail counts |
-| `verify_test_coverage.sh` | Checks that `run_pages_tests.sh` still references every wiki/pages Go test function and E2E spec in the tree |
-
 ---
 
 ### mattermost-plugin-agents
