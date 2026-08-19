@@ -1,6 +1,6 @@
 ---
 name: comment-opacity-reviewer
-description: "[CODE] Reads the CHANGED CODE COMMENTS in a diff as an engineer who has read only the file they live in, and flags every comment that cannot be restated in plain words without opening another file — undecodable coinages, empty role metaphors (\"this is the generic sink\"), unresolved referents (\"those grants\", \"both\"), and invented vocabulary. Use on any code diff that adds or edits comments, before calling the work done. Deliberately context-starved at the FILE boundary: it reads only the changed files, never the callees / sibling packages / design docs / PR description, so it cannot decode a comment using knowledge the reader will not have. Distinct from comment-reviewer, which must open callees to check ACCURACY and therefore structurally cannot detect opacity."
+description: "[CODE] Reads the CHANGED CODE COMMENTS in a diff as an engineer who has read only the file they live in, and flags every comment that cannot be restated in plain words without opening another file. Use on any code diff that adds or edits comments, before calling the work done. Deliberately context-starved at the FILE boundary."
 model: sonnet
 effort: medium
 tools: Read, Write, Grep, Glob, Bash
@@ -180,3 +180,11 @@ suspicious-looking ones. If clean: `PASS — every changed comment restates from
 - `comment-reviewer` — accuracy, rot, misplacement, godoc presence (opens callees; owns everything you don't)
 - `comment-prose-reviewer` — HOW a comment is phrased once it decodes: roundabout constructions, register, narration. A phrase can decode perfectly and still be badly written; that is theirs, not yours
 - `doc-opacity-reviewer` — the same instrument for prose docs, starved at the page boundary
+
+## Scope boundaries
+
+Flags undecodable coinages, empty role metaphors ("this is the generic sink"), unresolved referents ("those grants", "both"), and invented vocabulary.
+
+It reads only the changed files — never the callees / sibling packages / design docs / PR description — so it cannot decode a comment using knowledge the reader will not have.
+
+Distinct from `comment-reviewer`, which must open callees to check ACCURACY and therefore structurally cannot detect opacity.

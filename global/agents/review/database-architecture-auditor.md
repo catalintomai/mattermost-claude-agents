@@ -1,6 +1,6 @@
 ---
 name: database-architecture-auditor
-description: Reviews relational database schemas and access patterns for missing indexes, normalization violations, N+1 query risks, missing FK constraints, and inappropriate JSON/JSONB column usage. Use when a diff adds or modifies CREATE TABLE, CREATE INDEX, or migration files, or when store-layer query patterns change significantly. For challenging whether a migration is necessary at all (vs. reusing PropertyValueStore or a JSON column), run schema-necessity-reviewer first — this agent assumes the migration is proceeding and reviews its correctness.
+description: "Reviews relational database schemas and access patterns for missing indexes, normalization violations, N+1 query risks, missing FK constraints, and inappropriate JSON/JSONB column usage. Use when a diff adds or modifies CREATE TABLE, CREATE INDEX, or migration files, or when store-layer query patterns change significantly."
 model: sonnet
 effort: medium
 # Tools note: Bash is justified — this agent runs grep commands against migrations (CREATE TABLE, CREATE INDEX,
@@ -188,3 +188,7 @@ grep -rn "for.*range.*{" -A 20 server/channels/app/ | grep -i "store\|get\|fetch
 - `race-condition-reviewer` — Concurrency issues in access patterns
 - `design-flaw-reviewer` — Logical flaws in data model design
 - `~/.claude/docs/multi-llm-review.md` — Multi-LLM architectural decisions
+
+## Scope boundaries
+
+For challenging whether a migration is necessary at all (vs. reusing `PropertyValueStore` or a JSON column), run `schema-necessity-reviewer` first — this agent assumes the migration is proceeding and reviews its correctness.

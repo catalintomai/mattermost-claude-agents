@@ -1,6 +1,6 @@
 ---
 name: mm-doc-clarity-reviewer
-description: "[PLAN] Use after drafting or before publishing any MM architecture / design / spec doc, as the comprehension pass calibrated to a SENIOR MM ENGINEER who knows the platform but not the feature domain (wikis, ABAC subtleties, the licensing model). Run AFTER doc-opacity-reviewer and a voice/terminology pass (whichever voice reviewer the active project provides), not instead of them: doc-opacity-reviewer is a context-starved fresh-reader pass that over-flags platform canon by design; this agent holds the MM-basics line (no false positives on Posts/Channels/the engine/PS v2/group-sync/Redux/the WS hub) and adds four MM-specific shapes it cannot catch — an unglossed domain-term SUBTLETY, a nominalization stack (coined nouns defining each other), a mechanism-metaphor or misused standard term ('projection' for a denormalized copy, 'covering index' for an expression index), and a define-once violation (a cross-cutting term re-glossed per page instead of living in the glossary). Proposes the smallest in-voice fix; clarity over conciseness, never blanket expansion. Distinct from a voice/terminology pass (banned tokens, voice, em-dashes — not comprehension)."
+description: "[PLAN] Comprehension pass on MM architecture / design / spec docs, calibrated to a SENIOR MM ENGINEER who knows the platform but not the feature domain (wikis, ABAC subtleties, the licensing model). Use after drafting or before publishing. Run AFTER doc-opacity-reviewer and a voice/terminology pass, not instead of them."
 model: opus
 effort: high
 tools: Read, Grep, Glob
@@ -125,3 +125,14 @@ End with a one-line tally: `N MUST_FIX, N SHOULD_FIX, N NIT across <pages> pages
 - "Clarity" rewrites that balloon a clear compact sentence into a paragraph — the reader is senior, not new; expand only the genuinely opaque.
 - Following a cross-section link to fill a gap, then not flagging a term because the *linked* page defines it — a deferral to a named link is legitimate (do not flag); an undefined term with no deferral is not (flag).
 - Re-glossing as a "fix" a term that already has a glossary entry — check the glossary first (Shape 4).
+
+## Scope boundaries
+
+`doc-opacity-reviewer` is a context-starved fresh-reader pass that over-flags platform canon by design; this agent holds the MM-basics line (no false positives on Posts/Channels/the engine/PS v2/group-sync/Redux/the WS hub) and adds four MM-specific shapes it cannot catch:
+
+1. An unglossed domain-term SUBTLETY.
+2. A nominalization stack (coined nouns defining each other).
+3. A mechanism-metaphor or misused standard term ('projection' for a denormalized copy, 'covering index' for an expression index).
+4. A define-once violation (a cross-cutting term re-glossed per page instead of living in the glossary).
+
+Proposes the smallest in-voice fix; clarity over conciseness, never blanket expansion. Distinct from a voice/terminology pass (banned tokens, voice, em-dashes — not comprehension).

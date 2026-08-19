@@ -114,7 +114,7 @@ Available in **any project**.
 | Agent | Description |
 |-------|-------------|
 | `agent-reviewer` | Validates Claude Code agent `.md` files for frontmatter and design quality |
-| `agent-collection-validator` | Audits the full `~/.claude/agents/` collection for registry accuracy |
+| `agent-collection-validator` | Audits the full `~/.claude/agents/` collection for registry accuracy and parked-agent routing |
 | `skill-reviewer` | Validates Claude Code skill files for frontmatter, description quality, and anti-patterns |
 | `multi-agent-architecture-reviewer` | Reviews multi-agent system designs for coordination anti-patterns |
 | `convergence-reviewer` | Detects semantic thrashing across multi-round swarm review cycles |
@@ -363,6 +363,7 @@ Invoked as slash commands: `/skill-name`
 | `triage-issue` | `/triage-issue` | Diagnose a bug, identify root cause, design TDD fix plan, create Jira ticket |
 | `security-fix` | `/security-fix` | TDD-driven fix for security tickets — failing tests first, then implementation |
 | `multi-review` | `/multi-review` | Multi-LLM review (GPT + Gemini + Claude) for code and architecture decisions |
+| `doubt-driven` | `/doubt-driven` | Fresh-context adversarial review of a decision BEFORE it stands — in-flight counterpart to `/review-code` |
 | `test-checkpoints` | `/test-checkpoints` | Layered test-quality pipeline: compile/lint → unit → coverage → mutation → reviewers → E2E |
 | `git-guardrails` | `/git-guardrails` | Install a PreToolUse hook blocking dangerous git commands |
 
@@ -481,6 +482,13 @@ Available **only inside that project directory**.
 | `test-patterns.md` | Pages-specific test patterns and conventions |
 | `tiptap-reference.md` | Tiptap schema, extensions, and serialization reference |
 | `wiki-api-reference.md` | Wiki API surface and endpoint reference |
+
+**Scripts**
+
+| Script | Description |
+|--------|-------------|
+| `run_pages_tests.sh` | Runs the Pages test suite by layer (model/store/app/api/jobs, Jest, Playwright, mmctl) with per-layer pass/fail counts |
+| `verify_test_coverage.sh` | Checks that `run_pages_tests.sh` still references every wiki/pages Go test function and E2E spec in the tree |
 
 ---
 

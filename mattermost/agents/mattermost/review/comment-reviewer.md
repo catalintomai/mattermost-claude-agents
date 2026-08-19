@@ -350,7 +350,7 @@ that DO open callees meant they were reliably skipped. Do not re-add phrasing te
 Your remaining scope is what genuinely requires reading the code: accuracy, rot, misplacement,
 duplication, and structure.
 
-**I. Restated internal call — a callee named, its effect not stated.** A clause that announces
+**H. Restated internal call — a callee named, its effect not stated.** A clause that announces
 the function calls some internal helper, by the helper's symbol name plus a generic verb
 (`applies PreSave`, `calls normalize()`, `runs IsValid`, `invokes finalizeTransaction`), and
 stops there. The call itself is visible in the body — usually the very next line — so naming it
@@ -375,7 +375,7 @@ The discriminator:
 Fix: replace the symbol with the caller-facing effect it produces, or drop the clause if that
 effect is obvious or irrelevant to the caller. → `SHOULD_FIX`.
 
-**J. Schema/migration comment anchored to drift-prone externals.** In a `.sql` migration (or any
+**I. Schema/migration comment anchored to drift-prone externals.** In a `.sql` migration (or any
 DDL comment on a table/index/constraint), the comment should describe the object's OWN structure
 and the access pattern it serves — its columns, its `WHERE` predicate, the query shape it
 supports. Flag a comment that justifies the object by anchoring to things that live OUTSIDE the
@@ -403,7 +403,7 @@ OriginalId=pageId AND DeleteAt>0`.
 positional reference (`the index above`), or a one-line purpose label; J is specifically for Go
 method names and restated sibling-object definitions inside a schema/migration comment.
 
-**K. Overloaded-term collision — a word that already carries a specific meaning in this codebase,
+**J. Overloaded-term collision — a word that already carries a specific meaning in this codebase,
 reused in a different technical sense.** Some terms are load-bearing domain vocabulary here:
 "conflict" means the 409 first-one-wins rejection (`UpdatePage`, `ErrConflict`), "live" means
 `DeleteAt = 0` non-snapshot, "snapshot" means a version row (`OriginalId != ""`), "restore" the
@@ -427,7 +427,7 @@ The discriminator:
 Fix: rephrase the mechanism in plain domain language, reserving the loaded term for its
 established meaning. → `SHOULD_FIX`.
 
-**L. Entailed-predicate redundancy — conjoined conditions where one already implies another.**
+**K. Entailed-predicate redundancy — conjoined conditions where one already implies another.**
 A comment lists two or more qualifiers joined as if independent, but under a documented invariant
 or a defined term one entails the other, so the entailed qualifier adds nothing. This is
 *semantic*, not lexical, redundancy — the words differ ("live", "non-snapshot"), so a
@@ -452,7 +452,7 @@ rather than as a second coordinate adjective repeated at every mention.
 mention that explains the invariant (`non-snapshot (DeleteAt=0 excludes snapshots)`); L targets
 the bare redundant repetition, not the one place the rule is actually stated.
 
-**M. Self-evident single-statement comment — a declaration narrated by what its own code already
+**L. Self-evident single-statement comment — a declaration narrated by what its own code already
 shows.** A comment on ONE simple statement (a `var`/`const` initializer, a one-line assignment, a
 trivial return) where the identifier name plus the right-hand expression already convey both *what*
 the value is and *how* it is built, and the comment adds no fact the reader cannot read off the line
@@ -479,7 +479,7 @@ godoc carve-out in Anti-Slop Guidance: that carve-out protects godoc on *exporte
 identifiers (where doc generation is the point); §M is about unexported, self-evident single
 statements where no doc-generation purpose applies. → `SHOULD_FIX`.
 
-**N. Caller-behavior assertion — a godoc states what the *caller* does, not what the function
+**M. Caller-behavior assertion — a godoc states what the *caller* does, not what the function
 guarantees.** A godoc describes the function's own contract; when a clause's grammatical subject
 is the caller and it asserts what the caller *does* as a downstream consequence (`so the caller
 passes raw input`, `the caller then retries`), it reads backwards — the function is documenting
@@ -504,7 +504,7 @@ The discriminator turns on requirement-vs-assertion:
 Fix: rewrite so the function (its guarantees and the requirements it imposes) is the subject, not
 the caller's resulting actions. → `SHOULD_FIX`.
 
-**O. Status-code narration — a comment restating an HTTP/numeric status the code already sets.**
+**N. Status-code narration — a comment restating an HTTP/numeric status the code already sets.**
 A godoc or inline comment that names the wire status a function returns for a condition
 (`Returns 409 on conflict`, `400 on invalid input`, `404 when not found`, `responds 500 on store
 error`) when the function's own body constructs that status inline via `http.StatusConflict` /
@@ -526,7 +526,7 @@ The discriminator:
 Fix: state the condition/behavior, not the wire code (`rejects a conflicting concurrent edit`
 rather than `Returns 409 on conflict`). → `SHOULD_FIX`.
 
-**R. Provenance / history narration — a comment that records where the code CAME FROM instead of
+**O. Provenance / history narration — a comment that records where the code CAME FROM instead of
 what it does.** A comment (on a function, file, test, type, or block) that names another file,
 test, symbol, repo, branch, commit, or prior implementation as this code's origin, or uses a
 porting/copying verb: "Ported/adapted from plugin-wiki service_test.go TestX", "COPIED from
@@ -551,7 +551,7 @@ Fix: delete the lineage clause. If it carried a still-useful *functional* fact (
 an invariant, why a case is absent), restate it as what the code does or requires now, with no
 reference to its origin. → `SHOULD_FIX`
 
-**S. Parameter-name restatement — a comment spells out in prose what the parameter's own name
+**P. Parameter-name restatement — a comment spells out in prose what the parameter's own name
 already says.** A clause like "in the space identified by spaceID" or "for the user given by
 userId" adds a noun phrase (`space`, `user`) that the parameter name already encodes — the reader
 sees `spaceID` and already knows it identifies a space; the comment just re-says "space" and
@@ -572,7 +572,7 @@ The discriminator:
 Fix: delete the restated noun phrase; keep only qualifiers the name itself doesn't convey. →
 `SHOULD_FIX`
 
-**T. Godoc/inline duplication — the same fact stated twice: once in the function godoc, once in
+**Q. Godoc/inline duplication — the same fact stated twice: once in the function godoc, once in
 an inline comment at the code line that implements it.** A godoc naming a specific
 mechanism/exclusion/case ("version snapshots (OriginalId set) are excluded and return not-found")
 and an inline comment beside the code that enforces it restating that same fact
@@ -635,7 +635,7 @@ The discriminator:
 
 → `SHOULD_FIX`, one finding for the whole set, with the compressed form proposed once.
 
-**U. Filler/hedge word — an intensifier, qualifier, or throat-clearing phrase that adds no fact.**
+**R. Filler/hedge word — an intensifier, qualifier, or throat-clearing phrase that adds no fact.**
 Distinct from roundabout phrasing (`comment-prose-reviewer` tell 1, which restructures a *whole
 idea* expressed the long way): here the sentence's
 structure and facts are already fine, but it carries a word or short phrase that could be deleted
@@ -657,7 +657,7 @@ This is a mechanical strike-list check, not a rewrite exercise: if deleting the 
 leaves a grammatically complete sentence with the same facts, it was fluff.
 → `SHOULD_FIX`. Fix: delete the filler word/phrase in place; no rewrite needed beyond the deletion.
 
-**V. Vacuous absence — a comment notes a mechanism is NOT used, framed as a deliberate exception,
+**S. Vacuous absence — a comment notes a mechanism is NOT used, framed as a deliberate exception,
 when non-use is actually the codebase's universal default.** A comment like "there is no foreign
 key to X" or "no index backs this lookup" or "this doesn't use a mutex" implies the reader should
 be surprised — that the mechanism would normally be present and its absence here is a deliberate,
@@ -683,7 +683,7 @@ files, or the lock/index pattern across sibling types) before flagging. Two outc
 → `SHOULD_FIX`. Do NOT flag a comment stating what a value or relationship IS (a positive fact);
 this section is specifically for comments whose content is "we do NOT do X here."
 
-**Y. Absent-behavior documentation — a comment on a function that lists things the function does NOT do, when the function's own name and body already make its scope clear.** The reader looking at `normalizeTitle` (one line: trim + sanitize) would not expect length validation; a comment saying "length constraints are not checked here" states an absence that was never in question. This is the negative-space cousin of §M and of `comment-prose-reviewer`'s self-evident-function-narration tell: instead of narrating what the function does, it narrates what it does not do. The reader learns nothing — the absence is already implied by the function's defined scope.
+**T. Absent-behavior documentation — a comment on a function that lists things the function does NOT do, when the function's own name and body already make its scope clear.** The reader looking at `normalizeTitle` (one line: trim + sanitize) would not expect length validation; a comment saying "length constraints are not checked here" states an absence that was never in question. This is the negative-space cousin of §M and of `comment-prose-reviewer`'s self-evident-function-narration tell: instead of narrating what the function does, it narrates what it does not do. The reader learns nothing — the absence is already implied by the function's defined scope.
 
 The discriminator:
 - **FLAG** — the absent behavior is outside the function's evident scope (the name/body already delimits what it does), so the reader would not expect it to be there; the comment only confirms that expectation. Fix: delete it.
@@ -691,7 +691,7 @@ The discriminator:
 
 → `SHOULD_FIX`.
 
-**X. Cross-layer justification — a comment in layer L justifies its own behavior by describing
+**U. Cross-layer justification — a comment in layer L justifies its own behavior by describing
 what a DIFFERENT layer does.** Each layer owns its own invariants; when a comment says "the API
 layer rejects spaces" or "the store enforces this constraint" inside the app layer, it makes the
 app layer's contract depend on knowledge of another layer's behavior. This rots when the other
@@ -740,7 +740,7 @@ The discriminator:
 
 → `SHOULD_FIX`.
 
-**Z. Violation-consequence narration — a godoc describes what happens when a precondition is violated, when the violation produces a silent, unobservable outcome.** A caller-facing godoc should state the precondition once. Describing the internal consequence of violating it (`Go's map zero-value makes the missing parent appear at depth 0, so the violating page is placed at depth 1 rather than its true depth, causing under-counting`) adds no actionable information: the caller cannot detect the silent mismatch, cannot recover from it, and the explanation exposes an implementation detail that rots when the algorithm changes. Ending with `"Callers are responsible for ensuring…"` is a tell — it signals the godoc has shifted from stating a contract to lecturing about a property of the internals.
+**V. Violation-consequence narration — a godoc describes what happens when a precondition is violated, when the violation produces a silent, unobservable outcome.** A caller-facing godoc should state the precondition once. Describing the internal consequence of violating it (`Go's map zero-value makes the missing parent appear at depth 0, so the violating page is placed at depth 1 rather than its true depth, causing under-counting`) adds no actionable information: the caller cannot detect the silent mismatch, cannot recover from it, and the explanation exposes an implementation detail that rots when the algorithm changes. Ending with `"Callers are responsible for ensuring…"` is a tell — it signals the godoc has shifted from stating a contract to lecturing about a property of the internals.
 
 The discriminator turns on whether the violation is **observable and actionable** by the caller:
 - **FLAG** — the violation produces a silent outcome (wrong answer, under-count, zero-value substitution) with no error returned and no panic. The caller has no way to distinguish a violated precondition from a satisfied one. Drop the violation-consequence clause; keep the precondition stated once, plainly (`pages must be pre-order sorted`).
@@ -750,7 +750,7 @@ Tell: the godoc states a precondition AND then describes the internal failure mo
 
 Fix: state the precondition once in plain terms; delete the violation-consequence clause and the responsibility tail. → `SHOULD_FIX`.
 
-**AA. Off-feature editorializing — a branch-added comment describes or justifies the behavior of a
+**W. Off-feature editorializing — a branch-added comment describes or justifies the behavior of a
 DIFFERENT feature/entity that this diff does not change.** A comment's job is to explain the code
 being added or modified. When a change for feature X (say, spaces) adds a comment that narrates a
 sibling feature Y's (boards, direct channels, threads) separate semantics — most often as a
@@ -789,7 +789,7 @@ The discriminator:
 
 → `SHOULD_FIX`.
 
-**AB. Routine-efficiency justification narration — a comment justifies a signature, parameter, or
+**X. Routine-efficiency justification narration — a comment justifies a signature, parameter, or
 code shape by the avoidance of routine redundant work.** Not making unnecessary calls is the
 default expectation of ordinary code, not a design decision that needs narrating. A clause like
 `cfg is passed in rather than fetched here so callers that already hold the config avoid a
@@ -817,11 +817,11 @@ contract, precondition, or bound — only the news that the code isn't wasteful 
 
 Fix: delete the efficiency-justification clause. → `SHOULD_FIX`.
 
-**AD. Identifier left describing removed behavior.** Rot is not confined to comments: when a diff removes a mechanism, the names built on it survive. A `debouncedOnHeightChange` that now fires immediately misinforms every call site and every reader who greps for the debounce. Sweep the diff for removed mechanisms (debounce, throttle, cache, retry, async) and grep the enclosing file for identifiers and comments naming them. Fix: rename the identifier and drop the stale clause. → `SHOULD_FIX`.
+**Y. Identifier left describing removed behavior.** Rot is not confined to comments: when a diff removes a mechanism, the names built on it survive. A `debouncedOnHeightChange` that now fires immediately misinforms every call site and every reader who greps for the debounce. Sweep the diff for removed mechanisms (debounce, throttle, cache, retry, async) and grep the enclosing file for identifiers and comments naming them. Fix: rename the identifier and drop the stale clause. → `SHOULD_FIX`.
 
-**AE. Guarantee promised, best-effort implemented.** An interface or exported godoc that states an outcome ("existing recovery tokens are invalidated") while the body only logs the failure and proceeds is worse than silence — callers build security decisions on the promise. For every changed doc comment asserting an outcome, trace the failure path of the operation that produces it: if failure is logged-and-continued rather than returned, either the comment overclaims or the code should abort. Prefer flagging the code. → `MUST_FIX`.
+**Z. Guarantee promised, best-effort implemented.** An interface or exported godoc that states an outcome ("existing recovery tokens are invalidated") while the body only logs the failure and proceeds is worse than silence — callers build security decisions on the promise. For every changed doc comment asserting an outcome, trace the failure path of the operation that produces it: if failure is logged-and-continued rather than returned, either the comment overclaims or the code should abort. Prefer flagging the code. → `MUST_FIX`.
 
-**AF. Unproven concurrency guarantee — a comment claims a class of interaction cannot happen.**
+**AA. Unproven concurrency guarantee — a comment claims a class of interaction cannot happen.**
 The positive twin of §7C: where §7C catches an invented failure that "would otherwise" occur, this
 catches an invented *safety property*. Trigger on any changed comment asserting that concurrent
 actors cannot interfere — "cannot clobber", "cannot race", "safe against concurrent X", "no two
@@ -859,7 +859,7 @@ lock, CAS, constraint, or isolation level.
 Fix: replace the guarantee with the property you can verify, or name the mechanism that actually
 enforces it. → `MUST_FIX`.
 
-**AG. Cross-layer comment duplication — one fact documented at two layers, where only one owns
+**AB. Cross-layer comment duplication — one fact documented at two layers, where only one owns
 it.** The cross-*layer* sibling of §T (which catches the same fact in a godoc and an inline comment
 of one function). When an API handler, an app service method, and a store method all sit on one
 call path, a fact about behavior belongs at exactly one of them; restating it upward is how the

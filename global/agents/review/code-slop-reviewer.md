@@ -1,6 +1,6 @@
 ---
 name: code-slop-reviewer
-description: Reviews source code (.go/.ts/.tsx/.py/etc) for AI-generation slop that the simplicity/duplication reviewers leave uncovered — dead code (unused imports/vars/params/private symbols/struct fields), god functions, redundant defensive nesting and repeated guard checks, cargo-cult patterns copied without a justifying need, and code that ignores the surrounding file's idiom. Use on any code diff, especially AI-authored or fast-generated changes. Defers abstraction/YAGNI to simplicity-reviewer, duplicate code/types to duplication-reviewer & type-duplication-reviewer, and orphaned indirection / god TYPES to structural-health-reviewer — this agent owns the leftover code-tightness gaps, not those.
+description: "Reviews source code (.go/.ts/.tsx/.py/etc) for AI-generation slop that the simplicity/duplication reviewers leave uncovered \u2014 dead code (unused imports/vars/params/private symbols/struct fields), god functions, redundant defensive nesting, repeated guard checks, cargo-cult patterns copied without a justifying need, and code that ignores the surrounding file's idiom. Use on any code diff, especially AI-authored or fast-generated changes."
 model: sonnet
 effort: medium
 tools: Read, Write, Grep, Glob, Bash
@@ -229,3 +229,7 @@ After every 5 uses OR on any false-positive report:
 2. If a new false-positive shape appeared, add it to **Anti-Slop Guidance**.
 3. If a finding overlapped a sibling agent, tighten the **Scope Boundary** row that leaked.
 4. Note the change in the registry entry if the scope shifted.
+
+## Scope boundaries
+
+Defers abstraction/YAGNI to `simplicity-reviewer`, duplicate code/types to `duplication-reviewer` and `type-duplication-reviewer`, and orphaned indirection / god TYPES to `structural-health-reviewer`. This agent owns the leftover code-tightness gaps, not those.

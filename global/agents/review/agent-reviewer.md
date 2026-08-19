@@ -78,6 +78,8 @@ MCP tools follow pattern: `mcp__{server}__{tool}` — validate the format, not s
 | Specific enough for selection | Description is >20 chars and mentions specific domain/task | SHOULD_FIX |
 | Not overly generic | Flag: "general helper", "utility agent", "does various tasks" | SHOULD_FIX |
 | Proactive hint if intended | If agent should be used proactively, description contains "proactively" or "Use immediately after" | INFO |
+| Not bloated | Description >500 chars. Every description is injected into **every session** as dispatch context, whether or not the agent runs — so length is a fixed per-session token cost, unlike the agent body which is paid only on spawn. Move mechanism detail and `Distinct from X` routing prose into a `## Scope boundaries` body section, keeping the phase tag and trigger clause in the description. | MUST_FIX |
+| Approaching the cap | Description 400-500 chars — trim on next edit | INFO |
 
 ### 4. Tool Configuration Coherence (SHOULD PASS)
 

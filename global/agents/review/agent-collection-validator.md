@@ -1,6 +1,6 @@
 ---
 name: agent-collection-validator
-description: "Audits the entire ~/.claude/agents/ collection for registry accuracy, dead cross-references, naming convention violations, scope overlap, and weak delegation descriptions. Use after adding, renaming, or modifying any agent file. Do not use for validating a single agent — use agent-reviewer for that."
+description: "Audits the entire ~/.claude/agents/ collection for registry accuracy, parked-agent routing, dead cross-references, naming convention violations, scope overlap, and weak delegation descriptions. Use after adding, renaming, or modifying any agent file. Do not use for validating a single agent — use agent-reviewer for that."
 model: sonnet
 effort: medium
 tools: Read, Write, Grep, Glob
@@ -231,6 +231,41 @@ Every `[CODE]` or `[BOTH]` agent's `description:` frontmatter must be written so
 Scan agent bodies for `Task(` or `Task()` references:
 - If the agent is NOT listed as a top-level orchestrator in AGENT_REGISTRY.md → `coll:SUBAGENT_TASK_VIOLATION`
 - Top-level orchestrators MUST have a NOTE in their description about requiring top-level invocation
+
+### 15. Parked-Agent Routing (MUST_FIX)
+
+Agents removed from service are **parked**, not deleted: their files move to
+`~/.claude/agents-disabled/` or `%%MM_ROOT_DIR%%/.claude/agents-disabled/`. A parked agent
+still named in an active routing table will be spawned and fail, because no loadable file
+resolves at any discovery level.
+
+This is distinct from Check 1's `coll:REGISTRY_GHOST`, which fires when the file is absent
+from disk entirely. A parked agent's file *does* exist — just not anywhere the loader looks.
+
+**How to check**:
+1. Build the parked set: basenames of `~/.claude/agents-disabled/**/*.md` and
+   `%%MM_ROOT_DIR%%/.claude/agents-disabled/**/*.md`.
+2. For every line of `AGENT_REGISTRY.md`, extract backticked agent names.
+3. If a name is in the parked set and is NOT in the live set, that line MUST contain a
+   `DISABLED` marker naming where the file is parked. Missing → `coll:PARKED_UNMARKED`.
+
+The check is **per line**, not per section: a reader scanning one table row, or a swarm
+parsing the Parallel Groups table, sees only that row. A `DISABLED` note under the section
+heading does not reach them.
+
+**Registry-wide prose counts too.** A sentence listing many agents (e.g. the Level 2
+pointer under § 5, or a "Related:" note) must mark which of the named agents are parked.
+
+**Fix**: append the marker in the established style — `` `agent-name` — **currently
+DISABLED** (parked in `~/.claude/agents-disabled/<subdir>/`) `` — or re-enable the agent by
+moving its file back.
+
+**Worked example**: 13 references across `AGENT_REGISTRY.md` named parked agents with no
+marker — the three `py-*` reviewers in both the Python parallel-group row and their Tier 3b
+catalog rows, `playbooks-migration-reviewer` in the Playbooks-migrations row, and
+`mobile-expert` / `calls-webrtc-expert` / `slack-migration-expert` in the § 5 Level 2
+pointer sentence. The Playbooks *domain* row was correctly marked, which is what made the
+omission in the sibling rows invisible on a skim.
 
 ## Output Format
 

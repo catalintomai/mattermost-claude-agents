@@ -1,6 +1,6 @@
 ---
 name: plugin-alignment-reviewer
-description: "[CODE] Empirically compares this Mattermost plugin against the canonical SIBLING plugin repos on GitHub (Boards, Calls, the AI/Agents plugin, Playbooks, Properties, starter-template) — reading the real repos, not an internal template — to flag where it diverges from cross-plugin conventions across BOTH production and non-production code: store/migration layout, manifest fields, hook usage, API routing, configuration, build tooling, project structure, AND the test & CI harness (DB bootstrap, fail-vs-skip on a missing prerequisite, fixtures, golangci/CI config). It fetches siblings' test bootstraps (`*_for_test.go`, `support_for_test.go`) and CI workflows, not just production files. Also checks new private helpers against the upstream mmmodel/mmplatform API surface to catch local re-implementations of already-exported utilities (e.g. a local int64OrZero when mmmodel.SafeDereference exists). Use before a PR, or when adding a new subsystem to a mattermost-plugin-* repo, to confirm \"do we look like the other plugins?\". Distinct from plugin-expert (validates against an internalized template, NOT real repos) and from store-reviewer/api-reviewer (single-layer MM-core compliance only)."
+description: "[CODE] Empirically compares this Mattermost plugin against the canonical SIBLING plugin repos on GitHub (Boards, Calls, AI/Agents, Playbooks, Properties, starter-template) \u2014 reading the real repos, not an internal template \u2014 to flag divergence from cross-plugin conventions in both production and test/CI code. Use before a PR, or when adding a new subsystem to a mattermost-plugin-* repo."
 model: sonnet
 effort: medium
 # Tools note: GitHub MCP read tools fetch reference files from the canonical mattermost-org repos
@@ -147,3 +147,9 @@ Format each finding per `~/.claude/agents/_shared/finding-format.md`, tagged `[a
 - **Convention splits** — any INDETERMINATE dimension where the siblings disagree, with the strongest precedent named.
 
 You report and flag; you do not edit code.
+
+## Scope boundaries
+
+Covers store/migration layout, manifest fields, hook usage, API routing, configuration, build tooling, project structure, AND the test & CI harness (DB bootstrap, fail-vs-skip on a missing prerequisite, fixtures, golangci/CI config). Fetches siblings' test bootstraps (`*_for_test.go`, `support_for_test.go`) and CI workflows, not just production files. Also checks new private helpers against the upstream mmmodel/mmplatform API surface to catch local re-implementations of already-exported utilities (e.g. a local `int64OrZero` when `mmmodel.SafeDereference` exists).
+
+Distinct from `plugin-expert` (validates against an internalized template, NOT real repos) and from `store-reviewer`/`api-reviewer` (single-layer MM-core compliance only).

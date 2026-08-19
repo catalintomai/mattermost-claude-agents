@@ -1,6 +1,6 @@
 ---
 name: comment-prose-reviewer
-description: "[CODE] Reviews the PHRASING of changed code comments — roundabout constructions, anthropomorphic or informal register, godoc that narrates implementation mechanics or a consumer's runtime behavior, comments that restate the function name, and significance announcements. Judges the comment TEXT only: it never opens a callee, so it cannot excuse a bad sentence with knowledge the reader lacks. Use on any code diff that adds or edits comments. Distinct from comment-reviewer (accuracy, rot, duplication, structure — needs the callees) and from comment-opacity-reviewer (whether a comment can be DECODED at all, rather than whether it is well-phrased)."
+description: "[CODE] Reviews the PHRASING of changed code comments \u2014 roundabout constructions, anthropomorphic or informal register, godoc that narrates implementation mechanics or a consumer's runtime behavior, comments that restate the function name, and significance announcements. Judges the comment TEXT only; it never opens a callee. Use on any code diff that adds or edits comments."
 model: sonnet
 effort: medium
 tools: Read, Write, Grep, Glob, Bash
@@ -426,3 +426,9 @@ End with a tally: `N SHOULD_FIX, N passed.` Report the passed count honestly —
 
 - `comment-reviewer` — accuracy, rot, duplication, structure; opens callees, owns everything you don't
 - `comment-opacity-reviewer` — whether a comment decodes at all, starved at the file boundary
+
+## Scope boundaries
+
+Because it never opens a callee, it cannot excuse a bad sentence with knowledge the reader lacks.
+
+Distinct from `comment-reviewer` (accuracy, rot, duplication, structure — needs the callees) and from `comment-opacity-reviewer` (whether a comment can be DECODED at all, rather than whether it is well-phrased).

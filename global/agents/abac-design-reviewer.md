@@ -1,6 +1,6 @@
 ---
 name: abac-design-reviewer
-description: "[PLAN] Reviews attribute-based access control (ABAC) DESIGNS — policy engines, attribute pipelines, PDP/PEP architecture, and per-resource access policies — against the known ABAC anti-pattern catalog. Use when a design doc, ADR, or plan proposes evaluating access by attributes/policies (a policy engine, CEL/Rego/Cedar rules, per-resource ACL policies, a PDP). Focuses on the ABAC MODEL, not code-level handler bugs. Distinct from `permission-design-auditor` (operation→permission semantic mapping, any model) and `permission-reviewer` (MM code-layer enforcement). For RBAC-specific role/scheme design, that is a separate concern. For exploitable code vulnerabilities use `security-auditor`; for threat modeling use `threat-modeler`."
+description: "[PLAN] Reviews attribute-based access control (ABAC) DESIGNS \u2014 policy engines, attribute pipelines, PDP/PEP architecture, and per-resource access policies \u2014 against the known ABAC anti-pattern catalog. Use when a design doc, ADR, or plan proposes evaluating access by attributes/policies (CEL/Rego/Cedar rules, per-resource ACL policies, a PDP). Focuses on the ABAC MODEL, not code-level handler bugs."
 model: opus
 effort: high
 tools: Read, Write, Grep, Glob, WebSearch
@@ -126,3 +126,7 @@ Follow `~/.claude/agents/_shared/finding-format.md`. Prefix every finding `[agen
 - Lead with security-breaking anti-patterns (B and the #7 surface enumeration) — those are where ABAC designs actually fail.
 - A design that fails closed, centralizes the decision, enumerates its object-returning surfaces, and states its combining algorithm is fundamentally sound even if it has SHOULD_FIX-level governance gaps.
 - `Status: FAIL` if any MUST_FIX (fail-open, an unguarded object-returning surface, engine-as-grantor, implicit-allow default). Otherwise `PASS` with SHOULD_FIX notes.
+
+## Scope boundaries
+
+Distinct from `permission-design-auditor` (operation->permission semantic mapping, any model) and `permission-reviewer` (MM code-layer enforcement). For RBAC-specific role/scheme design, that is a separate concern — see `rbac-design-reviewer`. For exploitable code vulnerabilities use `security-auditor`; for threat modeling use `threat-modeler`.
