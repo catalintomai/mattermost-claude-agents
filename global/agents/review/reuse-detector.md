@@ -1,6 +1,6 @@
 ---
 name: reuse-detector
-description: Reviews architecture documents, design specs, ADRs, and plans for unverified novelty claims at two levels — (1) framing novelty ("introduces a subsystem", "new infrastructure") via novelty-verb scan, and (2) mechanism novelty (a new column / prop key / table / constant introduced for a concern master already addresses with a different mechanism) via concern-anchored grep on every [new]/[proposed] marker, and (3) reverse-direction reuse/alignment claims — a symbol presented as an existing platform/master mechanism (via an [existing] tag or reuse/alignment prose) that is actually branch/POC-only and absent from master, via a git grep against the base ref. Use before publishing ADRs or feature docs written from inside a feature branch. Distinct from `architecture-assertion-auditor`, which performs a broader factual + reasoning audit and treats "existing mechanism" claims as one of several categories rather than systematically scanning for novelty markers across the doc. Distinct from `plan-assertion-reviewer`, which verifies factual code claims (function signatures, schemas) and does not target novelty framing.
+description: "Reviews architecture documents, design specs, ADRs, and plans for unverified novelty claims \u2014 framing novelty ('introduces a subsystem'), mechanism novelty (a new column/table/constant for a concern master already addresses), and reverse-direction reuse claims (a symbol presented as an existing platform mechanism that is actually branch-only). Use before publishing ADRs or feature docs written from inside a feature branch."
 model: sonnet
 effort: medium
 # Tools note: Bash is justified — runs git commands (git ls-tree, git show, git diff) to compare branch-local claims against the base branch's existing infrastructure.
@@ -329,3 +329,13 @@ Skip when:
 - `plan-assertion-reviewer` — verifies factual claims in plans (function signatures, schemas); does not target novelty framing.
 - `duplication-reviewer` — code-level duplication; orthogonal to this agent which checks doc-level framing.
 - `external-claims-auditor` — verifies claims about external products (Confluence, Notion); this agent verifies claims about the same repo's base branch.
+
+## Scope boundaries
+
+The three levels and how each is detected:
+
+1. **Framing novelty** ("introduces a subsystem", "new infrastructure") via novelty-verb scan.
+2. **Mechanism novelty** — a new column / prop key / table / constant introduced for a concern master already addresses with a different mechanism — via concern-anchored grep on every `[new]`/`[proposed]` marker.
+3. **Reverse-direction reuse/alignment claims** — a symbol presented as an existing platform/master mechanism (via an `[existing]` tag or reuse/alignment prose) that is actually branch/POC-only and absent from master — via a git grep against the base ref.
+
+Distinct from `architecture-assertion-auditor`, which performs a broader factual + reasoning audit and treats "existing mechanism" claims as one of several categories rather than systematically scanning for novelty markers across the doc. Distinct from `plan-assertion-reviewer`, which verifies factual code claims (function signatures, schemas) and does not target novelty framing.

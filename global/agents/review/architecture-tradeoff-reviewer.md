@@ -49,6 +49,8 @@ For each architectural decision identified in the plan, evaluate all viable opti
 
 For each option, score each dimension: `++` (strong advantage), `+` (advantage), `0` (neutral), `-` (disadvantage), `--` (strong disadvantage).
 
+If a dimension score cannot be grounded in evidence from the plan or the codebase (e.g., Query Performance with no query patterns to inspect, Reversibility with no migration history), mark it `[UNVERIFIED]` rather than asserting a score — an unverified score presented as fact distorts the weighted recommendation.
+
 ### Decision Template
 
 ```markdown

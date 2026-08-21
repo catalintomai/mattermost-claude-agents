@@ -68,6 +68,7 @@ Items where mitigation exists but is incomplete or relies on unverified assumpti
 - **MUST_FIX**: Risk is clearly present AND plan has zero mitigation AND the attack is realistic given the architecture
 - **SHOULD_FIX**: Mitigation exists but has gaps, or relies on components not yet verified
 - **COVERED**: Plan explicitly addresses the risk with concrete controls
+- **Unconfirmable claims**: If a mitigation's actual configuration cannot be located in the plan text (claimed but not shown), mark the finding `[UNVERIFIED]` rather than scoring the risk MISSING — the gap is "mitigation not shown", not "no mitigation".
 
 Do NOT flag theoretical risks that don't apply to the specific architecture. Be precise about WHICH agents, tools, or data flows create the risk.
 

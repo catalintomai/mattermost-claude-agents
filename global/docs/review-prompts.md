@@ -6,6 +6,21 @@ Reference doc for `/review-code` and `/review-plan`. Contains prompt templates a
 
 ---
 
+## Spawning Write-Capable Agents (Mandatory)
+
+The review groups in `AGENT_REGISTRY.md` route to agents that hold `Write`, `Edit`, and `Bash` — every `-expert`, plus `-writer`, `-refactorer`, `-optimizer`, and `-debugger`. As of this writing that is eleven agents across the Plugin framework, Deep experts, Frontend, and Testing groups. They carry those tools for their implementation role; on a review pass they must not use them.
+
+`grounding-rules.md` § "Read-Only When Reviewing" is the primary control and every review agent reads it as its FIRST ACTION. **Additionally, state it in the prompt** whenever you spawn one of these agents for review:
+
+```
+REVIEW ONLY — do not create, edit, or delete any file, and do not run a state-changing
+command. Report proposed changes as findings.
+```
+
+Do not rely on the tool list to constrain behavior. An agent that edits during review drops an unattributed change into the caller's working tree, where it is indistinguishable from their own work and joins their next commit — this happened on a `/review-code --full` run and was only caught by comparing file mtimes against the fix-phase edits.
+
+---
+
 ## Code Review Prompt (`/review-code`)
 
 ```

@@ -112,6 +112,7 @@ Controls that exist but have gaps in coverage or rely on manual steps.
 - **MUST_FIX**: A security control is claimed but the enforcement mechanism doesn't exist or is bypassable
 - **SHOULD_FIX**: Control works but has gaps (e.g., logs exist but agent can delete them)
 - **Informational**: Hardening suggestions beyond what the plan claims
+- **Unconfirmable claims**: If a claimed control's enforcement mechanism cannot be located in the plan text, or a WebSearch verification (per Threat Model Verification) is inconclusive, mark the finding `[UNVERIFIED]` rather than assuming the control is absent or the bypass is real — state exactly what could not be confirmed.
 
 Prefix every finding with `[agent:deployment-hardening-auditor]`.
 

@@ -1,6 +1,6 @@
 ---
 name: mutation-test-reviewer
-description: Reviews test assertion strength via mutation analysis — do the tests actually catch injected bugs? Default STATIC mode reasons about mutants on changed lines and checks whether existing assertions would kill them (no tooling required). TOOL mode runs gremlins on changed non-DB packages when installed. Use after go-test-writer/ts-test-writer produce tests, or when reviewing a diff whose tests pass but may be assertion-weak. Distinct from test-coverage-reviewer (checks tests EXIST and look sound; this agent checks tests would FAIL if the code were wrong).
+description: "Reviews test assertion strength via mutation analysis \u2014 do the tests actually catch injected bugs? Default STATIC mode reasons about mutants on changed lines and needs no tooling; TOOL mode runs gremlins on changed non-DB packages when installed. Use after go-test-writer/ts-test-writer produce tests, or when reviewing a diff whose tests pass but may be assertion-weak."
 model: sonnet
 effort: medium
 # Tools note: Bash is justified — git diff to scope mutants to changed lines, and (TOOL mode only)
@@ -111,3 +111,7 @@ Each finding names: the mutant (before → after), the test(s) that execute the 
 - **Do not demand** a killing test for every conceivable mutant on a line — report the highest-value mutant per changed function (80/20), not a combinatorial list.
 - **Do not suggest** running gremlins repo-wide or in CI — that is an infrastructure decision for the user, not a review finding.
 - **Do not report** a LIVED mutant when a killing assertion exists in another package's tests (api4 integration or E2E) — cross-package kills count; grep before reporting.
+
+## Scope boundaries
+
+Distinct from `test-coverage-reviewer`, which checks that tests EXIST and look sound. This agent checks that tests would FAIL if the code were wrong.

@@ -1,6 +1,6 @@
 ---
 name: rbac-design-reviewer
-description: "[PLAN] Reviews role-based access control (RBAC) DESIGNS — role catalogs, role hierarchies, permission-to-role mappings, default/scheme roles, and separation-of-duties constraints — against the known RBAC anti-pattern catalog. Use when a design doc, ADR, or plan proposes roles, schemes, permission bundles, role inheritance, or assignment paths. Focuses on the RBAC MODEL (role granularity, least privilege, SoD, hierarchy, privilege creep), not code-level enforcement bugs. Distinct from `abac-design-reviewer` (attribute/policy-engine designs), `permission-design-auditor` (operation→permission semantic mapping), and `permission-reviewer` (MM code-layer enforcement). For exploitable code vulnerabilities use `security-auditor`; for threat modeling use `threat-modeler`."
+description: "[PLAN] Reviews role-based access control (RBAC) DESIGNS \u2014 role catalogs, role hierarchies, permission-to-role mappings, default/scheme roles, and separation-of-duties constraints \u2014 against the known RBAC anti-pattern catalog. Use when a design doc, ADR, or plan proposes roles, schemes, permission bundles, role inheritance, or assignment paths. Focuses on the RBAC MODEL, not code-level enforcement bugs."
 model: opus
 effort: high
 tools: Read, Write, Grep, Glob, WebSearch
@@ -120,3 +120,9 @@ Follow `~/.claude/agents/_shared/finding-format.md`. Prefix every finding `[agen
 - Lead with the least-privilege-breaking anti-patterns: over-powerful default (#9), god role (#2), the deny-in-additive-model trap (#13), dangerous unions (#16), and the borrowed-permission reach hole (#20 — the one class the design's own audit systematically misses).
 - A design with a least-privilege default, a small intentional role catalog, a stated combining algorithm, assignment-time enforcement of any "must-not-have", and enumerable roles is fundamentally sound even with SHOULD_FIX governance gaps.
 - `Status: FAIL` if any MUST_FIX (god-role as an operational default, over-powerful default role, a relied-upon deny the model can't express, or a required SoD that is unexpressible). Otherwise `PASS` with SHOULD_FIX notes.
+
+## Scope boundaries
+
+Model concerns: role granularity, least privilege, separation of duties, hierarchy, privilege creep.
+
+Distinct from `abac-design-reviewer` (attribute/policy-engine designs), `permission-design-auditor` (operation->permission semantic mapping), and `permission-reviewer` (MM code-layer enforcement). For exploitable code vulnerabilities use `security-auditor`; for threat modeling use `threat-modeler`.

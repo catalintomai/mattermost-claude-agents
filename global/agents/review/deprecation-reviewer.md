@@ -175,8 +175,23 @@ Domain tags — prefix all findings with `[agent:deprecation-reviewer]`:
 - **Do not flag** zombie code outside the diff scope as MUST_FIX — per the Diff Scope Rule, pre-existing zombie code outside changed lines is INFO only, not a blocker.
 - **Do not flag** code that cannot be verified as unused from the codebase alone (e.g., SDK methods consumed by external clients) — mark as `[UNVERIFIED]` and flag for human review rather than asserting it is safe to remove.
 
+## Scope Boundary: This Agent Does NOT Check for New Uses of Deprecated APIs
+
+This agent reviews the act of **deprecating and removing**. The opposite
+direction — a diff that introduces a NEW call to an already-deprecated API — is
+owned by `mm-deprecation-reviewer`, which runs a mechanical sweep (harvest
+`// Deprecated:` markers repo-wide → intersect with the diff's added lines →
+rank by how far the replacement's migration has progressed).
+
+Do not attempt that check here; it needs base-branch adoption counts this agent
+has no tooling for, and duplicating it produces two reports of one finding. If
+you are reviewing a removal PR in a repo where `mm-deprecation-reviewer` is not
+available, note in your output that new-deprecated-usage went unchecked rather
+than silently leaving the gap.
+
 ## See Also
 
+- `mm-deprecation-reviewer` — The other direction: new code consuming already-deprecated APIs (MM projects)
 - `backwards-compatibility-reviewer` — Breaking change detection; complements this agent at the change-time stage
 - `scope-drift-reviewer` — Ensures deprecation PRs don't include unrelated changes
 

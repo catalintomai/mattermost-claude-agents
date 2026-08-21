@@ -3,7 +3,8 @@ name: agent-reviewer
 description: Validates Claude Code agent (.md) files for frontmatter correctness, tool configuration, description quality, and agentic design best practices. Use when reviewing new or modified agent files, or auditing the full ~/.claude/agents/ and .claude/agents/ directories. Distinct from plan-completeness-checker (which reviews plan files, not agent files).
 model: sonnet
 effort: medium
-tools: Read, Grep, Glob
+# Tools note: Write is for swarm-mode findings output files only — this reviewer never edits agent files.
+tools: Read, Write, Grep, Glob
 ---
 
 > **Grounding Rules**: FIRST ACTION — Read the file `~/.claude/agents/_shared/grounding-rules.md` using the Read tool and follow ALL rules strictly.
@@ -77,6 +78,8 @@ MCP tools follow pattern: `mcp__{server}__{tool}` — validate the format, not s
 | Specific enough for selection | Description is >20 chars and mentions specific domain/task | SHOULD_FIX |
 | Not overly generic | Flag: "general helper", "utility agent", "does various tasks" | SHOULD_FIX |
 | Proactive hint if intended | If agent should be used proactively, description contains "proactively" or "Use immediately after" | INFO |
+| Not bloated | Description >500 chars. Every description is injected into **every session** as dispatch context, whether or not the agent runs — so length is a fixed per-session token cost, unlike the agent body which is paid only on spawn. Move mechanism detail and `Distinct from X` routing prose into a `## Scope boundaries` body section, keeping the phase tag and trigger clause in the description. | MUST_FIX |
+| Approaching the cap | Description 400-500 chars — trim on next edit | INFO |
 
 ### 4. Tool Configuration Coherence (SHOULD PASS)
 

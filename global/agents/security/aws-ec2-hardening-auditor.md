@@ -133,6 +133,7 @@ Controls that exist but have gaps (e.g., SG restricts inbound but allows all out
 - **MUST_FIX**: A security control is claimed but the AWS configuration isn't specified (or relies on a dangerous default like IMDSv1 or allow-all egress)
 - **SHOULD_FIX**: Control is specified but has gaps (e.g., SSH open to 0.0.0.0/0 "temporarily")
 - **Informational**: Hardening suggestions beyond what the plan claims (e.g., "consider GuardDuty")
+- **Unconfirmable claims**: If a claimed control's actual configuration cannot be located in the plan text (e.g., an IAM policy is referenced but not shown), mark the finding `[UNVERIFIED]` rather than asserting the control is absent — the gap is "configuration not shown", not "control missing".
 
 Prefix every finding with `[agent:aws-ec2-hardening-auditor]`.
 

@@ -41,7 +41,7 @@ The Parallel Groups routing table for `/review-code` lives in the **global** reg
 | `pattern-reviewer` | [CODE] | MM upstream conventions per layer | `mattermost/review/pattern-reviewer.md` |
 | `comment-reviewer` | [CODE] | Comment accuracy, godoc, copyright headers | `mattermost/review/comment-reviewer.md` |
 | `error-handling-reviewer` | [CODE] | Missing/swallowed errors (Go + TS, MM layer-specific) | `mattermost/review/error-handling-reviewer.md` |
-| `hardcoded-values-reviewer` | [CODE] | Magic numbers, repeated strings, constants that should be hoisted | `mattermost/review/hardcoded-values-reviewer.md` |
+| `hardcoded-values-reviewer` | [CODE] | Magic numbers, repeated strings, constants that should be hoisted, and merge-bound files citing machine-local or gitignored paths | `mattermost/review/hardcoded-values-reviewer.md` |
 | `production-reviewer` | [CODE] | Mock/stub/placeholder code in production paths | `mattermost/review/production-reviewer.md` |
 | `duplication-reviewer` | [CODE] | Duplication and reusability opportunities | `mattermost/review/duplication-reviewer.md` |
 | `db-call-reviewer` | [CODE] | N+1 queries, unnecessary DB calls, missing batching | `mattermost/review/db-call-reviewer.md` |

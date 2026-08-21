@@ -61,7 +61,23 @@ Two retractions on one PR make the cost concrete. A reviewer flagged a handler f
 
 If the convention check cannot be performed with the material available, downgrade the finding to `[UNVERIFIED]` rather than asserting the violation.
 
-### 8. Mark Uncertainty Visibly
+### 8. Generated Files Are Not Churn
+
+Before reporting *any* finding whose claim is "these lines changed and nothing explains why" — untraced churn, drive-by cleanup, unrelated removal — first establish whether the file is **generated**. One command answers it:
+
+```bash
+grep -rn "<path/to/file>" Makefile package.json */package.json 2>/dev/null
+```
+
+If the path appears as a build target or an `--out-file`, the finding is void. Diffs in a build output are the expected result of running the generator, not unexplained churn. The only legitimate question left is whether the *source* change justified the regeneration — so review the source, not the artifact.
+
+Common generated-but-committed artifacts: i18n/message catalogues (`formatjs extract --out-file`, mmgotool), lockfiles (`go.sum`, `package-lock.json`), mocks (`make plugin-mocks`, mockery), API clients, and snapshots. Hand-editing any of them creates drift that the next generator run silently reverts — so a "fix" that edits the artifact is worse than no fix, because it looks correct until someone runs the build.
+
+A second, independent check that kills the same false positive: **find a sibling in the same state.** If another symbol of the same kind (another deferred feature, another commented-out block) was treated the same way and nobody objected, the change is the local norm rather than an anomaly.
+
+Concrete case: a reviewer flagged three removed "Favorites" i18n keys as untraced churn in a permissions PR. `webapp/i18n/en.json` is the `--out-file` of `formatjs extract`; the keys' only references sat inside a deferred-feature JSX comment, so they were not in the AST and extraction correctly dropped them. The sibling check was equally decisive — `docs.sidebar.space.mute`, another deferred feature, was already absent for the identical reason. The finding was relayed and acted on, producing two wrong edits before either check was run.
+
+### 9. Mark Uncertainty Visibly
 
 - [VERIFIED] — Found in authoritative source, traceable, reproducible
 - [UNVERIFIED — reason] — Could not verify; flagged for manual review

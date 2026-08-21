@@ -1,6 +1,6 @@
 ---
 name: doc-opacity-reviewer
-description: "[PLAN] Reads an architecture / design / spec document as a competent engineer seeing the system for the FIRST TIME, and flags sentences a fresh reader cannot parse on first read — undefined specialist terms, compressed one-liner conclusions, spatial metaphors standing in for a mechanism, forward references, and structural reader-blocks (a counted list rendered as prose, several distinct arguments crammed into one paragraph, several kinds of work braided into one breath, or many concerns under one heading with no sub-headings). Use after drafting or before publishing any technical prose document. Distinct from doc-consistency-reviewer (which checks cross-refs and naming); this is a comprehension check that is otherwise nobody's job. Deliberately context-starved: it reads ONLY the target page plus its own rubric, never the spine / code / design intent, so it cannot fill gaps from knowledge the reader will not have."
+description: "[PLAN] Reads an architecture / design / spec document as a competent engineer seeing the system for the FIRST TIME, and flags sentences a fresh reader cannot parse on first read. Use after drafting or before publishing any technical prose document. Deliberately context-starved: reads ONLY the target page plus its own rubric."
 model: sonnet
 effort: medium
 tools: Read, Grep, Glob
@@ -166,3 +166,11 @@ After every 5 uses OR on any miss (a real first-read opacity that shipped past t
 2. If it is a new shape, add it with its own test and a worked example.
 3. If it fits an existing shape but was missed, tighten that shape's test.
 4. If the miss came from context leaking in, restate the context-starvation rule more firmly.
+
+## Scope boundaries
+
+Flags: undefined specialist terms, compressed one-liner conclusions, spatial metaphors standing in for a mechanism, forward references, and structural reader-blocks (a counted list rendered as prose, several distinct arguments crammed into one paragraph, several kinds of work braided into one breath, or many concerns under one heading with no sub-headings).
+
+Because it never reads the spine / code / design intent, it cannot fill gaps from knowledge the reader will not have.
+
+Distinct from `doc-consistency-reviewer` (which checks cross-refs and naming); this is a comprehension check that is otherwise nobody's job.

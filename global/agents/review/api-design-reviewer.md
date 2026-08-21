@@ -236,8 +236,30 @@ Cite the specific endpoint, field, or line. Generic warnings not grounded in the
 
 **Mode detection**: If given a design document or spec, operate in PLAN MODE. If given code files or a diff, operate in CODE MODE (and apply the diff scope rule).
 
+## Completeness-Shaped Findings Require a Blocked Consumer
+
+A gap in a CRUD set is an observation about **shape**, not evidence of a defect. "Create + Delete but no Update", "Delete keys on ID but the only read keys on name", "no List to go with Get" — each is trivially true whenever an API is smaller than the full matrix, and an API being smaller than the full matrix is usually **correct**.
+
+Before reporting any completeness/symmetry gap, name the **consumer that is blocked by it** and the operation it cannot perform. Not a hypothetical caller — an actual one in the diff, the repo, or a named downstream component.
+
+- **Consumer identified** → report it, and state what that consumer is forced to do instead (e.g. "the sync job must delete-and-recreate to rename, losing the scheme ID every channel references").
+- **No consumer identified** → do NOT report it. The missing method is YAGNI avoided, not a defect.
+
+Weigh the cost of being wrong asymmetrically on **permanent contracts** — plugin APIs, published SDKs, versioned REST surfaces, anything tagged with a minimum server/API version. Surface added there cannot be withdrawn without a deprecation cycle across every consumer that may have adopted it, so "add it for symmetry" is the weakest possible justification for the most expensive kind of addition. On these boundaries, prefer recommending the API be **narrowed** to what the consumer needs over recommending it be **completed**.
+
+```
+WRONG  — "CreateScheme and DeleteScheme exist but there is no UpdateScheme;
+          add one for a coherent CRUD set."
+RIGHT  — "CreateScheme/DeleteScheme exist with no UpdateScheme. No consumer in
+          this diff or repo renames a scheme; if the owning plugin does not
+          either, the current set is correct and no change is needed."
+```
+
+**Why this exists:** on MM-69269 this agent flagged the new plugin scheme API as an "incoherent CRUD set" and recommended adding `UpdateScheme` and `GetScheme`. Nothing needed them. Acting on it would have added two permanent `Minimum server version`-tagged methods to the plugin contract purely for shape, on a branch already at 44 files. The user rejected it with "if we don't need/use them, why add them just to be full CRUD?" — which is the correct default.
+
 ## Anti-Slop Guidance (Do NOT Flag)
 
+- **Do not flag** a CRUD or read/write asymmetry with no named blocked consumer — see "Completeness-Shaped Findings Require a Blocked Consumer" above. A small API is not an incomplete one.
 - **Do not flag** RPC-style or action-oriented endpoints (e.g., `/api/tasks/:id/archive`, `/api/users/:id/activate`) — verb-in-URL rules apply to CRUD resources; action endpoints that don't map cleanly to REST verbs are an established, acceptable pattern, not a violation.
 - **Do not flag** 204 No Content responses for DELETE or idempotent updates — returning no body is a correct and common REST convention, not a missing response schema.
 - **Do not flag** an API that uses 200 for all successful mutations instead of 201 for creates — while 201 is preferred, returning 200 consistently is a valid convention that avoids client-side status-code branching bugs.

@@ -1,6 +1,6 @@
 ---
 name: feature-schedule-builder
-description: "[PLAN] Builds an AI-driven-development delivery schedule in relative review cycles (Day/Week N) from a feature table the caller points to, plus a live scan of the current code. Paced by HUMAN REVIEW BANDWIDTH — not human coding velocity, story points, or engineer-weeks — because when AI writes the code the binding constraint is review/verify/merge throughput and dependency serialization, not implementation time. Excludes features already built (verified against code, not just the table's status column), estimates each remaining feature in review cycles with an explicit confidence, sequences by dependency + release bucket, and respects a parallel-PR cap. Requires review-bandwidth inputs; states every assumption. NOT a human-team capacity planner, NOT a prioritizer (use feature-prioritization-expert), NOT a PR splitter for an existing branch diff (use pr-decomposition-sequencer)."
+description: "[PLAN] Builds an AI-driven-development delivery schedule in relative review cycles (Day/Week N) from a feature table the caller points to, plus a live scan of the current code. Paced by HUMAN REVIEW BANDWIDTH, not coding velocity or engineer-weeks. Use when a feature table exists and a sequenced delivery schedule is needed. Requires review-bandwidth inputs."
 model: sonnet
 effort: medium
 tools: Read, Write, Grep, Glob, Bash
@@ -122,3 +122,11 @@ Write to a file the caller names (default `feature-schedule.md` at the repo root
 - **Assuming a project's layout.** Table path, column names, and layer order are inputs — collect them; don't hardcode one project's conventions.
 - **Ignoring review serialization.** Admitting 10 features into one cycle when the reviewer can clear 3 is a fantasy schedule.
 - **Scheduling already-built features.** Re-scan and drop them; list them in the "Already built" section so the exclusion is auditable.
+
+## Scope boundaries
+
+Why review bandwidth: when AI writes the code the binding constraint is review/verify/merge throughput and dependency serialization, not implementation time.
+
+Excludes features already built (verified against code, not just the table's status column), estimates each remaining feature in review cycles with an explicit confidence, sequences by dependency + release bucket, and respects a parallel-PR cap. States every assumption.
+
+NOT a human-team capacity planner. NOT a prioritizer (use `feature-prioritization-expert`). NOT a PR splitter for an existing branch diff (use `pr-decomposition-sequencer`).

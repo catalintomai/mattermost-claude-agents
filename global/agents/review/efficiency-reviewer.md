@@ -1,6 +1,6 @@
 ---
 name: efficiency-reviewer
-description: Reviews code for wasted in-memory work the diff introduces — computed results that are discarded, the same data traversed or recomputed more than once, loop-invariant work done inside the loop, independent operations run serially that could overlap, and blocking work added to startup or a hot path. Also flags long-lived objects built from closures that retain a large captured scope (a memory leak). Use on any code diff, especially hot paths (autosave, request handlers, render/broadcast loops). The in-memory analogue of db-call-reviewer: defers DB N+1/round-trips → db-call-reviewer, unbounded batches / goroutine-per-item → batch-operations-reviewer, redundant STATE & over-engineering → simplicity-reviewer, goroutine races → concurrent-go-reviewer, profiling & micro-optimization → performance-optimizer.
+description: "Reviews code for wasted in-memory work the diff introduces \u2014 discarded computations, data traversed or recomputed more than once, loop-invariant work inside the loop, independent operations run serially that could overlap, and blocking work added to startup or a hot path. Also flags long-lived objects built from closures that retain a large captured scope. Use on any code diff, especially hot paths (autosave, request handlers, render/broadcast loops)."
 model: sonnet
 effort: medium
 tools: Read, Write, Grep, Glob
@@ -302,3 +302,13 @@ string regenerated per call instead of a constant (ACCEPTED). Also PR #36511 `se
 - `simplicity-reviewer` — over-engineering and redundant STATE (vs. this agent's redundant WORK)
 - `concurrent-go-reviewer` — goroutine races, deadlocks, leaks (correctness of concurrency, not whether to parallelize)
 - `performance-optimizer` — profiling, benchmarking, and measured micro-optimization
+
+## Scope boundaries
+
+The in-memory analogue of `db-call-reviewer`. Defers:
+
+- DB N+1 / round-trips -> `db-call-reviewer`
+- Unbounded batches, goroutine-per-item -> `batch-operations-reviewer`
+- Redundant STATE and over-engineering -> `simplicity-reviewer`
+- Goroutine races -> `concurrent-go-reviewer`
+- Profiling and micro-optimization -> `performance-optimizer`

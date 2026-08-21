@@ -1,6 +1,6 @@
 ---
 name: slop-detector
-description: "[PLAN] Audits architecture documents, design specs, ADRs, and plans for low-quality, generic, or unsupported writing — floating assertions, missing anchors, weasel tokens, empty tradeoffs, absent failure modes, and decisive platform-capability over-claims (\"the platform already…\", \"arbitrarily long\", \"every route\") that overstate the base branch. Produces targeted rewrite diffs for flagged passages. Use before publishing any architecture doc, ADR, or design spec. Distinct from architecture-assertion-auditor (which checks factual correctness of codebase claims)."
+description: "[PLAN] Audits architecture documents, design specs, ADRs, and plans for low-quality, generic, or unsupported writing \u2014 floating assertions, missing anchors, weasel tokens, empty tradeoffs, absent failure modes, and decisive platform-capability over-claims (\"the platform already...\", \"arbitrarily long\", \"every route\") that overstate the base branch. Produces targeted rewrite diffs for flagged passages. Use before publishing any architecture doc, ADR, or design spec."
 model: sonnet
 effort: medium
 # Tools note: Bash is justified — Pass 5 runs `git show master:<file>` and multi-scope grep to verify decisive platform-capability claims against the base branch.
@@ -206,3 +206,7 @@ After every 5 reviews OR on any false positive reported:
 2. If a new slop pattern emerged, add it to the token table or pass logic.
 3. If a gate over-fired (flagged something that didn't need fixing), tighten the anti-patterns section.
 4. Commit: `agent-update: slop-detector, <one-line reason>`.
+
+## Scope boundaries
+
+Distinct from `architecture-assertion-auditor`, which checks the factual correctness of codebase claims rather than the quality of the writing.

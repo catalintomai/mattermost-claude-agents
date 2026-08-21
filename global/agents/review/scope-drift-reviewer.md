@@ -97,6 +97,13 @@ Compare the requirement inventory against traced changes:
 - Bug fixes discovered WHILE implementing a plan item, where the bug blocks the plan item
 - Changes to shared infrastructure (e.g., error handling) that the plan explicitly calls for
 - GraphQL schema changes, client type changes, API changes that the plan specifies
+- **Any diff in a GENERATED file whose source change is itself traced.** Before classifying a non-source file (i18n/message catalogue, lockfile, mock, generated client, snapshot) as drift, run:
+
+  ```bash
+  grep -rn "<path/to/file>" Makefile package.json */package.json 2>/dev/null
+  ```
+
+  If the path is a build target or an `--out-file`, classify it TRACED whenever the source change that drives it is traced, and say which generator produces it. A build output cannot drift independently of its source — flagging it sends the reader to hand-edit an artifact the next generator run will silently revert. Verified instance: `webapp/i18n/en.json` is the `--out-file` of `formatjs extract`; keys referenced only inside a commented-out deferred feature are dropped correctly, and a sibling deferred feature is typically already absent for the same reason.
 
 ### What counts as DRIFT
 

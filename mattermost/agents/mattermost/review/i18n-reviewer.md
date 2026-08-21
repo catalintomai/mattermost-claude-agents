@@ -447,6 +447,15 @@ Patterns seen once or twice in MM PR review. Check them, but weight a hit as a c
 
 ---
 
+## PASS Evidence Rule
+
+A PASS on a key-sync claim ("every id appears in en.json") is valid only if the id list was
+mechanically enumerated — a grep of all `FormattedMessage`/`formatMessage`/`defineMessage`/
+`NewAppError` sites — and diffed against the extracted files, not sampled. Cite the counts on
+both sides.
+
+---
+
 ## Output Format
 
 > **Canonical format**: `~/.claude/agents/_shared/finding-format.md`

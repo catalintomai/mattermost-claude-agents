@@ -195,3 +195,10 @@ Use the canonical finding format from `~/.claude/agents/_shared/finding-format.m
 - **Transitive import changes**: Adding an import because new feature code in the same file uses a new package.
 - **Migration dependencies**: Updating an existing DB query to include a new column that was added by this branch's migration.
 - **Same-function fixes**: If the feature modifies function F, and a nil-guard is added to the same function on a line adjacent to the feature change and in the same `if` block, it may be a required guard for the new code path.
+- **Changes in a GENERATED file** — MANDATORY check, run it before flagging any diff in a non-source file (i18n/message catalogues, lockfiles, mocks, generated clients, snapshots):
+
+  ```bash
+  grep -rn "<path/to/file>" Makefile package.json */package.json 2>/dev/null
+  ```
+
+  If the path is a build target or an `--out-file`, **do not flag it**. A diff in a build output is the generator doing its job, not unexplained churn; judge the *source* change instead. Flagging it is worse than a no-op, because the natural "fix" is to hand-edit the artifact — which the next generator run silently reverts, leaving a diff that looks correct until someone runs the build. `webapp/i18n/en.json` (the `--out-file` of `formatjs extract`) is the recurring instance: keys whose only references sit inside a commented-out deferred feature are correctly dropped, and a sibling deferred feature is usually already absent for the same reason — check for one before calling a removal anomalous.
